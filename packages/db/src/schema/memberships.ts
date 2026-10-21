@@ -34,6 +34,9 @@ export const memberships = pgTable(
     clientAccountId: uuid().references(() => clientAccounts.id),
     // Crew passes share a group id.
     groupId: uuid(),
+    // Travel dates, used for airport meet-and-assist and to order the eSIM 7 days before arrival.
+    arrivesOn: date({ mode: "string" }),
+    departsOn: date({ mode: "string" }),
     // Pilot pass number (INTU-0001) kept for imported members.
     passNumber: text().unique(),
     ...timestamps,

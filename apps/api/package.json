@@ -8,7 +8,9 @@
     "start": "tsx src/server.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "import:pilot": "tsx --env-file-if-exists=../../.env scripts/import-pilot.ts",
+    "create:founder": "tsx --env-file-if-exists=../../.env scripts/create-founder.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
@@ -16,6 +18,7 @@
     "@intu/rules": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.13",
+    "jose": "6.2.13",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -57,3 +57,10 @@ export async function grantAllowances(tx: Db | Tx, membershipId: string, actor: 
   }
   return created;
 }
+
+/** The single row an insert or update `.returning()` produced; throws if there isn't exactly one. */
+export function one<T>(rows: T[]): T {
+  const [row] = rows;
+  if (rows.length !== 1 || row === undefined) throw new Error(`Expected one row, got ${rows.length}`);
+  return row;
+}

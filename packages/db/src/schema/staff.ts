@@ -7,6 +7,8 @@ import { partners, venues } from "./partners.ts";
 export const staffUsers = pgTable("staff_users", {
   id: id(),
   role: staffRoleEnum().notNull(),
+  // The Supabase Auth user this staff member signs in as (intu team; door staff use PINs).
+  authUserId: uuid().unique(),
   fullName: text().notNull(),
   email: text().unique(),
   phone: text(),
