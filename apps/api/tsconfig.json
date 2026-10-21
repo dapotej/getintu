@@ -1,4 +1,4 @@
 {
   "extends": "@intu/config/tsconfig.base.json",
-  "include": ["src", "test", "scripts"]
+  "include": ["src", "test", "scripts", "vitest.config.ts"]
 }

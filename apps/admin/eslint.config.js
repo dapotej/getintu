@@ -5,4 +5,6 @@ export default [
   { ignores: [".next/**", "next-env.d.ts", "playwright-report/**", "test-results/**", "demo/dist/**"] },
   // The demo build's stand-in data, like test fixtures, may assert that seed rows exist.
   { files: ["demo/**/*.ts", "demo/**/*.tsx"], rules: { "@typescript-eslint/no-non-null-assertion": "off" } },
+  // The demo build script runs in Node.
+  { files: ["demo/build.mjs"], languageOptions: { globals: { console: "readonly", process: "readonly" } } },
 ];
