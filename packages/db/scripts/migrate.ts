@@ -2,6 +2,13 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { createDb, databaseUrl } from "../src/client.ts";
 
 const url = databaseUrl();
+const protocol = new URL(url).protocol;
+if (protocol !== "postgres:" && protocol !== "postgresql:") {
+  const message = `DATABASE_URL must be a Postgres connection string (postgresql://…), not a ${protocol.replace(":", "")} address. In Supabase: Connect → Session pooler.`;
+  console.error(message);
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=Database migration failed::${message}`);
+  process.exit(1);
+}
 const { db, sql } = createDb(url, { max: 1 });
 try {
   await migrate(db, { migrationsFolder: new URL("../drizzle", import.meta.url).pathname });

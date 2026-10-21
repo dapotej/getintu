@@ -16,7 +16,7 @@
 
 ### Turning on automatic staging migrations
 
-1. In Supabase: Project Settings → Database → Connection string → **Session pooler** (works over IPv4 from GitHub). Copy it and put in the database password.
+1. In Supabase: **Connect** (top of the project dashboard) → **Session pooler** connection string, which works over IPv4 from GitHub. It starts `postgresql://postgres.xokexyqjlydjqquownvw:` and ends `pooler.supabase.com:5432/postgres`. Put the database password in place of `[YOUR-PASSWORD]`. Not the project URL (`https://…supabase.co`) and not the direct connection (`db.…supabase.co`, IPv6 only).
 2. In GitHub: `dapotej/getintu` → Settings → Environments → New environment `staging`, then add the secret `STAGING_DATABASE_URL` with that string.
 3. The next push to `main` runs `migrate-staging` after the checks pass.
 
