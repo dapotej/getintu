@@ -1,5 +1,6 @@
 // TEST seed data. Every name is fictional and starts with "TEST"; phone numbers come from
 // ranges reserved for fiction (UK Ofcom 07700 900xxx, US 555-01xx); emails use example.com.
+import type { benefits, memberships, offers, planPrices, plans } from "./schema/index.ts";
 import type { OpeningHours, venues } from "./schema/partners.ts";
 
 const daily = (open: string, close: string): OpeningHours => ({
@@ -47,4 +48,103 @@ export const testMembers = [
   { id: "00000000-0000-4000-8000-000000000303", fullName: "TEST Chioma Houston", phone: "+12025550101", country: "US" },
   { id: "00000000-0000-4000-8000-000000000304", fullName: "TEST Emeka Atlanta", phone: "+12025550102", country: "US" },
   { id: "00000000-0000-4000-8000-000000000305", fullName: "TEST Ngozi Crew Lead", phone: "+447700900003", country: "GB" },
+  { id: "00000000-0000-4000-8000-000000000306", fullName: "TEST Kemi Crew", phone: "+447700900004", country: "GB" },
+  { id: "00000000-0000-4000-8000-000000000307", fullName: "TEST Bayo Crew", phone: "+447700900005", country: "GB" },
+  { id: "00000000-0000-4000-8000-000000000308", fullName: "TEST Ife Crew", phone: "+447700900006", country: "GB" },
 ].map((m) => ({ ...m, email: `member+${m.id.slice(-3)}@example.com`, consentTermsAt: new Date("2026-11-01T00:00:00Z"), isTest: true }));
+
+// December Pass tiers from the one-page concept (proposed prices). TEST copies only.
+const essential = "00000000-0000-4000-8000-000000000401";
+const plus = "00000000-0000-4000-8000-000000000402";
+const crew = "00000000-0000-4000-8000-000000000403";
+const season = { seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", onSaleFrom: "2026-11-15", onSaleTo: "2027-01-05", isTest: true };
+
+export const testPlans: (typeof plans.$inferInsert)[] = [
+  { id: essential, code: "TEST-DEC26-ESSENTIAL", name: "TEST December Pass Essential", ...season },
+  { id: plus, code: "TEST-DEC26-PLUS", name: "TEST December Pass Plus", ...season },
+  { id: crew, code: "TEST-DEC26-CREW", name: "TEST December Pass Crew", groupSize: 4, ...season },
+];
+
+export const testPlanPrices: (typeof planPrices.$inferInsert)[] = [
+  { planId: essential, currency: "GBP", amountMinor: 14_900 },
+  { planId: essential, currency: "USD", amountMinor: 18_900 },
+  { planId: plus, currency: "GBP", amountMinor: 29_900 },
+  { planId: plus, currency: "USD", amountMinor: 37_900 },
+  { planId: crew, currency: "GBP", amountMinor: 89_900 },
+  { planId: crew, currency: "USD", amountMinor: 113_900 },
+];
+
+type BenefitRow = typeof benefits.$inferInsert;
+const perPass = (planId: string, type: BenefitRow["type"], quantity: number | null, extra: Partial<BenefitRow> = {}): BenefitRow => ({
+  planId,
+  type,
+  quantity,
+  period: "per_pass",
+  allowedVenueTiers: ["standard", "top"],
+  ...extra,
+});
+
+export const testBenefits: BenefitRow[] = [
+  perPass(essential, "meet_assist", 1),
+  perPass(essential, "beach_club", 2),
+  perPass(essential, "pool_gym", 2),
+  perPass(essential, "guest_list", null),
+  perPass(essential, "priority_dining", null),
+  perPass(plus, "meet_assist", 1),
+  perPass(plus, "beach_club", 4),
+  perPass(plus, "pool_gym", 4),
+  perPass(plus, "golf", 1),
+  perPass(plus, "spa", 1),
+  perPass(plus, "hosted_night", 1),
+  perPass(plus, "lounge", 1),
+  perPass(plus, "guest_list", null),
+  perPass(plus, "priority_dining", null),
+  perPass(crew, "meet_assist", 1, { sharedByGroup: true }),
+  perPass(crew, "beach_club", 4),
+  perPass(crew, "pool_gym", 4),
+  perPass(crew, "golf", 1),
+  perPass(crew, "spa", 1),
+  perPass(crew, "hosted_night", 1, { sharedByGroup: true }),
+  perPass(crew, "lounge", 1),
+  perPass(crew, "guest_list", null),
+  perPass(crew, "priority_dining", null),
+];
+
+// Rates are TEST placeholders in kobo until partners quote.
+const venueId = (n: number) => `00000000-0000-4000-8000-00000000020${n}`;
+type OfferRow = typeof offers.$inferInsert;
+export const testOffers: OfferRow[] = (
+  [
+  { id: "00000000-0000-4000-8000-000000000501", venueId: venueId(1), benefitType: "beach_club", rateMinor: 1_800_000, dailyCap: 30 },
+  { id: "00000000-0000-4000-8000-000000000502", venueId: venueId(2), benefitType: "beach_club", rateMinor: 1_800_000, dailyCap: 30 },
+  { id: "00000000-0000-4000-8000-000000000503", venueId: venueId(3), benefitType: "pool_gym", rateMinor: 2_500_000, dailyCap: 15 },
+  { id: "00000000-0000-4000-8000-000000000504", venueId: venueId(4), benefitType: "spa", rateMinor: 6_000_000, dailyCap: 5 },
+  { id: "00000000-0000-4000-8000-000000000505", venueId: venueId(5), benefitType: "golf", rateMinor: 4_000_000, dailyCap: 8 },
+  { id: "00000000-0000-4000-8000-000000000506", venueId: venueId(6), benefitType: "guest_list", rateMinor: 0, dailyCap: 40 },
+  { id: "00000000-0000-4000-8000-000000000507", venueId: venueId(7), benefitType: "hosted_night", rateMinor: 2_500_000, dailyCap: 10 },
+  ] satisfies Omit<OfferRow, "rateCurrency" | "isTest">[]
+).map((o) => ({ ...o, rateCurrency: "NGN" as const, isTest: true }));
+
+const crewGroup = "00000000-0000-4000-8000-000000000600";
+const membershipFor = (n: number, memberId: string, planId: string, groupId: string | null = null): typeof memberships.$inferInsert => ({
+  id: `00000000-0000-4000-8000-00000000070${n}`,
+  memberId,
+  planId,
+  startsOn: "2026-12-01",
+  endsOn: "2027-01-10",
+  status: "active",
+  groupId,
+  passNumber: `TEST-000${n}`,
+});
+
+const m = testMembers.map((x) => x.id);
+export const testMemberships = [
+  membershipFor(1, m[0] ?? "", plus),
+  membershipFor(2, m[1] ?? "", essential),
+  membershipFor(3, m[2] ?? "", plus),
+  membershipFor(4, m[3] ?? "", essential),
+  membershipFor(5, m[4] ?? "", crew, crewGroup),
+  membershipFor(6, m[5] ?? "", crew, crewGroup),
+  membershipFor(7, m[6] ?? "", crew, crewGroup),
+  membershipFor(8, m[7] ?? "", crew, crewGroup),
+];

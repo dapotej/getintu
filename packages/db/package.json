@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
-    "postgres": "3.4.9"
+    "postgres": "3.4.9",
+    "@intu/rules": "workspace:*"
   },
   "devDependencies": {
     "@intu/config": "workspace:*",

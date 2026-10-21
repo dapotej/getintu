@@ -26,6 +26,9 @@ importers:
       '@intu/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(postgres@3.4.9)
       hono:
         specifier: 4.13.13
         version: 4.13.13
@@ -66,6 +69,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@intu/rules':
+        specifier: workspace:*
+        version: link:../rules
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(postgres@3.4.9)

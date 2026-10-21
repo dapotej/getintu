@@ -18,5 +18,10 @@ export default tseslint.config(
       ],
       "no-restricted-globals": ["error", { name: "parseFloat", message: "Money is integer minor units." }]
     }
+  },
+  {
+    // Tests may assert that fixtures exist; application code may not.
+    files: ["**/test/**/*.ts", "**/*.test.ts"],
+    rules: { "@typescript-eslint/no-non-null-assertion": "off" }
   }
 );

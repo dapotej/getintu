@@ -8,6 +8,20 @@
       "when": 1792616787212,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792617259433,
+      "tag": "0001_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792617260100,
+      "tag": "0002_audit_log_append_only",
+      "breakpoints": true
     }
   ]
 }

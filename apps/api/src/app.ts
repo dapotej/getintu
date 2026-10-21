@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { sql, type Db } from "@intu/db";
+import { sql } from "drizzle-orm";
+import type { Db } from "@intu/db";
 
 const HealthResponse = z.object({ status: z.enum(["ok", "degraded"]), database: z.enum(["ok", "down"]) });
 

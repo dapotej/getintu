@@ -3,7 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema/index.ts";
 
 export function createDb(url: string, options: { max?: number } = {}) {
-  const sql = postgres(url, { max: options.max ?? 10 });
+  const sql = postgres(url, { max: options.max ?? 10, onnotice: () => {} });
   const db = drizzle(sql, { schema, casing: "snake_case" });
   return { db, sql };
 }

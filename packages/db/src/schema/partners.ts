@@ -1,5 +1,7 @@
-import { boolean, jsonb, pgEnum, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import type { WeeklyHours } from "@intu/rules";
 import { deletedAt, id, timestamps } from "./columns.ts";
+import { benefitTypeEnum, cityEnum, currencyEnum, venueCategoryEnum, venueTierEnum } from "./enums.ts";
 
 // A business intu pays. Bank details are encrypted at field level before they reach this table.
 export const partners = pgTable("partners", {
@@ -17,25 +19,7 @@ export const partners = pgTable("partners", {
   deletedAt: deletedAt(),
 });
 
-export const cityEnum = pgEnum("city", ["lagos", "abuja"]);
-
-export const venueCategoryEnum = pgEnum("venue_category", [
-  "beach_club",
-  "hotel",
-  "golf",
-  "spa",
-  "gym",
-  "nightclub",
-  "members_club",
-  "restaurant",
-  "lounge",
-]);
-
-// Top-tier venues can be limited to higher plans (e.g. Black only).
-export const venueTierEnum = pgEnum("venue_tier", ["standard", "top"]);
-
-/** Opening windows per weekday (0 = Sunday), in Lagos time. A close before open runs past midnight. */
-export type OpeningHours = Record<"0" | "1" | "2" | "3" | "4" | "5" | "6", { open: string; close: string }[]>;
+export type OpeningHours = WeeklyHours;
 
 // A place a member can visit.
 export const venues = pgTable("venues", {
@@ -52,6 +36,27 @@ export const venues = pgTable("venues", {
   openingHours: jsonb().$type<OpeningHours>().notNull(),
   capacityNotes: text(),
   photoPaths: text().array().notNull().default([]),
+  active: boolean().notNull().default(true),
+  isTest: boolean().notNull().default(false),
+  ...timestamps,
+  deletedAt: deletedAt(),
+});
+
+// What a venue gives for a benefit, and what intu pays for each use.
+export const offers = pgTable("offers", {
+  id: id(),
+  venueId: uuid()
+    .notNull()
+    .references(() => venues.id),
+  benefitType: benefitTypeEnum().notNull(),
+  description: text(),
+  rateMinor: integer().notNull(),
+  rateCurrency: currencyEnum().notNull().default("NGN"),
+  // Narrower hours than the venue's; null means whenever the venue is open.
+  validHours: jsonb().$type<WeeklyHours>(),
+  validFrom: date({ mode: "string" }),
+  validTo: date({ mode: "string" }),
+  dailyCap: integer(),
   active: boolean().notNull().default(true),
   isTest: boolean().notNull().default(false),
   ...timestamps,
