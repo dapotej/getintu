@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { createDb, schema } from "@intu/db";
 import { NotFoundError, redeem } from "../src/ledger/redeem.ts";
 import { createWorld } from "./support/fixtures.ts";
@@ -16,7 +16,7 @@ describe.runIf(url)("redeem()", () => {
     const rows = await db.select().from(schema.allowances).where(eq(schema.allowances.membershipId, membershipId));
     return rows[0]!;
   };
-  const auditFor = (entityId: string) => db.select().from(schema.auditLog).where(eq(schema.auditLog.entityId, entityId));
+  const auditFor = (entityId: string) => db.select().from(schema.auditLog).where(eq(schema.auditLog.entityId, entityId)).orderBy(asc(schema.auditLog.occurredAt));
 
   it("approves, draws down the allowance and audits both writes", async () => {
     const w = await createWorld(db);

@@ -1,7 +1,7 @@
 // Plans, benefits, partners, venues and offers through the admin API.
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { createDb, schema } from "@intu/db";
 import { redeem } from "../src/ledger/redeem.ts";
 import { createStaff, testApi } from "./support/auth.ts";
@@ -13,7 +13,7 @@ describe.runIf(url)("admin catalogue", () => {
   const { db, sql } = createDb(url ?? "", { max: 10 });
   afterAll(() => sql.end());
   const { as } = testApi(db);
-  const auditFor = (entityId: string) => db.select().from(schema.auditLog).where(eq(schema.auditLog.entityId, entityId));
+  const auditFor = (entityId: string) => db.select().from(schema.auditLog).where(eq(schema.auditLog.entityId, entityId)).orderBy(asc(schema.auditLog.occurredAt));
 
   it("creates a plan with prices and benefits, auditing each change as the staff member", async () => {
     const founder = await createStaff(db, "founder");
