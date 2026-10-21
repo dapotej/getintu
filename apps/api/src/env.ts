@@ -12,6 +12,8 @@ const Env = z.object({
   SUPABASE_JWT_SECRET: z.string().min(1).optional(),
   // Browser origins allowed to call the API, comma-separated.
   CORS_ORIGINS: z.string().default("http://localhost:3001"),
+  // End-to-end tests only: a JSON key set to trust instead of the Supabase project's. Refused unless NODE_ENV=test.
+  TEST_JWKS_JSON: z.string().optional(),
   // Where Supabase sends invited staff to set their password.
   ADMIN_INVITE_REDIRECT_URL: z.url().optional(),
 });
@@ -19,5 +21,7 @@ const Env = z.object({
 export type Env = z.infer<typeof Env>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  return Env.parse(source);
+  const env = Env.parse(source);
+  if (env.TEST_JWKS_JSON && env.NODE_ENV !== "test") throw new Error("TEST_JWKS_JSON is only allowed when NODE_ENV=test");
+  return env;
 }

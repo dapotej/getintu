@@ -1,0 +1,28 @@
+/* intu brand tokens for Tailwind v4. Import after "tailwindcss" in each web app's global CSS.
+   Dark "Lagos after dusk" base; amber for day benefits, teal for night, coral for urgency. */
+@theme {
+  --color-ink: #0d0b1a;
+  --color-ink-raised: #17142b;
+  --color-ink-line: #2a2545;
+  --color-cream: #fff5e6;
+  --color-cream-muted: #c9c0b3;
+  --color-day: #ffb020;
+  --color-night: #2ee6d6;
+  --color-pop: #ff6b6b;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--color-ink);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-night);
+    outline-offset: 2px;
+  }
+}
