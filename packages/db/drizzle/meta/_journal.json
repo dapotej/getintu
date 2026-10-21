@@ -36,6 +36,13 @@
       "when": 1792619448072,
       "tag": "0004_lock_down_public_api",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792619713466,
+      "tag": "0005_pin_audit_function_search_path",
+      "breakpoints": true
     }
   ]
 }
