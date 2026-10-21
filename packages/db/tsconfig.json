@@ -1,0 +1,4 @@
+{
+  "extends": "@intu/config/tsconfig.base.json",
+  "include": ["src", "scripts", "test", "drizzle.config.ts", "vitest.config.ts"]
+}

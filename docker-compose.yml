@@ -1,0 +1,14 @@
+# Local Postgres for development and tests. Staging and production use Supabase.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: intu
+    ports:
+      - "5432:5432"
+    volumes:
+      - intu-pg:/var/lib/postgresql/data
+volumes:
+  intu-pg:
