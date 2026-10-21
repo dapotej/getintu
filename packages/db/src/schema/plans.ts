@@ -53,6 +53,8 @@ export const benefits = pgTable(
     sharedByGroup: boolean().notNull().default(false),
     capOncePerVenuePerMonth: boolean().notNull().default(false),
     capOncePerVenuePerDay: boolean().notNull().default(true),
+    // Draw one unit per person in the party (otherwise one per visit, whatever the party size).
+    drawPerPerson: boolean().notNull().default(false),
     allowedVenueTiers: venueTierEnum().array().notNull().default(["standard"]),
     ...timestamps,
   },

@@ -66,6 +66,8 @@ export interface BenefitInput {
     oncePerVenuePerMonth: boolean;
     oncePerVenuePerDay: boolean;
   };
+  /** Draw one unit per person in the party rather than one per visit. */
+  drawPerPerson: boolean;
 }
 
 export interface AllowanceInput {
@@ -90,6 +92,8 @@ export interface RedemptionContext {
   offer: OfferInput;
   /** The plan's benefit for the offer's type, or null if the plan doesn't include it. */
   benefit: BenefitInput | null;
+  /** People covered by this scan, 1 or more. */
+  partySize: number;
   /** The allowance covering the service date, or null if none exists. */
   allowance: AllowanceInput | null;
   /** This member's approved redemptions from at least the current Lagos month and the last 10 minutes. */
@@ -115,5 +119,7 @@ export const DECLINE_REASONS = [
 export type DeclineReason = (typeof DECLINE_REASONS)[number];
 
 export type Decision =
-  | { result: "approved"; serviceDate: string; remaining: number | null }
-  | { result: "declined"; serviceDate: string; reason: DeclineReason };
+  | { result: "approved"; serviceDate: string; units: number; remaining: number | null }
+  | { result: "declined"; serviceDate: string; reason: Exclude<DeclineReason, "DUPLICATE_SCAN"> }
+  /** A re-scan of something already claimed: staff are told it was claimed, and when. */
+  | { result: "declined"; serviceDate: string; reason: "DUPLICATE_SCAN"; claimedAt: Date };

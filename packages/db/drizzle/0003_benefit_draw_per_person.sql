@@ -1,0 +1,1 @@
+ALTER TABLE "benefits" ADD COLUMN "draw_per_person" boolean DEFAULT false NOT NULL;

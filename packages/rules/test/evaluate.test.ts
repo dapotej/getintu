@@ -19,7 +19,8 @@ const base = (overrides: Partial<RedemptionContext> = {}): RedemptionContext => 
   membership: { status: "active", startsOn: "2026-12-01", endsOn: "2027-01-10" },
   venue: { id: "venue-beach", active: true, tier: "standard", openingHours: every("10:00", "19:00") },
   offer: { id: "offer-beach", active: true, benefitType: "beach_club", validHours: null, validFrom: null, validTo: null, dailyCap: null },
-  benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true } },
+  benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false },
+  partySize: 1,
   allowance: { granted: 4, used: 0 },
   memberHistory: [],
   offerApprovalsOnServiceDate: 0,
@@ -41,11 +42,11 @@ const prior = (minutesAgo: number, serviceDate = "2026-12-12", venueId = "venue-
 
 describe("evaluate: approvals", () => {
   it("approves a valid visit and reports what's left", () => {
-    expect(evaluate(base())).toEqual({ result: "approved", serviceDate: "2026-12-12", remaining: 3 });
+    expect(evaluate(base())).toEqual({ result: "approved", serviceDate: "2026-12-12", units: 1, remaining: 3 });
   });
 
   it("approves an unlimited benefit and reports remaining as null", () => {
-    expect(evaluate(base({ allowance: { granted: null, used: 57 } }))).toEqual({ result: "approved", serviceDate: "2026-12-12", remaining: null });
+    expect(evaluate(base({ allowance: { granted: null, used: 57 } }))).toEqual({ result: "approved", serviceDate: "2026-12-12", units: 1, remaining: null });
   });
 
   it("allows the same benefit at a different venue on the same day (per-venue daily limit)", () => {
@@ -75,15 +76,12 @@ describe("evaluate: each decline reason", () => {
     VENUE_TIER_NOT_ALLOWED: base({ venue: { id: "venue-beach", active: true, tier: "top", openingHours: every("10:00", "19:00") } }),
     ALLOWANCE_USED_UP: base({ allowance: { granted: 4, used: 4 } }),
     VENUE_MONTHLY_CAP: base({
-      benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true } },
+      benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false },
       memberHistory: [prior(60 * 24 * 5, "2026-12-07")],
     }),
     VENUE_DAILY_LIMIT: base({ memberHistory: [prior(180)] }),
     OFFER_DAILY_CAP: base({ offer: { id: "offer-beach", active: true, benefitType: "beach_club", validHours: null, validFrom: null, validTo: null, dailyCap: 20 }, offerApprovalsOnServiceDate: 20 }),
-    DUPLICATE_SCAN: base({
-      benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: false } },
-      memberHistory: [prior(4)],
-    }),
+    DUPLICATE_SCAN: base({ memberHistory: [prior(4)] }),
   };
 
   it("has a case for every reason", () => {
@@ -116,7 +114,7 @@ describe("evaluate: details of each check", () => {
   });
 
   it("declines when the plan's benefit doesn't match the offer's type", () => {
-    const benefit = { type: "spa" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true } };
+    const benefit = { type: "spa" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
     expect(declinedWith(base({ benefit }))).toBe("BENEFIT_NOT_IN_PLAN");
   });
 
@@ -125,9 +123,36 @@ describe("evaluate: details of each check", () => {
   });
 
   it("lets the monthly cap pass in a new month", () => {
-    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true } };
+    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false };
     const jan = new Date("2027-01-03T13:00:00Z");
     expect(evaluate(base({ now: jan, benefit, memberHistory: [prior(0, "2026-12-30")] })).result).toBe("approved");
+  });
+
+  it("tells staff when a duplicate was first claimed", () => {
+    const d = evaluate(base({ memberHistory: [prior(9), prior(4)] }));
+    expect(d).toEqual({ result: "declined", serviceDate: "2026-12-12", reason: "DUPLICATE_SCAN", claimedAt: prior(4).occurredAt });
+  });
+
+  it("reports a re-scan as already claimed even when it used the last unit", () => {
+    expect(declinedWith(base({ allowance: { granted: 1, used: 1 }, memberHistory: [prior(2)] }))).toBe("DUPLICATE_SCAN");
+  });
+
+  it("reports the daily limit, not a duplicate, after 10 minutes", () => {
+    expect(declinedWith(base({ memberHistory: [prior(11)] }))).toBe("VENUE_DAILY_LIMIT");
+  });
+
+  it("draws one unit per person for per-person benefits", () => {
+    const benefit = { ...base().benefit!, drawPerPerson: true };
+    expect(evaluate(base({ benefit, partySize: 3 }))).toMatchObject({ result: "approved", units: 3, remaining: 1 });
+  });
+
+  it("declines a per-person benefit when the party is bigger than what's left", () => {
+    const benefit = { ...base().benefit!, drawPerPerson: true };
+    expect(declinedWith(base({ benefit, partySize: 3, allowance: { granted: 4, used: 2 } }))).toBe("ALLOWANCE_USED_UP");
+  });
+
+  it("draws one unit per visit for group benefits, whatever the party size", () => {
+    expect(evaluate(base({ partySize: 4, allowance: { granted: 1, used: 0 } }))).toMatchObject({ result: "approved", units: 1, remaining: 0 });
   });
 
   it("runs checks in order: first failure wins", () => {
@@ -143,7 +168,7 @@ describe("evaluate: details of each check", () => {
   });
 
   it("does not flag a duplicate older than 10 minutes", () => {
-    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: false } };
+    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: false }, drawPerPerson: false };
     expect(evaluate(base({ benefit, memberHistory: [prior(11)] })).result).toBe("approved");
   });
 });
@@ -156,7 +181,7 @@ describe("evaluate: nights that run past midnight", () => {
     openingHours: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [{ open: "22:00", close: "04:00" }] },
   };
   const offer: RedemptionContext["offer"] = { id: "offer-club", active: true, benefitType: "guest_list", validHours: null, validFrom: null, validTo: null, dailyCap: null };
-  const benefit: RedemptionContext["benefit"] = { type: "guest_list", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true } };
+  const benefit: RedemptionContext["benefit"] = { type: "guest_list", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
   // Sunday 13 December 2026, 01:30 in Lagos.
   const sunday0130 = new Date("2026-12-13T00:30:00Z");
 

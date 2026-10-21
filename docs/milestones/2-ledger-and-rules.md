@@ -29,12 +29,14 @@ pnpm check
 - 10 database tests on `redeem()`: approval with draw-down and audit rows; declines logged without touching the allowance; **two simultaneous scans of the same code give exactly one approval**; a burst of ten simultaneous scans gives one; concurrent members never exceed an offer's daily cap; a shared Crew allowance is used once across the group; unlimited benefits count uses without running out; a failure mid-transaction leaves no redemption behind; the audit log refuses edits.
 - The concurrency tests passed 15 out of 15 repeated runs. The full suite passed 3 out of 3 runs.
 
-## Left open (questions for Dapo)
+## Questions answered (21 Oct 2026)
 
-1. **`DUPLICATE_SCAN` only matters when the per-venue daily cap is switched off.** With the cap on (the default), a second scan within 10 minutes already fails check 5 as `VENUE_DAILY_LIMIT`. I've made the daily cap a per-benefit setting (the spec lists caps on the benefit), so the duplicate check protects benefits where several visits a day are allowed, such as a future unlimited home gym. Should staff see "Already approved at 21:04" instead of a decline for a quick re-scan? That's a scanner display decision for milestone 4.
-2. **Venue tiers for the December Pass.** The seed lets December Pass benefits use both standard and top-tier venues. Which venues are top tier, and which plans may use them?
-3. **Membership dates use the service day.** Because of the after-midnight rule, a pass ending 10 January still works at a club at 01:00 on 11 January. Confirm that's intended.
-4. **Party size doesn't multiply the draw-down.** A Crew hosted night for four uses one unit of the group allowance. That's right for the hosted night; say if any benefit should draw one unit per person.
+All four questions are settled and recorded in `docs/DECISIONS.md`:
+
+1. **Re-scans.** Answer: tell staff it was already claimed, and when. Built: the duplicate check now runs before the allowance and caps checks, and returns `claimedAt`. The scanner shows it in Lagos time (milestone 4).
+2. **Top-tier venues.** Answer: configurable. Built: already supported by `venues.tier` and `benefits.allowed_venue_tiers`; the admin screens come in milestone 3.
+3. **Last night of a pass.** Answer: yes, a 01:00 visit on 11 January counts as the 10th. Built: already behaves this way (tested).
+4. **Per-person benefits.** Answer: yes. Built: `benefits.draw_per_person`. When it's on, a scan for a party of three draws three units, and is declined if fewer are left. The offer's daily cap still counts visits, not people.
 
 ## Not yet (later milestones)
 

@@ -22,7 +22,7 @@ describe.runIf(url)("redeem()", () => {
     const w = await createWorld(db);
     const { redemptionId, decision } = await redeem(db, { membershipId: w.first.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", now });
 
-    expect(decision).toEqual({ result: "approved", serviceDate: "2026-12-12", remaining: 3 });
+    expect(decision).toEqual({ result: "approved", serviceDate: "2026-12-12", units: 1, remaining: 3 });
     const allowance = await allowanceOf(w.first.membership.id);
     expect(allowance.used).toBe(1);
 
@@ -50,7 +50,13 @@ describe.runIf(url)("redeem()", () => {
     const results = await Promise.all([scan(), scan()]);
 
     expect(results.filter((r) => r.decision.result === "approved")).toHaveLength(1);
-    expect(results.find((r) => r.decision.result === "declined")?.decision).toMatchObject({ reason: "VENUE_DAILY_LIMIT" });
+    // The second scan is told the visit was already claimed, and when.
+    expect(results.find((r) => r.decision.result === "declined")?.decision).toEqual({
+      result: "declined",
+      serviceDate: "2026-12-12",
+      reason: "DUPLICATE_SCAN",
+      claimedAt: now,
+    });
     expect((await allowanceOf(w.first.membership.id)).used).toBe(1);
   });
 
@@ -91,6 +97,20 @@ describe.runIf(url)("redeem()", () => {
     const group = await db.select().from(schema.allowances).where(eq(schema.allowances.groupId, a!.membership.groupId!));
     expect(group).toHaveLength(1);
     expect(group[0]!.used).toBe(1);
+  });
+
+  it("draws one unit per person for a per-person benefit", async () => {
+    const w = await createWorld(db, { quantity: 4, drawPerPerson: true });
+    const r = await redeem(db, { membershipId: w.first.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", partySize: 3, now });
+    expect(r.decision).toMatchObject({ result: "approved", units: 3, remaining: 1 });
+    expect((await allowanceOf(w.first.membership.id)).used).toBe(3);
+    const [row] = await db.select().from(schema.redemptions).where(eq(schema.redemptions.id, r.redemptionId));
+    expect(row?.partySize).toBe(3);
+  });
+
+  it("rejects a party size below one", async () => {
+    const w = await createWorld(db);
+    await expect(redeem(db, { membershipId: w.first.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", partySize: 0, now })).rejects.toBeInstanceOf(RangeError);
   });
 
   it("counts uses of an unlimited benefit without ever running out", async () => {

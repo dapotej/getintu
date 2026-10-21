@@ -22,6 +22,20 @@
       "when": 1792617260100,
       "tag": "0002_audit_log_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792619447405,
+      "tag": "0003_benefit_draw_per_person",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792619448072,
+      "tag": "0004_lock_down_public_api",
+      "breakpoints": true
     }
   ]
 }

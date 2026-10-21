@@ -23,6 +23,7 @@ export interface WorldOptions {
   sharedByGroup?: boolean;
   members?: number;
   dailyCap?: number | null;
+  drawPerPerson?: boolean;
 }
 
 export async function createWorld(db: Db, opts: WorldOptions = {}) {
@@ -49,6 +50,7 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
     quantity: opts.quantity === undefined ? 4 : opts.quantity,
     period: "per_pass",
     sharedByGroup: opts.sharedByGroup ?? false,
+    drawPerPerson: opts.drawPerPerson ?? false,
   });
 
   const groupId = memberCount > 1 ? randomUUID() : null;

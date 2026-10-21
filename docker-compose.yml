@@ -1,7 +1,7 @@
 # Local Postgres for development and tests. Staging and production use Supabase.
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

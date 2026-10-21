@@ -21,7 +21,7 @@ docs/         Specs and milestone notes
 
 ## Run it locally
 
-You need Node 22.13+, pnpm 10 and Docker (or any local Postgres 16).
+You need Node 22.13+, pnpm 10 and Docker (or any local Postgres 17).
 
 ```sh
 cp .env.example .env
@@ -40,7 +40,7 @@ pnpm dev            # API on http://localhost:8787/health
 pnpm check          # lint, type checks and tests across every workspace
 ```
 
-Database tests run when `DATABASE_URL` is set and skip otherwise. CI (`.github/workflows/ci.yml`) runs everything against a Postgres 16 service.
+Database tests run when `DATABASE_URL` is set and skip otherwise. CI (`.github/workflows/ci.yml`) runs everything against a Postgres 17 service.
 
 ## Changing the schema
 

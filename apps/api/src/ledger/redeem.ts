@@ -30,6 +30,8 @@ export class NotFoundError extends Error {}
  */
 export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> {
   const now = input.now ?? new Date();
+  const partySize = input.partySize ?? 1;
+  if (!Number.isInteger(partySize) || partySize < 1) throw new RangeError("partySize must be a whole number of at least 1");
   const actor = input.staffUserId ? { type: "staff" as const, id: input.staffUserId } : { type: "system" as const };
 
   return db.transaction(async (tx) => {
@@ -109,8 +111,10 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
             type: benefit.type,
             allowedVenueTiers: benefit.allowedVenueTiers,
             caps: { oncePerVenuePerMonth: benefit.capOncePerVenuePerMonth, oncePerVenuePerDay: benefit.capOncePerVenuePerDay },
+            drawPerPerson: benefit.drawPerPerson,
           }
         : null,
+      partySize,
       allowance: allowance ? { granted: allowance.granted, used: allowance.used } : null,
       memberHistory: history,
       offerApprovalsOnServiceDate: offerToday?.n ?? 0,
@@ -132,17 +136,17 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
         result: decision.result,
         reason: decision.result === "declined" ? decision.reason : null,
         method: input.method,
-        partySize: input.partySize ?? 1,
+        partySize,
         scanCode: input.scanCode ?? null,
       })
       .returning();
     if (!row) throw new Error("Redemption insert returned nothing");
     await audit(tx, actor, { action: `redemption.${decision.result}`, entity: "redemption", entityId: row.id, after: row });
 
-    if (approved && allowance) {
+    if (decision.result === "approved" && allowance) {
       const [updated] = await tx
         .update(allowances)
-        .set({ used: sql`${allowances.used} + 1` })
+        .set({ used: sql`${allowances.used} + ${decision.units}` })
         .where(eq(allowances.id, allowance.id))
         .returning();
       await audit(tx, actor, { action: "allowance.drawn_down", entity: "allowance", entityId: allowance.id, before: allowance, after: updated });
