@@ -12,7 +12,7 @@
 - API URL: `https://xokexyqjlydjqquownvw.supabase.co`
 - Migrations 0000–0005 were applied on 21 Oct 2026 through the Supabase connector and recorded in `drizzle.__drizzle_migrations`, so `pnpm db:migrate` continues from 0006. A fingerprint of columns, constraints, indexes and enums matched local exactly.
 - **Locked down.** Every table has row-level security with no policies, and Supabase's `anon` and `authenticated` roles have no grants. Supabase's public API can't read or write anything; only the intu API, which connects as the database owner, can. `packages/db/test/schema.test.ts` fails if a new table is added without RLS. Supabase's advisor reports "RLS enabled, no policy" as information. That's intended.
-- **No data yet.** The TEST seed hasn't been loaded into staging. Because the audit log is append-only, seed rows written there are permanent unless the trigger is dropped, so only seed staging on purpose.
+- **TEST data loaded** on 21 Oct 2026 (Dapo's go-ahead) from `packages/db/sql/seed-test-data.sql`: 4 partners, 7 venues, 7 offers, 3 December Pass plans, 8 members, 58 allowances, each with its audit row. Checked against the local seed row for row. `packages/db/test/sql-seed.test.ts` keeps the SQL seed identical to the TypeScript seed. The audit log is append-only, so these rows are permanent unless the trigger is dropped.
 
 ### Turning on automatic staging migrations
 
