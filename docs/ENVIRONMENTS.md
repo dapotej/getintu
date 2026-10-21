@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Local dev | Postgres 17 in Docker (`docker-compose.yml`) | `pnpm db:migrate` (or `pnpm db:reset` to rebuild with TEST data) |
 | CI | Postgres 17 service container | Every run migrates and seeds a fresh database |
-| Staging | Supabase project `intu` (ref `xokexyqjlydjqquownvw`, eu-west-3 Paris, Postgres 17) | The `migrate-staging` CI job on every push to `main`, once the secret below exists |
+| Staging | Supabase project `intu` (ref `xokexyqjlydjqquownvw`, eu-west-3 Paris, Postgres 17) | The `migrate-staging` CI job, automatically after checks pass on every push to `main` (live since 21 Oct 2026) |
 | Production | Not created yet | — |
 
 ## Staging (Supabase)
@@ -14,7 +14,7 @@
 - **Locked down.** Every table has row-level security with no policies, and Supabase's `anon` and `authenticated` roles have no grants. Supabase's public API can't read or write anything; only the intu API, which connects as the database owner, can. `packages/db/test/schema.test.ts` fails if a new table is added without RLS. Supabase's advisor reports "RLS enabled, no policy" as information. That's intended.
 - **TEST data loaded** on 21 Oct 2026 (Dapo's go-ahead) from `packages/db/sql/seed-test-data.sql`: 4 partners, 7 venues, 7 offers, 3 December Pass plans, 8 members, 58 allowances, each with its audit row. Checked against the local seed row for row. `packages/db/test/sql-seed.test.ts` keeps the SQL seed identical to the TypeScript seed. The audit log is append-only, so these rows are permanent unless the trigger is dropped.
 
-### Turning on automatic staging migrations
+### Automatic staging migrations (set up)
 
 1. In Supabase: **Connect** (top of the project dashboard) → **Session pooler** connection string, which works over IPv4 from GitHub. It starts `postgresql://postgres.xokexyqjlydjqquownvw:` and ends `pooler.supabase.com:5432/postgres`. Put the database password in place of `[YOUR-PASSWORD]`. Not the project URL (`https://…supabase.co`) and not the direct connection (`db.…supabase.co`, IPv6 only).
 2. In GitHub: `dapotej/getintu` → Settings → Environments → New environment `staging`, then add the secret `STAGING_DATABASE_URL` with that string.
