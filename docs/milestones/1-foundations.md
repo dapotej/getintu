@@ -23,7 +23,7 @@ See `README.md`: `cp .env.example .env`, `docker compose up -d postgres`, `pnpm 
 
 ## Left open
 
-- **CI has not run on GitHub yet**: there is no repository. Once Dapo creates the GitHub organisation and an `intu` repo, push and confirm the workflow is green.
+- ~~CI has not run on GitHub yet~~ Done 21 Oct 2026: the code lives at `dapotej/getintu` and CI is green on `main`.
 - **Staging environment**: needs the Supabase project and an API host (accounts Dapo creates). Once they exist: point `DATABASE_URL` at Supabase, run migrations from CI, deploy the API. The API host choice (EU/UK region) is still open.
 - **Local Supabase**: dev uses plain Postgres 16 for now, which is enough for milestones 1–2. Supabase's local stack (auth, storage) comes in with milestone 3, where phone auth and staff login start.
 - **Brand assets**: `brand/` is empty; the logo SVGs from the brand kit need adding.
