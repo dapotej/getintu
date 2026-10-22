@@ -130,6 +130,8 @@ export interface Venue {
   externalRef: string | null;
   active: boolean;
   isTest: boolean;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface Offer {

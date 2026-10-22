@@ -15,5 +15,15 @@ export function benefitFor<B extends { categoryCode: string }>(benefits: readonl
   return benefits.filter((b) => covers(b.categoryCode, offerCode)).sort((a, b) => b.categoryCode.length - a.categoryCode.length)[0] ?? null;
 }
 
+/**
+ * Whether a plan's benefits include an offer at a venue of this tier: the same benefit and tier
+ * checks a scan makes, without the day-to-day ones (dates, hours, allowance left, caps). The
+ * member app uses it to mark what's included; the scan still decides on the night.
+ */
+export function includes<B extends { categoryCode: string; allowedVenueTiers: readonly string[] }>(benefits: readonly B[], offerCode: string, venueTier: string): boolean {
+  const benefit = benefitFor(benefits, offerCode);
+  return benefit !== null && benefit.allowedVenueTiers.includes(venueTier);
+}
+
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => covers("C06", code);

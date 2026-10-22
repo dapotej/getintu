@@ -57,41 +57,61 @@ export async function issuePass(
   now = new Date(),
 ) {
   return db.transaction(async (tx) => {
-    const [ms] = await tx
-      .select({ membership: memberships, member: { id: members.id, fullName: members.fullName } })
-      .from(memberships)
-      .innerJoin(members, eq(members.id, memberships.memberId))
-      .where(and(eq(memberships.id, input.membershipId), isNull(memberships.deletedAt)));
+    const ms = await membershipFor(tx, input.membershipId);
     if (!ms) return null;
-    const publicKey = fromBase64url(input.devicePublicKey);
-    if (publicKey.length !== 32) throw new RangeError("A device public key is 32 bytes");
-
+    if (fromBase64url(input.devicePublicKey).length !== 32) throw new RangeError("A device public key is 32 bytes");
     const device = one(await tx.insert(devices).values({ memberId: ms.member.id, publicKey: input.devicePublicKey, platform: input.platform }).returning());
     await audit(tx, input.actor, { action: "device.registered", entity: "device", entityId: device.id, after: device });
-
-    const expiresAt = new Date(now.getTime() + PASS_LIFETIME_SECONDS * 1000);
-    const fields: PassFields = {
-      keyId: keys.current.keyId,
-      membershipId: ms.membership.id,
-      deviceId: device.id,
-      planId: ms.membership.planId,
-      startsOn: ms.membership.startsOn,
-      endsOn: ms.membership.endsOn,
-      name: ms.member.fullName,
-      expiresAt,
-      devicePublicKey: publicKey,
-    };
-    const today = lagosToday(now);
-    return {
-      deviceId: device.id,
-      certificate: toBase64url(signPass(fields, keys.current.secretKey)),
-      expiresAt,
-      backupCodes: [
-        { validOn: today, code: await backupCodeFor(tx, ms.membership.id, today) },
-        { validOn: shiftDate(today, 1), code: await backupCodeFor(tx, ms.membership.id, shiftDate(today, 1)) },
-      ],
-    };
+    return signFor(tx, keys, ms, device, now);
   });
+}
+
+/**
+ * A fresh pass for a device already registered to the membership's member: the app renews its
+ * pass this way while it has signal. Null if the device isn't theirs or has been revoked.
+ */
+export async function renewPass(db: Db, keys: PassKeys, input: { membershipId: string; deviceId: string }, now = new Date()) {
+  return db.transaction(async (tx) => {
+    const ms = await membershipFor(tx, input.membershipId);
+    if (!ms) return null;
+    const [device] = await tx.select().from(devices).where(and(eq(devices.id, input.deviceId), eq(devices.memberId, ms.member.id), isNull(devices.revokedAt)));
+    if (!device) return null;
+    return signFor(tx, keys, ms, device, now);
+  });
+}
+
+async function membershipFor(tx: Tx, membershipId: string) {
+  const [ms] = await tx
+    .select({ membership: memberships, member: { id: members.id, fullName: members.fullName } })
+    .from(memberships)
+    .innerJoin(members, eq(members.id, memberships.memberId))
+    .where(and(eq(memberships.id, membershipId), isNull(memberships.deletedAt)));
+  return ms ?? null;
+}
+
+async function signFor(tx: Tx, keys: PassKeys, ms: NonNullable<Awaited<ReturnType<typeof membershipFor>>>, device: { id: string; publicKey: string }, now: Date) {
+  const expiresAt = new Date(now.getTime() + PASS_LIFETIME_SECONDS * 1000);
+  const fields: PassFields = {
+    keyId: keys.current.keyId,
+    membershipId: ms.membership.id,
+    deviceId: device.id,
+    planId: ms.membership.planId,
+    startsOn: ms.membership.startsOn,
+    endsOn: ms.membership.endsOn,
+    name: ms.member.fullName,
+    expiresAt,
+    devicePublicKey: fromBase64url(device.publicKey),
+  };
+  const today = lagosToday(now);
+  return {
+    deviceId: device.id,
+    certificate: toBase64url(signPass(fields, keys.current.secretKey)),
+    expiresAt,
+    backupCodes: [
+      { validOn: today, code: await backupCodeFor(tx, ms.membership.id, today) },
+      { validOn: shiftDate(today, 1), code: await backupCodeFor(tx, ms.membership.id, shiftDate(today, 1)) },
+    ],
+  };
 }
 
 export interface Identity {

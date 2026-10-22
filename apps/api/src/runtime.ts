@@ -8,6 +8,7 @@ import { createApp } from "./app.ts";
 import { createSupabaseAuthAdmin } from "./auth/supabase-admin.ts";
 import { createTokenVerifier } from "./auth/tokens.ts";
 import type { Env } from "./env.ts";
+import { memoryPhotoStore, supabasePhotoStore } from "./member/photos.ts";
 import { passKeysFrom } from "./passes.ts";
 
 export function appFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSeconds?: number } = {}) {
@@ -36,6 +37,9 @@ export function apiFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSe
     inviteRedirectUrl: env.ADMIN_INVITE_REDIRECT_URL,
     passKeys: passKeysFrom(signingKey, env.QR_PUBLIC_KEYS),
     partnerSessionSecret,
+    photos: env.PHOTO_STORE === "memory" ? memoryPhotoStore() : supabasePhotoStore({ supabaseUrl: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }),
+    memberApp: { conciergeWhatsApp: env.CONCIERGE_WHATSAPP ?? null, doctorOnCallPhone: env.DOCTOR_ON_CALL_PHONE ?? null, newMembersAreTest: env.NODE_ENV !== "production" },
+    smsHook: { secret: env.SUPABASE_SMS_HOOK_SECRET },
   });
   return { app, close: () => sql.end({ timeout: 0 }) };
 }

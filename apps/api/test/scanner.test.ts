@@ -15,7 +15,7 @@ describe.runIf(url)("intu scanner", () => {
   afterAll(() => sql.end());
   // Saturday 12 December 2026, 14:00 in Lagos.
   let now = new Date("2026-12-12T13:00:00Z");
-  const { app, as } = testApi(db, { clock: () => now });
+  const { app, as, photos } = testApi(db, { clock: () => now });
   const at = (iso: string) => (now = new Date(iso));
 
   const request = async (method: string, path: string, opts: { token?: string; body?: unknown } = {}) => {
@@ -81,6 +81,15 @@ describe.runIf(url)("intu scanner", () => {
     expect(first.json.member).not.toHaveProperty("phone");
     const again = await d.scan({ code });
     expect(again.json).toMatchObject({ result: "declined", reason: "DUPLICATE_SCAN", claimedAt: now.toISOString() });
+  });
+
+  it("shows staff the member's photo with an online result", async () => {
+    const d = await door();
+    const path = `${d.first.member.id}/door.jpg`;
+    await photos.put(path, new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]));
+    await db.update(schema.members).set({ photoPath: path }).where(eq(schema.members.id, d.first.member.id));
+    const res = await d.scan({ code: (await d.pass()).code() });
+    expect(res.json.member.photoUrl).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it("approves exactly one of two scans of the same code at once", async () => {

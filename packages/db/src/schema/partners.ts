@@ -1,4 +1,4 @@
-import { boolean, date, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, doublePrecision, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import type { WeeklyHours } from "@intu/rules";
 import { deletedAt, id, timestamps } from "./columns.ts";
 import { categories } from "./categories.ts";
@@ -47,6 +47,9 @@ export const venues = pgTable("venues", {
   // An id from outside the platform, e.g. the pilot sheet's venue ID (V01).
   externalRef: text().unique(),
   photoPaths: text().array().notNull().default([]),
+  // Where it is on the map (WGS84). Empty for visiting services, which have no address.
+  latitude: doublePrecision(),
+  longitude: doublePrecision(),
   active: boolean().notNull().default(true),
   isTest: boolean().notNull().default(false),
   ...timestamps,

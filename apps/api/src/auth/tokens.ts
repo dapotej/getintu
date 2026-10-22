@@ -7,6 +7,8 @@ export interface AccessClaims {
   /** "aal2" once the user has passed two-step verification in this session. */
   aal: "aal1" | "aal2";
   email?: string;
+  /** Members sign in by phone; E.164 with the leading +. */
+  phone?: string;
 }
 
 export type TokenVerifier = (token: string) => Promise<AccessClaims>;
@@ -30,8 +32,11 @@ export function createTokenVerifier(opts: { supabaseUrl: string; jwks?: JWTVerif
           : await jwtVerify(token, key, { issuer, audience: "authenticated" });
       if (typeof payload.sub !== "string") throw new InvalidTokenError("Token has no subject");
       const aal = payload["aal"] === "aal2" ? "aal2" : "aal1";
-      const email = typeof payload["email"] === "string" ? payload["email"] : undefined;
-      return email === undefined ? { sub: payload.sub, aal } : { sub: payload.sub, aal, email };
+      const claims: AccessClaims = { sub: payload.sub, aal };
+      if (typeof payload["email"] === "string" && payload["email"]) claims.email = payload["email"];
+      // Supabase gives the phone without its +.
+      if (typeof payload["phone"] === "string" && payload["phone"]) claims.phone = `+${payload["phone"].replace(/^\+/, "")}`;
+      return claims;
     } catch (err) {
       if (err instanceof InvalidTokenError) throw err;
       throw new InvalidTokenError(err instanceof Error ? err.message : "Invalid token");

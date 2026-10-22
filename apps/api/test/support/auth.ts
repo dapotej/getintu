@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { one, schema, type Db } from "@intu/db";
 import { createApp } from "../../src/app.ts";
+import { memoryPhotoStore } from "../../src/member/photos.ts";
 import type { StaffRole } from "../../src/auth/permissions.ts";
 import type { AuthAdmin } from "../../src/auth/supabase-admin.ts";
 import { createTokenVerifier } from "../../src/auth/tokens.ts";
@@ -20,8 +21,10 @@ const { publicKey, privateKey } = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "test-key", alg: "ES256", use: "sig" };
 export const jwks = createLocalJWKSet({ keys: [jwk] });
 
-export async function signToken(opts: { sub: string; aal?: "aal1" | "aal2"; issuer?: string; expiresIn?: string; key?: Parameters<SignJWT["sign"]>[0] }) {
-  return new SignJWT({ aal: opts.aal ?? "aal2", role: "authenticated", email: "staff@example.com" })
+export async function signToken(opts: { sub: string; aal?: "aal1" | "aal2"; issuer?: string; expiresIn?: string; key?: Parameters<SignJWT["sign"]>[0]; phone?: string }) {
+  // Staff sign in by email; members by phone, which Supabase puts in the token without its +.
+  const claims = opts.phone ? { aal: "aal1", role: "authenticated", phone: opts.phone.replace(/^\+/, "") } : { aal: opts.aal ?? "aal2", role: "authenticated", email: "staff@example.com" };
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: "ES256", kid: "test-key" })
     .setSubject(opts.sub)
     .setIssuer(opts.issuer ?? ISSUER)
@@ -58,8 +61,14 @@ export async function createStaff(db: Db, role: StaffRole, extra: Partial<typeof
 }
 
 /** The API with test auth, plus a helper that makes authenticated JSON requests as a given staff member. */
+export const TEST_CONCIERGE = "+2348000000001";
+export const TEST_DOCTOR = "+2348000000002";
+export const SMS_HOOK_SECRET = `v1,whsec_${Buffer.from("test-sms-hook-secret-0123456789ab").toString("base64")}`;
+
 export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
   const auth = fakeAuthAdmin();
+  const photos = memoryPhotoStore();
+  const sent: { phone: string; code: string }[] = [];
   const app = createApp({
     db,
     verify: createTokenVerifier({ supabaseUrl: SUPABASE_URL, jwks }),
@@ -67,12 +76,19 @@ export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
     corsOrigins: ["http://localhost:3001"],
     passKeys,
     partnerSessionSecret: PARTNER_SESSION_SECRET,
+    photos,
+    memberApp: { conciergeWhatsApp: TEST_CONCIERGE, doctorOnCallPhone: TEST_DOCTOR, newMembersAreTest: true },
+    smsHook: { secret: SMS_HOOK_SECRET, sender: { send: async (phone, code) => void sent.push({ phone, code }) } },
     ...(opts.clock ? { clock: opts.clock } : {}),
   });
 
-  const as = (staff: { authUserId: string | null }, aal: "aal1" | "aal2" = "aal2") => {
+  const as = (staff: { authUserId: string | null }, aal: "aal1" | "aal2" = "aal2") => client(() => signToken({ sub: staff.authUserId ?? "", aal }));
+  /** Requests as someone signed in to the member app with this phone number. */
+  const asMember = (signIn: { authUserId: string; phone: string }) => client(() => signToken({ sub: signIn.authUserId, phone: signIn.phone }));
+
+  const client = (makeToken: () => Promise<string>) => {
     const call = async (method: string, path: string, body?: unknown) => {
-      const token = await signToken({ sub: staff.authUserId ?? "", aal });
+      const token = await makeToken();
       const res = await app.request(path, {
         method,
         headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
@@ -89,5 +105,5 @@ export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
       delete: (path: string) => call("DELETE", path),
     };
   };
-  return { app, auth, as };
+  return { app, auth, as, asMember, photos, sent };
 }

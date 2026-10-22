@@ -2,7 +2,7 @@
 import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, Icon, Input, PageHeader, Select, SidePanel, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ActionForm, checked, text, textOrNull } from "@/components/forms";
+import { ActionForm, checked, readLocation, text, textOrNull } from "@/components/forms";
 import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
@@ -60,7 +60,7 @@ export default function PartnerPage() {
                       action={async (form) => {
                         const { venue } = await api<{ venue: Venue }>("/admin/venues", {
                           method: "POST",
-                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
+                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location") },
                         });
                         router.push(`/partners/${id}/venues/${venue.id}`);
                       }}
@@ -93,6 +93,9 @@ export default function PartnerPage() {
                               <option value="standard">Standard</option>
                               <option value="top">Top tier</option>
                             </Select>
+                          </Field>
+                          <Field label="Map location" hint="Latitude, longitude, e.g. 6.4262, 3.4486. Leave blank for a visiting service.">
+                            <Input name="location" />
                           </Field>
                           <HoursEditor name="hours" />
                           <Button type="submit" disabled={busy}>

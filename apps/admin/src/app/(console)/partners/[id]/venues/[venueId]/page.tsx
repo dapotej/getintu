@@ -5,7 +5,7 @@ import { PartnerStaffCard } from "@/components/partner-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ActionForm, checked, intOrNull, text, textOrNull } from "@/components/forms";
+import { ActionForm, checked, intOrNull, locationText, readLocation, text, textOrNull } from "@/components/forms";
 import { HoursEditor, HoursSummary, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
@@ -72,6 +72,18 @@ export default function VenuePage() {
               ["Status", venue.active ? "Active" : "Inactive: declines every scan"],
               ["Description", venue.description],
               ["Capacity notes", venue.capacityNotes],
+              [
+                "Map location",
+                venue.latitude !== null && venue.longitude !== null ? (
+                  <a key="map" href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+                    {locationText(venue)}
+                  </a>
+                ) : venue.kind === "visiting" ? (
+                  "None: it comes to the member"
+                ) : (
+                  <span key="map" className="text-day">Not set: it won&apos;t show on the member app&apos;s map</span>
+                ),
+              ],
               ["Opening hours", <HoursSummary key="hours" value={venue.openingHours} />],
             ]}
           />
@@ -129,6 +141,7 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
             description: textOrNull(form, "description"),
             capacityNotes: textOrNull(form, "capacityNotes"),
             openingHours: readHours(form, "hours"),
+            ...readLocation(form, "location"),
             active: checked(form, "active"),
           },
         });
@@ -157,6 +170,9 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
               <option value="standard">Standard</option>
               <option value="top">Top tier</option>
             </Select>
+          </Field>
+          <Field label="Map location" hint="Latitude, longitude. In Google Maps, right-click the venue and click the numbers to copy them.">
+            <Input name="location" defaultValue={locationText(venue)} placeholder="6.4262, 3.4486" />
           </Field>
           <Field label="Description">
             <Textarea name="description" defaultValue={venue.description ?? ""} />

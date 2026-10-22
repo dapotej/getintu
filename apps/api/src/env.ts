@@ -22,6 +22,15 @@ const Env = z.object({
   QR_PUBLIC_KEYS: z.string().default(""),
   // Signs partner staff shift sessions. At least 32 random characters.
   PARTNER_SESSION_SECRET: z.string().min(32).optional(),
+  // Supabase Auth's Send SMS hook secret ("v1,whsec_…"), from Authentication → Hooks.
+  SUPABASE_SMS_HOOK_SECRET: z.string().min(1).optional(),
+  // Who delivers sign-in codes. Only "test" (deliver nothing; TEST numbers use a fixed code) for now.
+  CODE_SENDER: z.enum(["test"]).default("test"),
+  // The concierge's WhatsApp number and the medical partner's line, in E.164 (+234…).
+  CONCIERGE_WHATSAPP: z.string().regex(/^\+\d{8,15}$/).optional(),
+  DOCTOR_ON_CALL_PHONE: z.string().regex(/^\+\d{8,15}$/).optional(),
+  // Where member photos are kept: Supabase Storage, or in memory for local development.
+  PHOTO_STORE: z.enum(["supabase", "memory"]).default("supabase"),
 });
 
 export type Env = z.infer<typeof Env>;

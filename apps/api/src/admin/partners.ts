@@ -32,6 +32,9 @@ const VenueFields = z.object({
   description: z.string().max(4000).nullable(),
   openingHours: WeeklyHours,
   capacityNotes: z.string().max(2000).nullable(),
+  // Map position. Nigeria sits roughly within latitudes 4–14 and longitudes 2–15.
+  latitude: z.number().min(4).max(14).nullable(),
+  longitude: z.number().min(2).max(15).nullable(),
   active: z.boolean(),
 });
 

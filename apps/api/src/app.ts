@@ -13,6 +13,9 @@ import { planRoutes } from "./admin/plans.ts";
 import { scannerAdminRoutes } from "./admin/scanner.ts";
 import { staffRoutes } from "./admin/staff.ts";
 import { requireStaff, type AdminEnv } from "./auth/staff.ts";
+import { memberAppRoutes } from "./member/routes.ts";
+import type { PhotoStore } from "./member/photos.ts";
+import { smsHookRoutes, testSender, type CodeSender } from "./member/sms-hook.ts";
 import { scannerRoutes } from "./partner/routes.ts";
 import type { PassKeys } from "./passes.ts";
 import type { AuthAdmin } from "./auth/supabase-admin.ts";
@@ -30,6 +33,12 @@ export interface AppDeps {
   passKeys: PassKeys;
   /** Signs partner staff shift sessions. */
   partnerSessionSecret: string;
+  /** Member photos, in private storage. */
+  photos: PhotoStore;
+  /** The member app: concierge and doctor-on-call numbers, and whether sign-ups are TEST data. */
+  memberApp?: { conciergeWhatsApp: string | null; doctorOnCallPhone: string | null; newMembersAreTest: boolean };
+  /** Supabase's Send SMS hook: its signing secret, and who delivers sign-in codes. */
+  smsHook?: { secret: string | undefined; sender?: CodeSender };
   /** The time, replaceable in tests. */
   clock?: () => Date;
 }
@@ -59,7 +68,21 @@ export function createApp(deps: AppDeps) {
   });
 
   const clock = deps.clock ?? (() => new Date());
-  app.route("/", scannerRoutes({ db: deps.db, passKeys: deps.passKeys, partnerSessionSecret: deps.partnerSessionSecret, clock }));
+  app.route("/", scannerRoutes({ db: deps.db, passKeys: deps.passKeys, partnerSessionSecret: deps.partnerSessionSecret, photos: deps.photos, clock }));
+  app.route("/", smsHookRoutes({ secret: deps.smsHook?.secret, sender: deps.smsHook?.sender ?? testSender, clock }));
+  app.route(
+    "/",
+    memberAppRoutes({
+      db: deps.db,
+      verify: deps.verify,
+      passKeys: deps.passKeys,
+      photos: deps.photos,
+      clock,
+      conciergeWhatsApp: deps.memberApp?.conciergeWhatsApp ?? null,
+      doctorOnCallPhone: deps.memberApp?.doctorOnCallPhone ?? null,
+      newMembersAreTest: deps.memberApp?.newMembersAreTest ?? true,
+    }),
+  );
 
   const admin = new Hono<AdminEnv>();
   admin.use("*", requireStaff(deps));

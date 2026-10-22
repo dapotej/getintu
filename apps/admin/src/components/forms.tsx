@@ -38,3 +38,16 @@ export const text = (form: FormData, name: string) => String(form.get(name) ?? "
 export const textOrNull = (form: FormData, name: string) => text(form, name) || null;
 export const intOrNull = (form: FormData, name: string) => (text(form, name) === "" ? null : Number(text(form, name)));
 export const checked = (form: FormData, name: string) => form.get(name) === "on";
+
+/** "6.4262, 3.4486" as pasted from a map → latitude and longitude; blank → both null. */
+export function readLocation(form: FormData, name: string): { latitude: number | null; longitude: number | null } {
+  const raw = text(form, name);
+  if (!raw) return { latitude: null, longitude: null };
+  const parts = raw.split(/[,\s]+/).filter(Boolean).map(Number);
+  const [latitude, longitude] = parts;
+  if (parts.length !== 2 || latitude === undefined || longitude === undefined || parts.some((n) => !Number.isFinite(n))) {
+    throw new Error("Map location: paste the latitude and longitude, e.g. 6.4262, 3.4486");
+  }
+  return { latitude, longitude };
+}
+export const locationText = (v: { latitude: number | null; longitude: number | null }) => (v.latitude === null || v.longitude === null ? "" : `${v.latitude}, ${v.longitude}`);

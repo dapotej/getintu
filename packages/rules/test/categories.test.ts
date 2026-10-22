@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benefitFor, covers, isNight } from "../src/index.ts";
+import { benefitFor, covers, includes, isNight } from "../src/index.ts";
 
 describe("covers", () => {
   it("matches a code, and every code beneath it", () => {
@@ -38,5 +38,27 @@ describe("isNight", () => {
   it("treats Nightlife & Social as night", () => {
     expect(isNight("C06-S01-T03")).toBe(true);
     expect(isNight("C03-S01")).toBe(false);
+  });
+});
+
+describe("includes", () => {
+  const plan = [
+    { categoryCode: "C03", allowedVenueTiers: ["standard"] },
+    { categoryCode: "C06-S04", allowedVenueTiers: ["standard", "top"] },
+    { categoryCode: "C03-S01-T02", allowedVenueTiers: ["top"] },
+  ];
+  it("is true when a benefit covers the offer and opens the venue's tier", () => {
+    expect(includes(plan, "C03-S01-T01", "standard")).toBe(true);
+    expect(includes(plan, "C06-S04-T01", "top")).toBe(true);
+  });
+  it("uses the most specific benefit, as a scan does", () => {
+    // The cabana benefit only opens top-tier venues, even though the beach benefit opens standard ones.
+    expect(includes(plan, "C03-S01-T02", "standard")).toBe(false);
+    expect(includes(plan, "C03-S01-T02", "top")).toBe(true);
+  });
+  it("is false for a tier the benefit doesn't open, or an offer no benefit covers", () => {
+    expect(includes(plan, "C03-S02-T01", "top")).toBe(false);
+    expect(includes(plan, "C04-S05-T01", "standard")).toBe(false);
+    expect(includes([], "C03-S01-T01", "standard")).toBe(false);
   });
 });

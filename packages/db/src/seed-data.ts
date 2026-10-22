@@ -45,23 +45,24 @@ export const testPartners = [
 
 /** A seed venue names its catalogue category by code; seed() looks up the id. */
 export type SeedVenue = Omit<typeof venues.$inferInsert, "categoryId"> & { categoryCode: string };
-// Coastal Rides is a visiting service: no address, used only against a booking.
+// Coastal Rides is a visiting service: no address, used only against a booking. Coordinates are
+// the rough middle of each area, not real addresses.
 const venueId = (n: number) => `00000000-0000-4000-8000-0000000012${String(n).padStart(2, "0")}`;
 export const testVenues: SeedVenue[] = [
-  { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYARR", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYLNG", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYARR", latitude: 6.577, longitude: 3.3215, tier: "standard" as const, openingHours: allDay },
+  { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYLNG", latitude: 6.5795, longitude: 3.323, tier: "standard" as const, openingHours: allDay },
   { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides chauffeurs", kind: "visiting" as const, area: "Lagos", categoryCode: "C01-S02", loginCode: "COASTL", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", loginCode: "ATLONI", tier: "standard" as const, openingHours: daily("10:00", "19:00") },
-  { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", loginCode: "ATLLEK", tier: "standard" as const, openingHours: daily("09:00", "18:00") },
-  { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", loginCode: "MARGRD", tier: "standard" as const, openingHours: daily("06:00", "22:00") },
-  { id: venueId(7), partnerId: partnerId(5), name: "TEST Marina Suites Ikoyi", area: "Ikoyi", categoryCode: "C04-S01", loginCode: "MARSTE", tier: "standard" as const, openingHours: daily("06:00", "21:00") },
-  { id: venueId(8), partnerId: partnerId(6), name: "TEST Lagoon Golf Club", area: "Ikoyi", categoryCode: "C04-S08", loginCode: "LAGOLF", tier: "standard" as const, openingHours: daily("06:30", "18:30") },
-  { id: venueId(9), partnerId: partnerId(7), name: "TEST Serenity Spa Ikoyi", area: "Ikoyi", categoryCode: "C04-S05", loginCode: "SERSPA", tier: "standard" as const, openingHours: daily("09:00", "21:00") },
-  { id: venueId(10), partnerId: partnerId(8), name: "TEST Ikoyi House", area: "Ikoyi", categoryCode: "C06-S04", loginCode: "IKHOUS", tier: "top" as const, openingHours: weekendNights },
-  { id: venueId(11), partnerId: partnerId(9), name: "TEST Afterdark Victoria Island", area: "Victoria Island", categoryCode: "C06-S01", loginCode: "AFTRVI", tier: "standard" as const, openingHours: weekendNights },
-  { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", loginCode: "AFTRLK", tier: "standard" as const, openingHours: weekendNights },
-  { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", loginCode: "MARGRL", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
-  { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", loginCode: "IKKTCH", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", loginCode: "ATLONI", latitude: 6.4262, longitude: 3.4486, tier: "standard" as const, openingHours: daily("10:00", "19:00") },
+  { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", loginCode: "ATLLEK", latitude: 6.432, longitude: 3.511, tier: "standard" as const, openingHours: daily("09:00", "18:00") },
+  { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", loginCode: "MARGRD", latitude: 6.4287, longitude: 3.4219, tier: "standard" as const, openingHours: daily("06:00", "22:00") },
+  { id: venueId(7), partnerId: partnerId(5), name: "TEST Marina Suites Ikoyi", area: "Ikoyi", categoryCode: "C04-S01", loginCode: "MARSTE", latitude: 6.452, longitude: 3.433, tier: "standard" as const, openingHours: daily("06:00", "21:00") },
+  { id: venueId(8), partnerId: partnerId(6), name: "TEST Lagoon Golf Club", area: "Ikoyi", categoryCode: "C04-S08", loginCode: "LAGOLF", latitude: 6.4475, longitude: 3.444, tier: "standard" as const, openingHours: daily("06:30", "18:30") },
+  { id: venueId(9), partnerId: partnerId(7), name: "TEST Serenity Spa Ikoyi", area: "Ikoyi", categoryCode: "C04-S05", loginCode: "SERSPA", latitude: 6.45, longitude: 3.438, tier: "standard" as const, openingHours: daily("09:00", "21:00") },
+  { id: venueId(10), partnerId: partnerId(8), name: "TEST Ikoyi House", area: "Ikoyi", categoryCode: "C06-S04", loginCode: "IKHOUS", latitude: 6.4545, longitude: 3.427, tier: "top" as const, openingHours: weekendNights },
+  { id: venueId(11), partnerId: partnerId(9), name: "TEST Afterdark Victoria Island", area: "Victoria Island", categoryCode: "C06-S01", loginCode: "AFTRVI", latitude: 6.43, longitude: 3.425, tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", loginCode: "AFTRLK", latitude: 6.439, longitude: 3.48, tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", loginCode: "MARGRL", latitude: 6.427, longitude: 3.418, tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", loginCode: "IKKTCH", latitude: 6.451, longitude: 3.43, tier: "standard" as const, openingHours: daily("12:00", "23:00") },
 ].map((v) => ({ ...v, city: "lagos" as const, isTest: true }));
 
 // Door staff: one per venue, all with the TEST PIN 246810 (hashed with a fixed salt so the SQL

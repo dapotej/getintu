@@ -1,4 +1,4 @@
-import { boolean, char, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, char, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { deletedAt, id, timestamps } from "./columns.ts";
 
 // A person. Phone (E.164) is the login. Partners only ever see name and photo.
@@ -6,6 +6,8 @@ export const members = pgTable("members", {
   id: id(),
   fullName: text().notNull(),
   phone: text().notNull().unique(),
+  // Their Supabase Auth user, linked by phone the first time they sign in to the app.
+  authUserId: uuid().unique(),
   email: text(),
   // Path in private storage; served only through signed URLs.
   photoPath: text(),

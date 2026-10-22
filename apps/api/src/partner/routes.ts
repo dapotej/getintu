@@ -9,6 +9,7 @@ import { serviceDate, shiftDate, toLagos } from "@intu/rules";
 import { body, fail, query } from "../http.ts";
 import { NotFoundError, redeem } from "../ledger/redeem.ts";
 import { identify, publishedKeys, revocations, type PassKeys } from "../passes.ts";
+import type { PhotoStore } from "../member/photos.ts";
 import { AttemptLimiter, requireDoorStaff, signSession, SHIFT_HOURS, venueByLoginCode, type PartnerEnv } from "./session.ts";
 
 const { benefits, bookings, categories, members, offers, plans, redemptions, staffUsers, staffUserVenues, venues } = schema;
@@ -17,8 +18,13 @@ export interface PartnerDeps {
   db: Db;
   passKeys: PassKeys;
   partnerSessionSecret: string;
+  /** Member photos: staff see the photo with every online result. */
+  photos: PhotoStore;
   clock: () => Date;
 }
+
+/** Long enough to show the result; useless by the time anyone could share it. */
+const SCAN_PHOTO_SECONDS = 5 * 60;
 
 const uuid = z.uuid();
 const SignIn = z.object({ venueCode: z.string().trim().min(4).max(12), pin: z.string().regex(/^\d{6}$/) });
@@ -165,6 +171,11 @@ export function scannerRoutes(deps: PartnerDeps) {
       if (input.backupCode) backupAttempts.fail(staffId, now.getTime());
       return c.json({ result: "invalid", error: who.error });
     }
+    // The photo link is fetched alongside the decision, so it adds no wait at the door.
+    const photo = (async () => {
+      const [m] = await db.select({ photoPath: members.photoPath }).from(members).where(eq(members.id, who.memberId));
+      return m?.photoPath ? deps.photos.signedUrl(m.photoPath, SCAN_PHOTO_SECONDS).catch(() => null) : null;
+    })();
     const { redemptionId, decision } = await redeem(db, {
       membershipId: who.membershipId,
       venueId,
@@ -178,7 +189,7 @@ export function scannerRoutes(deps: PartnerDeps) {
     return c.json({
       redemptionId,
       ...decision,
-      member: { name: who.name, photoUrl: null },
+      member: { name: who.name, photoUrl: await photo },
       offer: { id: offer.id, name: offer.name },
       partySize: input.partySize,
     });
