@@ -28,10 +28,18 @@ const PlanFields = z.object({
 });
 const CreatePlan = PlanFields.partial().required({ name: true });
 
-/** A plan's code from its name: "December Pass Plus 2027" becomes DECEMBER-PASS-PLUS-2027. */
+// Words that don't tell plans apart.
+const FILLER = new Set(["A", "AN", "AND", "THE", "OF", "FOR", "PASS", "PLAN", "MEMBERSHIP"]);
+
+/**
+ * A short plan code from its name: up to four words, short words whole, longer ones cut to three
+ * letters, years to two digits. "December Pass Plus 2027" becomes DEC-PLUS-27.
+ */
 export function planCodeFrom(name: string) {
-  const code = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "");
-  return code.length >= 2 ? code : "PLAN";
+  const words = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  const kept = words.filter((w) => !FILLER.has(w));
+  const parts = (kept.length ? kept : words).slice(0, 4).map((w) => (/^(19|20)\d\d$/.test(w) ? w.slice(2) : w.length <= 4 ? w : w.slice(0, 3)));
+  return parts.join("-") || "PLAN";
 }
 const UpdatePlan = PlanFields.partial();
 const Prices = z.object({ prices: z.array(z.object({ currency, amountMinor: minorUnits })).max(3) });

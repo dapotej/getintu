@@ -231,7 +231,9 @@ const routes: [string, RegExp, Handler][] = [
   ["POST", /^\/admin\/plans$/, (_m, b) => {
     if (b.code && plans.some((p) => p.code === b.code)) throw new HttpError(409, "duplicate_code", `A plan with code ${String(b.code)} already exists`);
     // As the API does: a code from the name, numbered if taken.
-    const base = String(b.name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "") || "PLAN";
+    const words = String(b.name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+    const kept = words.filter((w) => !["A", "AN", "AND", "THE", "OF", "FOR", "PASS", "PLAN", "MEMBERSHIP"].includes(w));
+    const base = (kept.length ? kept : words).slice(0, 4).map((w) => (/^(19|20)\d\d$/.test(w) ? w.slice(2) : w.length <= 4 ? w : w.slice(0, 3))).join("-") || "PLAN";
     let code = (b.code as string | undefined) ?? base;
     for (let n = 2; plans.some((p) => p.code === code); n++) code = `${base}-${n}`;
     const row = { id: uid(), description: null, seasonStartsOn: null, seasonEndsOn: null, durationDays: null, onSaleFrom: null, onSaleTo: null, groupSize: 1, active: true, isTest: true, ...stamp, ...b, code } as Row;

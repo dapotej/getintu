@@ -62,6 +62,6 @@ test("a concierge sees only what their role allows", async ({ page }) => {
 
   await page.goto("/members");
   await expect(page.getByRole("heading", { name: "Add a member" })).toHaveCount(0);
-  await page.goto("/staff");
+  await page.goto("/settings/team");
   await expect(page.getByText("needs staff.manage")).toBeVisible();
 });

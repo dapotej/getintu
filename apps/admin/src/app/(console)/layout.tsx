@@ -8,16 +8,16 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { supabase } from "@/lib/supabase";
 import type { Permission } from "@/lib/types";
 
-const NAV: { href: string; label: string; icon: IconName; needs: Permission | null }[] = [
+// An item shows when the person has any one of its permissions.
+const NAV: { href: string; label: string; icon: IconName; needs: Permission | Permission[] | null }[] = [
   { href: "/", label: "Overview", icon: "home", needs: null },
   { href: "/members", label: "Members", icon: "users", needs: "members.read" },
   { href: "/plans", label: "Plans and benefits", icon: "layers", needs: "plans.read" },
   { href: "/catalogue", label: "Catalogue", icon: "grid", needs: "plans.read" },
   { href: "/partners", label: "Partners", icon: "store", needs: "partners.read" },
   { href: "/visits", label: "Visits to review", icon: "alert", needs: "members.read" },
-  { href: "/staff", label: "Team", icon: "shield", needs: "staff.manage" },
   { href: "/import", label: "Pilot import", icon: "upload", needs: "import.pilot" },
-  { href: "/settings", label: "Settings", icon: "sliders", needs: "plans.read" },
+  { href: "/settings", label: "Settings", icon: "sliders", needs: ["staff.manage", "plans.read"] },
 ];
 
 const initials = (name: string) =>
@@ -31,7 +31,7 @@ const initials = (name: string) =>
 function Shell({ children }: { children: ReactNode }) {
   const { staff, can } = useStaff();
   const path = usePathname();
-  const items = NAV.filter((n) => n.needs === null || can(n.needs));
+  const items = NAV.filter((n) => n.needs === null || [n.needs].flat().some(can));
   const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
 
   return (

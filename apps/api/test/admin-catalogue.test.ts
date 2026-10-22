@@ -53,13 +53,16 @@ describe.runIf(url)("admin catalogue", () => {
 
   it("makes a plan's code from its name when none is given, numbering repeats", async () => {
     const api = as(await createStaff(db, "ops_lead"));
-    const name = `TEST Always-on Access ${randomUUID().slice(0, 6)}`;
+    const name = `TEST ${randomUUID().slice(0, 4).toUpperCase()} Access`;
     const first = (await api.post("/admin/plans", { name })).json.plan;
     const second = (await api.post("/admin/plans", { name })).json.plan;
     expect(first.code).toBe(planCodeFrom(name));
     expect(second.code).toBe(`${first.code}-2`);
-    expect(planCodeFrom("December Pass Plus 2027")).toBe("DECEMBER-PASS-PLUS-2027");
-    expect(planCodeFrom("Crème Brûlée Club")).toBe("CREME-BRULEE-CLUB");
+    expect(planCodeFrom("December Pass Plus 2027")).toBe("DEC-PLUS-27");
+    expect(planCodeFrom("Always-on Access")).toBe("ALW-ON-ACC");
+    expect(planCodeFrom("TEST December Pass Crew")).toBe("TEST-DEC-CREW");
+    expect(planCodeFrom("Crème Brûlée Club")).toBe("CRE-BRU-CLUB");
+    expect(planCodeFrom("The Pass")).toBe("THE-PASS");
     expect(planCodeFrom("★")).toBe("PLAN");
   });
 

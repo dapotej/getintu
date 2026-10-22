@@ -62,7 +62,7 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await page.getByRole("button", { name: "Create plan" }).click();
   await expect(page.getByRole("heading", { name: `TEST Gold ${code}` })).toBeVisible();
   // The code comes from the name.
-  await expect(page.getByText(`TEST-GOLD-${code}`)).toBeVisible();
+  await expect(page.getByText(/^TEST-GOLD-E2E-[A-Z0-9]+/)).toBeVisible();
 
   await page.getByLabel("NGN").fill("1,500,000");
   await page.getByLabel("GBP").fill("849.99");
@@ -91,8 +91,12 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await expect(page.getByRole("row", { name: new RegExp(code) })).toContainText("£849.99");
 });
 
-test("exchange rates for margins live in Settings", async ({ page }) => {
+test("Settings holds the team and the exchange rates for margins", async ({ page }) => {
   await page.goto("/settings");
+  await expect(page).toHaveURL(/\/settings\/team$/);
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Team" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Send invitation" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Exchange rates" }).click();
   await page.getByLabel("Naira per £1").fill("1,770");
   await page.getByRole("button", { name: "Save rates" }).click();
   await expect(page.getByText("Rates saved.")).toBeVisible();
