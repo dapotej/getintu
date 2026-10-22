@@ -7,7 +7,8 @@ import { audit, createDb, one, schema } from "@intu/db";
 import { createSupabaseAuthAdmin } from "../src/auth/supabase-admin.ts";
 import { loadEnv } from "../src/env.ts";
 
-const { values } = parseArgs({ options: { email: { type: "string" }, name: { type: "string" } } });
+// pnpm 10 passes the "--" separator through to the script.
+const { values } = parseArgs({ args: process.argv.slice(2).filter((a) => a !== "--"), options: { email: { type: "string" }, name: { type: "string" } } });
 if (!values.email || !values.name) throw new Error("--email and --name are required");
 const email = values.email.toLowerCase();
 

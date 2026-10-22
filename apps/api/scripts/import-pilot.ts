@@ -8,7 +8,9 @@ import { parseArgs } from "node:util";
 import { createDb, databaseUrl } from "@intu/db";
 import { importPilot, type PilotFiles } from "../src/import/pilot.ts";
 
+// pnpm 10 passes the "--" separator through to the script.
 const { values } = parseArgs({
+  args: process.argv.slice(2).filter((a) => a !== "--"),
   options: {
     dir: { type: "string" },
     tier: { type: "string", multiple: true, default: [] },
