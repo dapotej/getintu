@@ -1,0 +1,36 @@
+# Milestone 3a — Catalogue, offer pricing and partner pages
+
+An addition to milestone 3, from the "Global Access Categories and Partner Database" sheet (22 Oct 2026). Decisions are in `docs/DECISIONS.md`.
+
+## What was built
+
+**Catalogue instead of fixed benefit types**
+- A three-level catalogue: 8 categories, 55 subcategories, 90 service types (`packages/db/src/taxonomy.ts`), seeded in every environment.
+- Plan benefits point at any level and cover everything below it (Beach Clubs covers Entry only, Entry + F&B credit and Cabana). Each venue offer is exactly one service type. When several benefits cover an offer, the most specific one is used (`benefitFor` in `packages/rules`). Night benefits are anything under Nightlife & Social.
+- **Catalogue** screen in the console: expand the tree, rename, hide from members, turn off (not while something under it is still on), and add a category, subcategory or service type. Codes are generated. Every change is audited.
+- Migrations 0008–0010 move existing data across with no loss: every benefit, offer and redemption is mapped, and each moved redemption gets an audit row.
+
+**Offer pricing**
+- Each offer has a cost (what intu pays per use), an optional retail price, how it's offered (included, included or add-on, add-on, member privilege) and a placeholder flag. Markup is worked out, never typed.
+
+**Partners and their venues**
+- **Partners** lists the businesses intu works with, their contact and their venues.
+- A partner's page shows its venues and business details, and is where venues are added.
+- A venue's page sits under its partner (`/partners/:id/venues/:venueId`) and holds its hours, tier and offers.
+- Deal tracking from the sheet's pipeline tab is not part of the platform (migration 0011 removes the columns briefly added for it).
+
+## How to run it
+
+`pnpm db:migrate && pnpm db:seed`, then the API and console as in milestone 3. The click-through demo is rebuilt with `pnpm --filter @intu/admin demo`.
+
+## What was tested
+
+- Rules: `covers`, `benefitFor`, most-specific benefit wins, caps per matched benefit.
+- API: categories routes (codes, services can't have children, can't turn off a parent with active children, audit), offers must be a service type, a partner returns its venues, a venue returns its partner.
+- Seed: the SQL seed matches the TypeScript seed by category code; the catalogue in the database matches `taxonomy.ts`.
+- End to end: catalogue editing; adding a partner, then a venue from the partner's page, then a priced offer, and finding the venue back under the partner.
+
+## Left open
+
+- "Body scrub" appears twice (Spa & Massage and Body Treatments), as in the sheet.
+- Packages and destinations from the sheet are deferred.

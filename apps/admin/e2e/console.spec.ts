@@ -96,10 +96,9 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await page.getByLabel("Legal name").fill(`TEST Nights ${tag} Ltd`);
   await page.getByLabel("Trading name").fill(`TEST Nights ${tag}`);
   await page.getByRole("button", { name: "Add partner" }).last().click();
-  await expect(page.getByRole("link", { name: `TEST Nights ${tag}` })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `TEST Nights ${tag}` })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add venue" }).first().click();
-  await page.getByLabel("Partner").selectOption({ label: `TEST Nights ${tag}` });
+  await page.getByRole("button", { name: "Add venue" }).click();
   await page.getByLabel("Venue name").fill(`TEST Rooftop ${tag}`);
   await page.getByLabel("Area").fill("Ikoyi");
   await page.getByLabel("Category").selectOption({ label: "Members' club" });
@@ -121,6 +120,12 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await expect(offer).toContainText("₦25,000");
   await expect(offer).toContainText("₦37,500");
   await expect(offer).toContainText("50%");
+
+  // Back up to the partner: the venue is listed under it, and on the partners list.
+  await page.getByRole("link", { name: `TEST Nights ${tag}` }).click();
+  await expect(page.getByRole("link", { name: `TEST Rooftop ${tag}` })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Partners" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(`TEST Nights ${tag}`) })).toContainText(`TEST Rooftop ${tag}`);
 });
 
 test("import the pilot sheet: dry run first, then commit", async ({ page }) => {
@@ -182,37 +187,4 @@ test("grow the catalogue: add a service type, rename it, and use it in a plan", 
   await page.getByRole("link", { name: "Plans and benefits" }).click();
   await page.getByRole("link", { name: "TEST December Pass Plus" }).click();
   await expect(page.getByLabel("Add benefit").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
-});
-
-test("import the partner pipeline, then move a deal forward", async ({ page }) => {
-  const tag = randomUUID().slice(0, 4);
-  const csv = [
-    "Partner / Lead,Main Category,Subcategory,Proposed Offer,Priority,Status,Offer Model,Net Cost (NGN),Margin,Retail Price (NGN),Contact / Owner,Next Action,Notes",
-    `TEST Pipeline Beach ${tag},Beach & Water,Beach Clubs,Entry + F&B credit,P1,Prospect,Credits,,,0,,Call the GM,`,
-    `TEST Pipeline Transfers ${tag},Arrival & Travel,Airport Transfers,SUV pickup,P1,Prospect,Included / Add-on,55000.0,0.5,82500,,,`,
-  ].join("\n");
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Partners and venues" }).click();
-  await page.getByRole("button", { name: "Import pipeline" }).click();
-  await page.getByLabel("Pipeline CSV").setInputFiles({ name: "pipeline.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
-  await page.getByRole("button", { name: "Dry run" }).click();
-  await expect(page.getByText("Dry run: nothing was changed")).toBeVisible();
-  await expect(page.getByText("2 new")).toBeVisible();
-  await expect(page.getByText(/uses credits, which intu doesn't offer/)).toBeVisible();
-  await page.getByRole("button", { name: "Import", exact: true }).click();
-  await expect(page.getByText("Imported", { exact: true })).toBeVisible();
-
-  const transfers = page.getByRole("row", { name: new RegExp(`TEST Pipeline Transfers ${tag}`) });
-  await expect(transfers).toContainText("₦55,000 → ₦82,500");
-  await expect(transfers).toContainText("50% markup");
-  await expect(page.getByRole("row", { name: new RegExp(`TEST Pipeline Beach ${tag}`) })).toContainText("placeholder");
-
-  await page.getByRole("link", { name: `TEST Pipeline Beach ${tag}` }).click();
-  await page.getByLabel("Status").selectOption({ label: "Negotiating" });
-  await page.getByLabel("Cost (₦ per use)").fill("18,000");
-  await page.getByLabel("Retail (₦)").fill("27,000");
-  await page.getByLabel("Prices are placeholders").uncheck();
-  await page.getByRole("button", { name: "Save deal" }).click();
-  await expect(page.getByText("Saved.")).toBeVisible();
-  await expect(page.getByText("Negotiating", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("50% markup")).toBeVisible();
 });

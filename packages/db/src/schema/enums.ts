@@ -7,9 +7,6 @@ export const membershipStatusEnum = pgEnum("membership_status", MEMBERSHIP_STATU
 export const declineReasonEnum = pgEnum("decline_reason", DECLINE_REASONS);
 
 export const categoryLevelEnum = pgEnum("category_level", ["category", "subcategory", "service"]);
-// Where a partner is in the pipeline, from the partner database sheet's Status column onwards.
-export const partnerStatusEnum = pgEnum("partner_status", ["to_identify", "to_verify", "prospect", "personal_lead", "negotiating", "signed", "live", "paused", "declined"]);
-export const partnerPriorityEnum = pgEnum("partner_priority", ["P1", "P2", "P3"]);
 // How an offer reaches members. No credits (Dapo, 22 Oct 2026).
 export const offerModelEnum = pgEnum("offer_model", ["included", "included_or_add_on", "add_on", "member_privilege"]);
 

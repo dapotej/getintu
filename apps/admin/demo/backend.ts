@@ -5,10 +5,6 @@ import { allowancePeriods, benefitFor } from "@intu/rules";
 import { testBenefits, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
 import { flattenTaxonomy } from "../../../packages/db/src/taxonomy";
 import { readTable } from "../../api/src/import/csv";
-import { parsePipeline } from "../../api/src/import/pipeline";
-
-/** The partner sheet's pipeline tab, if a local copy was found at build time (never committed). */
-declare const DEMO_PIPELINE_CSV: string;
 
 type Row = Record<string, unknown> & { id: string };
 const now = () => new Date().toISOString();
@@ -32,7 +28,7 @@ const catRef = (id: unknown) => {
 const plans: Row[] = testPlans.map((p) => ({ description: null, durationDays: null, groupSize: 1, active: true, ...stamp, ...p }) as Row);
 const prices: Row[] = testPlanPrices.map((p) => ({ id: uid(), ...p }) as Row);
 const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b, categoryId: cat(categoryCode).id }) as Row);
-const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, status: "prospect", priority: null, categoryId: null, proposedOffer: null, offerModel: null, proposedCostMinor: null, proposedRetailMinor: null, pricesArePlaceholders: false, nextAction: null, notes: null, isTest: false, settlementTerms: null, contactEmail: null };
+const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, isTest: false, settlementTerms: null, contactEmail: null };
 const partners: Row[] = testPartners.map((p) => ({ ...partnerDefaults, ...stamp, ...p, hasBankDetails: p.id.endsWith("102") }) as Row);
 const venues: Row[] = testVenues.map((v) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v }) as Row);
 const offers: Row[] = testOffers.map(({ categoryCode, ...o }) => ({ description: null, validHours: null, validFrom: null, validTo: null, active: true, retailMinor: null, offerModel: "included", pricesArePlaceholders: false, ...o, categoryId: cat(categoryCode).id }) as Row);
@@ -47,25 +43,6 @@ const staff: Row[] = [
   { id: uid(), role: "ops_lead", fullName: "TEST Amaka Ops Lead", email: "amaka@example.com", active: true, createdAt: "2026-10-22T09:00:00.000Z" },
   { id: uid(), role: "concierge", fullName: "TEST Bisi Concierge", email: "bisi@example.com", active: true, createdAt: "2026-10-23T09:00:00.000Z" },
 ];
-
-// Your real pipeline, if the build found one; otherwise the TEST partners alone.
-function applyPipeline(csv: string) {
-  const { rows, warnings, errors } = parsePipeline(csv, categories as { id: string; level: string; name: string; parentId: string | null }[]);
-  const counts = { created: 0, updated: 0, unchanged: 0 };
-  for (const r of rows) {
-    const existing = partners.find((p) => String(p.tradingName).toLowerCase() === r.name.toLowerCase());
-    if (existing) {
-      const changed = Object.entries(r.values).some(([k, v]) => existing[k] !== v);
-      if (changed) Object.assign(existing, r.values);
-      counts[changed ? "updated" : "unchanged"]++;
-    } else {
-      partners.push({ ...partnerDefaults, ...stamp, id: uid(), legalName: r.name, tradingName: r.name, ...r.values } as Row);
-      counts.created++;
-    }
-  }
-  return { counts, warnings, errors };
-}
-if (typeof DEMO_PIPELINE_CSV === "string" && DEMO_PIPELINE_CSV) applyPipeline(DEMO_PIPELINE_CSV);
 
 function grant(membership: Row) {
   for (const b of benefits.filter((x) => x.planId === membership.planId)) {
@@ -242,7 +219,11 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ["PATCH", /^\/admin\/partners\/([^/]+)$/, (m, b) => ({ partner: Object.assign(need(partners.find((p) => p.id === m[1]), "Partner"), b) })],
   ["GET", /^\/admin\/venues$/, (_m, _b, q) => ({ venues: venues.filter((v) => !q.get("partnerId") || v.partnerId === q.get("partnerId")).sort((a, b) => String(a.name).localeCompare(String(b.name))) })],
-  ["GET", /^\/admin\/venues\/([^/]+)$/, (m) => ({ venue: need(venues.find((v) => v.id === m[1]), "Venue"), offers: offers.filter((o) => o.venueId === m[1]).map(offerOut) })],
+  ["GET", /^\/admin\/venues\/([^/]+)$/, (m) => {
+    const venue = need(venues.find((v) => v.id === m[1]), "Venue");
+    const partner = need(partners.find((p) => p.id === venue.partnerId), "Partner");
+    return { venue, partner: { id: partner.id, tradingName: partner.tradingName }, offers: offers.filter((o) => o.venueId === m[1]).map(offerOut) };
+  }],
   ["POST", /^\/admin\/venues$/, (_m, b) => {
     const row = { id: uid(), tier: "standard", description: null, capacityNotes: null, externalRef: null, active: true, isTest: true, ...stamp, ...b } as Row;
     venues.push(row);
@@ -269,18 +250,6 @@ const routes: [string, RegExp, Handler][] = [
   ["PATCH", /^\/admin\/staff\/([^/]+)$/, (m, b) => {
     if (m[1] === ME.id) throw new HttpError(409, "cannot_change_self", "Ask another team lead to change your own role or access");
     return { staff: Object.assign(need(staff.find((s) => s.id === m[1]), "Staff member"), b) };
-  }],
-
-  // The pipeline import runs the real sheet checks; a dry run changes nothing.
-  ["POST", /^\/admin\/import\/partners$/, (_m, b) => {
-    const dryRun = Boolean(b.dryRun);
-    if (dryRun) {
-      const { rows, warnings, errors } = parsePipeline(String(b.csv), categories as { id: string; level: string; name: string; parentId: string | null }[]);
-      const created = rows.filter((r) => !partners.some((p) => String(p.tradingName).toLowerCase() === r.name.toLowerCase())).length;
-      return { report: { dryRun, committed: false, counts: { created, updated: rows.length - created, unchanged: 0 }, warnings, errors } };
-    }
-    const result = applyPipeline(String(b.csv));
-    return { report: { dryRun, committed: result.errors.length === 0, ...result } };
   }],
 
   // The demo reads the uploaded CSVs and counts rows; the real import validates and writes them.

@@ -5,11 +5,11 @@
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
 
-INSERT INTO partners (id, legal_name, trading_name, contact_email, settlement_terms, status, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000101', 'TEST Coastline Leisure Ltd', 'TEST Coastline', 'ops+101@example.com', 'TEST: monthly in arrears', 'live', true),
-  ('00000000-0000-4000-8000-000000000102', 'TEST Island Hotels Ltd', 'TEST Island Hotels', 'ops+102@example.com', 'TEST: monthly in arrears', 'live', true),
-  ('00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Ltd', 'TEST Lagoon Golf', 'ops+103@example.com', 'TEST: monthly in arrears', 'live', true),
-  ('00000000-0000-4000-8000-000000000104', 'TEST Afterdark Ltd', 'TEST Afterdark', 'ops+104@example.com', 'TEST: monthly in arrears', 'live', true)
+INSERT INTO partners (id, legal_name, trading_name, contact_email, settlement_terms, is_test) VALUES
+  ('00000000-0000-4000-8000-000000000101', 'TEST Coastline Leisure Ltd', 'TEST Coastline', 'ops+101@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000000102', 'TEST Island Hotels Ltd', 'TEST Island Hotels', 'ops+102@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Ltd', 'TEST Lagoon Golf', 'ops+103@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000000104', 'TEST Afterdark Ltd', 'TEST Afterdark', 'ops+104@example.com', 'TEST: monthly in arrears', true)
 ON CONFLICT DO NOTHING;
 
 WITH h(name, hours) AS (VALUES

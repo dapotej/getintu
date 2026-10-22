@@ -28,7 +28,7 @@ export const testPartners = [
   { id: "00000000-0000-4000-8000-000000000102", legalName: "TEST Island Hotels Ltd", tradingName: "TEST Island Hotels" },
   { id: "00000000-0000-4000-8000-000000000103", legalName: "TEST Lagoon Golf Ltd", tradingName: "TEST Lagoon Golf" },
   { id: "00000000-0000-4000-8000-000000000104", legalName: "TEST Afterdark Ltd", tradingName: "TEST Afterdark" },
-].map((p) => ({ ...p, contactEmail: `ops+${p.id.slice(-3)}@example.com`, settlementTerms: "TEST: monthly in arrears", status: "live" as const, isTest: true }));
+].map((p) => ({ ...p, contactEmail: `ops+${p.id.slice(-3)}@example.com`, settlementTerms: "TEST: monthly in arrears", isTest: true }));
 
 const [coastline, island, golf, afterdark] = testPartners.map((p) => p.id) as [string, string, string, string];
 

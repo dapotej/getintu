@@ -5,7 +5,7 @@ import { one, schema, type Db } from "@intu/db";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
-import { currency, idParam, isoDate, minorUnits, offerModel, partnerPriority, partnerStatus, uuid, venueTier, WeeklyHours } from "./validation.ts";
+import { currency, idParam, isoDate, minorUnits, offerModel, uuid, venueTier, WeeklyHours } from "./validation.ts";
 
 const { partners, venues, offers, categories } = schema;
 
@@ -17,16 +17,6 @@ const PartnerFields = z.object({
   contactPhone: z.string().max(40).nullable(),
   settlementTerms: z.string().max(2000).nullable(),
   active: z.boolean(),
-  status: partnerStatus,
-  priority: partnerPriority.nullable(),
-  categoryId: uuid.nullable(),
-  proposedOffer: z.string().max(500).nullable(),
-  offerModel: offerModel.nullable(),
-  proposedCostMinor: minorUnits.nullable(),
-  proposedRetailMinor: minorUnits.nullable(),
-  pricesArePlaceholders: z.boolean(),
-  nextAction: z.string().max(500).nullable(),
-  notes: z.string().max(4000).nullable(),
 });
 
 const VenueFields = z.object({
@@ -117,13 +107,14 @@ export function partnerRoutes(db: Db) {
     const { id } = idParam.parse(c.req.param());
     const [venue] = await db.select().from(venues).where(eq(venues.id, id));
     if (!venue) fail(404, "not_found", "Venue not found");
+    const partner = one(await db.select({ id: partners.id, tradingName: partners.tradingName }).from(partners).where(eq(partners.id, venue.partnerId)));
     const venueOffers = await db
       .select({ offer: offers, category: { id: categories.id, code: categories.code, name: categories.name } })
       .from(offers)
       .innerJoin(categories, eq(categories.id, offers.categoryId))
       .where(eq(offers.venueId, id))
       .orderBy(asc(categories.code));
-    return c.json({ venue, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })) });
+    return c.json({ venue, partner, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })) });
   });
 
   app.post("/venues", requirePermission("partners.write"), async (c) => {

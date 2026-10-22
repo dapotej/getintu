@@ -106,15 +106,14 @@ describe.runIf(url)("admin catalogue", () => {
     expect(list.hasBankDetails).toBe(true);
     const one = (await api.get(`/admin/partners/${partner.id}`)).json;
     expect(one.partner).not.toHaveProperty("bankDetailsEncrypted");
-    expect(one).toMatchObject({ partner: { id: partner.id, status: "prospect", hasBankDetails: true }, venues: [] });
-
-    const pipeline = await api.patch(`/admin/partners/${partner.id}`, { status: "negotiating", priority: "P1", proposedCostMinor: 3_000_000, proposedRetailMinor: 4_500_000, pricesArePlaceholders: true, nextAction: "TEST send contract" });
-    expect(pipeline.json.partner).toMatchObject({ status: "negotiating", priority: "P1", proposedCostMinor: 3_000_000, proposedRetailMinor: 4_500_000, nextAction: "TEST send contract" });
-    expect((await api.patch(`/admin/partners/${partner.id}`, { status: "maybe" })).status).toBe(400);
+    expect(one).toMatchObject({ partner: { id: partner.id, hasBankDetails: true }, venues: [] });
+    expect((await api.patch(`/admin/partners/${partner.id}`, { contactEmail: "not an email" })).status).toBe(400);
 
     const badHours = { ...allDay, "6": [{ open: "25:00", close: "02:00" }] };
     expect((await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Bad", area: "VI", city: "lagos", category: "nightclub", openingHours: badHours })).status).toBe(400);
     const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Good", area: "VI", city: "lagos", category: "nightclub", openingHours: allDay })).json.venue;
+    expect((await api.get(`/admin/partners/${partner.id}`)).json.venues.map((v: { id: string }) => v.id)).toEqual([venue.id]);
+    expect((await api.get(`/admin/venues/${venue.id}`)).json.partner).toEqual({ id: partner.id, tradingName: "TEST Bank" });
     expect((await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C06-S01-T03"), rateMinor: 0, validFrom: "2026-12-10", validTo: "2026-12-01" })).status).toBe(400);
     expect((await api.post("/admin/venues", { partnerId: randomUUID(), name: "TEST Orphan", area: "VI", city: "lagos", category: "spa", openingHours: allDay })).status).toBe(422);
 

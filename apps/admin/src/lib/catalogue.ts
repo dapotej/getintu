@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useApi } from "./api";
-import type { Category, OfferModel, PartnerStatus } from "./types";
+import type { Category, OfferModel } from "./types";
 
 /** The catalogue, with lookups the screens need. Loads once per screen. */
 export function useCatalogue() {
@@ -33,21 +33,6 @@ export const OFFER_MODELS: Record<OfferModel, string> = {
   add_on: "Paid add-on",
   member_privilege: "Member privilege",
 };
-
-export const PARTNER_STATUSES: Record<PartnerStatus, string> = {
-  to_identify: "To identify",
-  to_verify: "To verify",
-  prospect: "Prospect",
-  personal_lead: "Personal lead",
-  negotiating: "Negotiating",
-  signed: "Signed",
-  live: "Live",
-  paused: "Paused",
-  declined: "Declined",
-};
-
-export const statusToneFor = (s: PartnerStatus) =>
-  (s === "live" || s === "signed" ? "night" : s === "negotiating" ? "accent" : s === "paused" || s === "declined" ? "danger" : s === "prospect" || s === "personal_lead" ? "day" : "neutral") as "night" | "accent" | "danger" | "day" | "neutral";
 
 /** Markup on cost, e.g. 50%. Worked out from the two prices, never stored. */
 export function markup(costMinor: number | null, retailMinor: number | null): string | null {

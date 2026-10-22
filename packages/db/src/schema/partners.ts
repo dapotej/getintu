@@ -2,7 +2,7 @@ import { boolean, date, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/
 import type { WeeklyHours } from "@intu/rules";
 import { deletedAt, id, timestamps } from "./columns.ts";
 import { categories } from "./categories.ts";
-import { cityEnum, currencyEnum, offerModelEnum, partnerPriorityEnum, partnerStatusEnum, venueCategoryEnum, venueTierEnum } from "./enums.ts";
+import { cityEnum, currencyEnum, offerModelEnum, venueCategoryEnum, venueTierEnum } from "./enums.ts";
 
 // A business intu pays. Bank details are encrypted at field level before they reach this table.
 export const partners = pgTable("partners", {
@@ -15,18 +15,6 @@ export const partners = pgTable("partners", {
   bankDetailsEncrypted: text(),
   settlementTerms: text(),
   active: boolean().notNull().default(true),
-  // Pipeline: where the deal is, and what's being proposed.
-  status: partnerStatusEnum().notNull().default("prospect"),
-  priority: partnerPriorityEnum(),
-  categoryId: uuid().references(() => categories.id),
-  proposedOffer: text(),
-  offerModel: offerModelEnum(),
-  // Per use, in kobo. Markup is worked out from these, never stored.
-  proposedCostMinor: integer(),
-  proposedRetailMinor: integer(),
-  pricesArePlaceholders: boolean().notNull().default(false),
-  nextAction: text(),
-  notes: text(),
   isTest: boolean().notNull().default(false),
   ...timestamps,
   deletedAt: deletedAt(),

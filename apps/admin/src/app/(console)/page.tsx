@@ -48,7 +48,7 @@ export default function Home() {
       <h2 className="mb-3 mt-10 text-sm font-semibold text-muted">Jump to</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {can("plans.read") ? <Tile href="/plans" icon="layers" title="Plans and benefits" body="Prices, allowances, caps and which venue tiers each plan can use." /> : null}
-        {can("partners.read") ? <Tile href="/partners" icon="store" title="Partners and venues" body="Venues, opening hours, tiers and what intu pays per visit." /> : null}
+        {can("partners.read") ? <Tile href="/partners" icon="store" title="Partners" body="The businesses intu works with, their venues, and what intu pays per visit." /> : null}
         {can("import.pilot") ? <Tile href="/import" icon="upload" title="Pilot import" body="Bring the December pilot sheet across, with a dry run first." /> : null}
       </div>
     </>

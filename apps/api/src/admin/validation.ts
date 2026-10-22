@@ -12,5 +12,3 @@ export const currency = z.enum(["GBP", "USD", "NGN"]);
 export const venueTier = z.enum(VENUE_TIERS);
 export const idParam = z.object({ id: uuid });
 export const offerModel = z.enum(["included", "included_or_add_on", "add_on", "member_privilege"]);
-export const partnerStatus = z.enum(["to_identify", "to_verify", "prospect", "personal_lead", "negotiating", "signed", "live", "paused", "declined"]);
-export const partnerPriority = z.enum(["P1", "P2", "P3"]);

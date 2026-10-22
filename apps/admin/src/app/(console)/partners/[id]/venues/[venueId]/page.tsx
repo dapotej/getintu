@@ -20,21 +20,21 @@ const naira = (form: FormData, name: string, label: string) => {
 const nairaOrNull = (form: FormData, name: string, label: string) => (text(form, name) ? naira(form, name, label) : null);
 
 export default function VenuePage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: partnerId, venueId: id } = useParams<{ id: string; venueId: string }>();
   const { can } = useStaff();
   const writable = can("partners.write");
-  const { data, error, reload } = useApi<{ venue: Venue; offers: Offer[] }>(`/admin/venues/${id}`);
+  const { data, error, reload } = useApi<{ venue: Venue; partner: { id: string; tradingName: string }; offers: Offer[] }>(`/admin/venues/${id}`);
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
-  const { venue, offers } = data;
+  const { venue, partner, offers } = data;
   const taken = offers.map((o) => o.categoryId);
 
   return (
     <>
       <PageHeader
         eyebrow={
-          <Link href="/partners" className="inline-flex items-center gap-1 hover:text-fg">
-            <Icon name="back" className="size-4" /> Partners and venues
+          <Link href={`/partners/${partnerId}`} className="inline-flex items-center gap-1 hover:text-fg">
+            <Icon name="back" className="size-4" /> {partner.tradingName}
           </Link>
         }
         title={venue.name}

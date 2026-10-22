@@ -21,7 +21,7 @@ const FINGERPRINT = `
     (select md5(string_agg(r, '|' order by r)) from (select o.id::text||o.venue_id::text||(select code from categories where id = o.category_id)||o.rate_minor||coalesce(o.retail_minor::text,'-')||o.prices_are_placeholders||coalesce(o.daily_cap::text,'-') as r from offers o) x) as offers,
     (select md5(string_agg(r, '|' order by r)) from (select m.id::text||m.full_name||m.phone||coalesce(m.email,'')||coalesce(m.country,'') as r from members m) x) as members,
     (select md5(string_agg(r, '|' order by r)) from (select p.code||pp.currency||pp.amount_minor as r from plan_prices pp join plans p on p.id = pp.plan_id) x) as prices,
-    (select md5(string_agg(r, '|' order by r)) from (select p.id::text||p.status||p.legal_name as r from partners p) x) as partners`;
+    (select md5(string_agg(r, '|' order by r)) from (select p.id::text||p.legal_name as r from partners p) x) as partners`;
 
 describe.runIf(url)("SQL seed", () => {
   const admin = createDb(url ?? "", { max: 1 });

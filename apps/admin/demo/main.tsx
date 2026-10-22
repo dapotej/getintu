@@ -17,7 +17,7 @@ import PartnersPage from "../src/app/(console)/partners/page";
 import PlanPage from "../src/app/(console)/plans/[id]/page";
 import PlansPage from "../src/app/(console)/plans/page";
 import StaffPage from "../src/app/(console)/staff/page";
-import VenuePage from "../src/app/(console)/venues/[id]/page";
+import VenuePage from "../src/app/(console)/partners/[id]/venues/[venueId]/page";
 import { handle } from "./backend";
 import { ParamsContext, useLocation } from "./router";
 
@@ -46,7 +46,7 @@ const ROUTES: [RegExp, ComponentType, Layout][] = [
   [/^\/partners$/, PartnersPage, ConsoleLayout],
   [/^\/partners\/(?<id>[^/]+)$/, PartnerPage, ConsoleLayout],
   [/^\/catalogue$/, CataloguePage, ConsoleLayout],
-  [/^\/venues\/(?<id>[^/]+)$/, VenuePage, ConsoleLayout],
+  [/^\/partners\/(?<id>[^/]+)\/venues\/(?<venueId>[^/]+)$/, VenuePage, ConsoleLayout],
   [/^\/staff$/, StaffPage, ConsoleLayout],
   [/^\/import$/, ImportPage, ConsoleLayout],
 ];

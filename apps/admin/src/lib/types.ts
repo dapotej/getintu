@@ -76,19 +76,8 @@ export interface Partner {
   active: boolean;
   isTest: boolean;
   hasBankDetails: boolean;
-  status: PartnerStatus;
-  priority: "P1" | "P2" | "P3" | null;
-  categoryId: string | null;
-  proposedOffer: string | null;
-  offerModel: OfferModel | null;
-  proposedCostMinor: number | null;
-  proposedRetailMinor: number | null;
-  pricesArePlaceholders: boolean;
-  nextAction: string | null;
-  notes: string | null;
 }
 
-export type PartnerStatus = "to_identify" | "to_verify" | "prospect" | "personal_lead" | "negotiating" | "signed" | "live" | "paused" | "declined";
 export type OfferModel = "included" | "included_or_add_on" | "add_on" | "member_privilege";
 
 export type WeeklyHours = Record<"0" | "1" | "2" | "3" | "4" | "5" | "6", { open: string; close: string }[]>;
