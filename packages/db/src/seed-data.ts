@@ -23,24 +23,45 @@ const weekendNights: OpeningHours = {
   "6": [{ open: "22:00", close: "04:00" }],
 };
 
+const allDay: OpeningHours = daily("00:00", "24:00");
+
+// Partners and venues for the December Pass, one or two per benefit in docs/CONCEPT.md. Every
+// business is fictional. A venue's kind is a catalogue category or subcategory, by code.
+const partnerId = (n: number) => `00000000-0000-4000-8000-0000000011${String(n).padStart(2, "0")}`;
 export const testPartners = [
-  { id: "00000000-0000-4000-8000-000000000101", legalName: "TEST Coastline Leisure Ltd", tradingName: "TEST Coastline" },
-  { id: "00000000-0000-4000-8000-000000000102", legalName: "TEST Island Hotels Ltd", tradingName: "TEST Island Hotels" },
-  { id: "00000000-0000-4000-8000-000000000103", legalName: "TEST Lagoon Golf Ltd", tradingName: "TEST Lagoon Golf" },
-  { id: "00000000-0000-4000-8000-000000000104", legalName: "TEST Afterdark Ltd", tradingName: "TEST Afterdark" },
+  { id: partnerId(1), legalName: "TEST SkyPort Protocol Ltd", tradingName: "TEST SkyPort Protocol" },
+  { id: partnerId(2), legalName: "TEST SkyPort Lounges Ltd", tradingName: "TEST SkyPort Lounges" },
+  { id: partnerId(3), legalName: "TEST Coastal Rides Ltd", tradingName: "TEST Coastal Rides" },
+  { id: partnerId(4), legalName: "TEST Atlantic Shore Leisure Ltd", tradingName: "TEST Atlantic Shore" },
+  { id: partnerId(5), legalName: "TEST Marina Hotels Ltd", tradingName: "TEST Marina Hotels" },
+  { id: partnerId(6), legalName: "TEST Lagoon Golf Club Ltd", tradingName: "TEST Lagoon Golf Club" },
+  { id: partnerId(7), legalName: "TEST Serenity Spa Ltd", tradingName: "TEST Serenity Spa" },
+  { id: partnerId(8), legalName: "TEST Ikoyi House Ltd", tradingName: "TEST Ikoyi House" },
+  { id: partnerId(9), legalName: "TEST Afterdark Nightlife Ltd", tradingName: "TEST Afterdark" },
+  { id: partnerId(10), legalName: "TEST Table Collective Ltd", tradingName: "TEST Table Collective" },
+  // Doctor on call is a phone and video service, paid as a flat fee per member: no venue to scan.
+  { id: partnerId(11), legalName: "TEST CareLine Health Ltd", tradingName: "TEST CareLine Health" },
 ].map((p) => ({ ...p, contactEmail: `ops+${p.id.slice(-3)}@example.com`, settlementTerms: "TEST: monthly in arrears", isTest: true }));
 
-const [coastline, island, golf, afterdark] = testPartners.map((p) => p.id) as [string, string, string, string];
-
-export const testVenues = [
-  { id: "00000000-0000-4000-8000-000000000201", partnerId: coastline, name: "TEST Oniru Beach Club", area: "Oniru", category: "beach_club" as const, tier: "standard" as const, openingHours: daily("10:00", "19:00") },
-  { id: "00000000-0000-4000-8000-000000000202", partnerId: coastline, name: "TEST Lekki Sands Resort", area: "Lekki", category: "beach_club" as const, tier: "standard" as const, openingHours: daily("09:00", "18:00") },
-  { id: "00000000-0000-4000-8000-000000000203", partnerId: island, name: "TEST Victoria Island Hotel Pool and Gym", area: "Victoria Island", category: "hotel" as const, tier: "standard" as const, openingHours: daily("06:00", "22:00") },
-  { id: "00000000-0000-4000-8000-000000000204", partnerId: island, name: "TEST Ikoyi Spa", area: "Ikoyi", category: "spa" as const, tier: "top" as const, openingHours: daily("09:00", "21:00") },
-  { id: "00000000-0000-4000-8000-000000000205", partnerId: golf, name: "TEST Lagoon Golf Course", area: "Ikoyi", category: "golf" as const, tier: "standard" as const, openingHours: daily("06:30", "18:30") },
-  { id: "00000000-0000-4000-8000-000000000206", partnerId: afterdark, name: "TEST Afterdark Nightclub", area: "Victoria Island", category: "nightclub" as const, tier: "standard" as const, openingHours: weekendNights },
-  { id: "00000000-0000-4000-8000-000000000207", partnerId: afterdark, name: "TEST Waterfront Members Club", area: "Ikoyi", category: "members_club" as const, tier: "top" as const, openingHours: weekendNights },
-].map((v): typeof venues.$inferInsert => ({ ...v, city: "lagos", isTest: true }));
+/** A seed venue names its catalogue category by code; seed() looks up the id. */
+export type SeedVenue = Omit<typeof venues.$inferInsert, "categoryId"> & { categoryCode: string };
+const venueId = (n: number) => `00000000-0000-4000-8000-0000000012${String(n).padStart(2, "0")}`;
+export const testVenues: SeedVenue[] = [
+  { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides Airport Desk", area: "Ikeja", categoryCode: "C01-S02", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", tier: "standard" as const, openingHours: daily("10:00", "19:00") },
+  { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", tier: "standard" as const, openingHours: daily("09:00", "18:00") },
+  { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", tier: "standard" as const, openingHours: daily("06:00", "22:00") },
+  { id: venueId(7), partnerId: partnerId(5), name: "TEST Marina Suites Ikoyi", area: "Ikoyi", categoryCode: "C04-S01", tier: "standard" as const, openingHours: daily("06:00", "21:00") },
+  { id: venueId(8), partnerId: partnerId(6), name: "TEST Lagoon Golf Club", area: "Ikoyi", categoryCode: "C04-S08", tier: "standard" as const, openingHours: daily("06:30", "18:30") },
+  { id: venueId(9), partnerId: partnerId(7), name: "TEST Serenity Spa Ikoyi", area: "Ikoyi", categoryCode: "C04-S05", tier: "standard" as const, openingHours: daily("09:00", "21:00") },
+  { id: venueId(10), partnerId: partnerId(8), name: "TEST Ikoyi House", area: "Ikoyi", categoryCode: "C06-S04", tier: "top" as const, openingHours: weekendNights },
+  { id: venueId(11), partnerId: partnerId(9), name: "TEST Afterdark Victoria Island", area: "Victoria Island", categoryCode: "C06-S01", tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+].map((v) => ({ ...v, city: "lagos" as const, isTest: true }));
 
 export const testMembers = [
   { id: "00000000-0000-4000-8000-000000000301", fullName: "TEST Ada London", phone: "+447700900001", country: "GB" },
@@ -57,8 +78,8 @@ export const testMembers = [
 const essential = "00000000-0000-4000-8000-000000000401";
 const plus = "00000000-0000-4000-8000-000000000402";
 const crew = "00000000-0000-4000-8000-000000000403";
-// ₦30,000 per member for concierge, operations and payment fees: a TEST planning figure.
-const season = { seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", onSaleFrom: "2026-11-15", onSaleTo: "2027-01-05", overheadPerMemberMinor: 3_000_000, isTest: true };
+// ₦42,000 per member (about £24) for concierge, operations and payment fees, as in the concept.
+const season = { seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", onSaleFrom: "2026-11-15", onSaleTo: "2027-01-05", overheadPerMemberMinor: 4_200_000, isTest: true };
 
 export const testPlans: (typeof plans.$inferInsert)[] = [
   { id: essential, code: "TEST-DEC26-ESSENTIAL", name: "TEST December Pass Essential", ...season },
@@ -77,63 +98,79 @@ export const testPlanPrices: (typeof planPrices.$inferInsert)[] = [
 
 /** A seed benefit names its category by code; seed() looks up the id. */
 export type SeedBenefit = Omit<typeof benefits.$inferInsert, "categoryId"> & { categoryCode: string };
-// TEST planning costs for benefits no seed venue offers yet. Meet-and-assist is always used.
-const COSTING: Record<string, Partial<SeedBenefit>> = {
-  "C01-S01-T01": { plannedCostMinor: 10_000_000, expectedUsePct: 100 },
-  "C01-S01-T03": { plannedCostMinor: 3_500_000 },
-  "C02-S01-T01": { costBasis: "flat_per_member", plannedCostMinor: 0 },
-};
 const perPass = (planId: string, categoryCode: string, quantity: number | null, extra: Partial<SeedBenefit> = {}): SeedBenefit => ({
   planId,
   categoryCode,
   quantity,
   period: "per_pass",
   allowedVenueTiers: ["standard", "top"],
-  ...COSTING[categoryCode],
   ...extra,
 });
+// Arrival services are always used; doctor on call is a flat fee per member (about £5).
+const always = { expectedUsePct: 100 };
+const doctorOnCall = (planId: string) => perPass(planId, "C08-S02", null, { costBasis: "flat_per_member", plannedCostMinor: 900_000 });
 
+// The December Pass table in docs/CONCEPT.md. WhatsApp concierge sits in each plan's fixed costs;
+// event presales have no catalogue entry yet.
 export const testBenefits: SeedBenefit[] = [
-  perPass(essential, "C01-S01-T01", 1),
+  perPass(essential, "C01-S01-T01", 1, always),
   perPass(essential, "C03-S01", 2),
   perPass(essential, "C04-S01-T02", 2),
-  perPass(essential, "C06-S01-T03", null),
   perPass(essential, "C02-S01-T01", null),
-  perPass(plus, "C01-S01-T01", 1),
+  perPass(essential, "C06-S01-T03", null),
+  doctorOnCall(essential),
+
+  perPass(plus, "C01-S01-T01", 1, always),
+  perPass(plus, "C01-S02-T01", 1, always),
   perPass(plus, "C03-S01", 4),
   perPass(plus, "C04-S01-T02", 4),
   perPass(plus, "C04-S08", 1),
   perPass(plus, "C04-S05", 1),
+  perPass(plus, "C02-S01-T01", null),
+  perPass(plus, "C06-S01-T03", null),
   perPass(plus, "C06-S04-T01", 1),
   perPass(plus, "C01-S01-T03", 1),
-  perPass(plus, "C06-S01-T03", null),
-  perPass(plus, "C02-S01-T01", null),
-  perPass(crew, "C01-S01-T01", 1, { sharedByGroup: true }),
+  doctorOnCall(plus),
+
+  perPass(crew, "C01-S01-T01", 1, { ...always, sharedByGroup: true }),
+  perPass(crew, "C01-S02-T01", 1, { ...always, sharedByGroup: true }),
   perPass(crew, "C03-S01", 4),
   perPass(crew, "C04-S01-T02", 4),
   perPass(crew, "C04-S08", 1),
   perPass(crew, "C04-S05", 1),
+  perPass(crew, "C02-S01-T01", null),
+  perPass(crew, "C06-S01-T03", null),
   perPass(crew, "C06-S04-T01", 1, { sharedByGroup: true }),
   perPass(crew, "C01-S01-T03", 1),
-  perPass(crew, "C06-S01-T03", null),
-  perPass(crew, "C02-S01-T01", null),
+  doctorOnCall(crew),
 ];
 
-// Rates are TEST placeholders in kobo until partners quote.
-const venueId = (n: number) => `00000000-0000-4000-8000-00000000020${n}`;
-/** A seed offer names its service type by code; seed() looks up the id. Rates are placeholders. */
+/** A seed offer names its service type by code; seed() looks up the id. */
 export type SeedOffer = Omit<typeof offers.$inferInsert, "categoryId"> & { categoryCode: string };
+const offerId = (n: number) => `00000000-0000-4000-8000-0000000015${String(n).padStart(2, "0")}`;
+// Costs per use in kobo, from the concept's wholesale estimates at about ₦1,770 to £1. All are
+// placeholders until partners quote; retail is cost plus half. Guest list and reservations are free.
 export const testOffers: SeedOffer[] = (
   [
-  { id: "00000000-0000-4000-8000-000000000501", venueId: venueId(1), categoryCode: "C03-S01-T01", rateMinor: 1_800_000, dailyCap: 30 },
-  { id: "00000000-0000-4000-8000-000000000502", venueId: venueId(2), categoryCode: "C03-S01-T01", rateMinor: 1_800_000, dailyCap: 30 },
-  { id: "00000000-0000-4000-8000-000000000503", venueId: venueId(3), categoryCode: "C04-S01-T02", rateMinor: 2_500_000, dailyCap: 15 },
-  { id: "00000000-0000-4000-8000-000000000504", venueId: venueId(4), categoryCode: "C04-S05-T01", rateMinor: 6_000_000, dailyCap: 5 },
-  { id: "00000000-0000-4000-8000-000000000505", venueId: venueId(5), categoryCode: "C04-S08-T01", rateMinor: 4_000_000, dailyCap: 8 },
-  { id: "00000000-0000-4000-8000-000000000506", venueId: venueId(6), categoryCode: "C06-S01-T03", rateMinor: 0, dailyCap: 40 },
-  { id: "00000000-0000-4000-8000-000000000507", venueId: venueId(7), categoryCode: "C06-S04-T01", rateMinor: 2_500_000, dailyCap: 10 },
+    { venueId: venueId(1), categoryCode: "C01-S01-T01", rateMinor: 6_000_000, dailyCap: 20 },
+    { venueId: venueId(1), categoryCode: "C01-S01-T02", rateMinor: 4_500_000, dailyCap: 20 },
+    { venueId: venueId(2), categoryCode: "C01-S01-T03", rateMinor: 3_500_000, dailyCap: 30 },
+    { venueId: venueId(3), categoryCode: "C01-S02-T01", rateMinor: 4_500_000, dailyCap: 15 },
+    { venueId: venueId(3), categoryCode: "C01-S02-T02", rateMinor: 4_500_000, dailyCap: 15 },
+    { venueId: venueId(4), categoryCode: "C03-S01-T01", rateMinor: 1_500_000, dailyCap: 30 },
+    { venueId: venueId(5), categoryCode: "C03-S01-T02", rateMinor: 2_200_000, dailyCap: 30 },
+    { venueId: venueId(6), categoryCode: "C04-S01-T02", rateMinor: 2_500_000, dailyCap: 15 },
+    { venueId: venueId(7), categoryCode: "C04-S01-T02", rateMinor: 2_800_000, dailyCap: 10 },
+    { venueId: venueId(8), categoryCode: "C04-S08-T01", rateMinor: 4_000_000, dailyCap: 8 },
+    { venueId: venueId(9), categoryCode: "C04-S05-T01", rateMinor: 6_000_000, dailyCap: 6 },
+    { venueId: venueId(9), categoryCode: "C04-S05-T02", rateMinor: 4_500_000, dailyCap: 6 },
+    { venueId: venueId(10), categoryCode: "C06-S04-T01", rateMinor: 2_500_000, dailyCap: 10 },
+    { venueId: venueId(11), categoryCode: "C06-S01-T03", rateMinor: 0, dailyCap: 40 },
+    { venueId: venueId(12), categoryCode: "C06-S01-T03", rateMinor: 0, dailyCap: 30 },
+    { venueId: venueId(13), categoryCode: "C02-S01-T01", rateMinor: 0, dailyCap: 10 },
+    { venueId: venueId(14), categoryCode: "C02-S01-T01", rateMinor: 0, dailyCap: 10 },
   ] satisfies Omit<SeedOffer, "rateCurrency" | "isTest">[]
-).map((o) => ({ ...o, retailMinor: Math.round((o.rateMinor * 3) / 2), rateCurrency: "NGN" as const, pricesArePlaceholders: true, isTest: true }));
+).map((o, i) => ({ id: offerId(i + 1), ...o, retailMinor: Math.round((o.rateMinor * 3) / 2), rateCurrency: "NGN" as const, pricesArePlaceholders: true, isTest: true }));
 
 const crewGroup = "00000000-0000-4000-8000-000000000600";
 const membershipFor = (n: number, memberId: string, planId: string, groupId: string | null = null): typeof memberships.$inferInsert => ({

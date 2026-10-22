@@ -92,6 +92,20 @@
       "when": 1792672413225,
       "tag": "0012_plan_costing",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792684398915,
+      "tag": "0013_venue_category_step1",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792684407950,
+      "tag": "0014_venue_category_step2",
+      "breakpoints": true
     }
   ]
 }

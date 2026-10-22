@@ -101,7 +101,8 @@ export interface Venue {
   name: string;
   area: string;
   city: "lagos" | "abuja";
-  category: string;
+  /** A catalogue category or subcategory. */
+  categoryId: string;
   tier: "standard" | "top";
   description: string | null;
   openingHours: WeeklyHours;

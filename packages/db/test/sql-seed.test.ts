@@ -8,6 +8,7 @@ import { createDb, seed } from "../src/index.ts";
 const url = process.env.DATABASE_URL;
 const migrationsFolder = new URL("../drizzle", import.meta.url).pathname;
 const sqlSeed = readFileSync(new URL("../sql/seed-test-data.sql", import.meta.url), "utf8");
+const sqlReset = readFileSync(new URL("../sql/reset-test-data.sql", import.meta.url), "utf8");
 
 const FINGERPRINT = `
   select
@@ -17,7 +18,7 @@ const FINGERPRINT = `
     (select count(*) from audit_log) as counts,
     (select md5(string_agg(r, '|' order by r)) from (select p.code||c.code||coalesce(b.quantity::text,'-')||b.shared_by_group||b.draw_per_person||b.allowed_venue_tiers::text||b.cap_once_per_venue_per_day||b.cost_basis||coalesce(b.planned_cost_minor::text,'-')||b.expected_use_pct as r from benefits b join plans p on p.id = b.plan_id join categories c on c.id = b.category_id) x) as benefits,
     (select md5(string_agg(r, '|' order by r)) from (select coalesce(a.membership_id::text, 'g:'||a.group_id)||p.code||c.code||coalesce(a.granted::text,'-')||a.period_start||a.period_end||a.used as r from allowances a join benefits b on b.id = a.benefit_id join plans p on p.id = b.plan_id join categories c on c.id = b.category_id) x) as allowances,
-    (select md5(string_agg(r, '|' order by r)) from (select v.id::text||v.name||v.opening_hours::text||v.tier||v.category as r from venues v) x) as venues,
+    (select md5(string_agg(r, '|' order by r)) from (select v.id::text||v.name||v.opening_hours::text||v.tier||(select code from categories where id = v.category_id) as r from venues v) x) as venues,
     (select md5(string_agg(r, '|' order by r)) from (select o.id::text||o.venue_id::text||(select code from categories where id = o.category_id)||o.rate_minor||coalesce(o.retail_minor::text,'-')||o.prices_are_placeholders||coalesce(o.daily_cap::text,'-') as r from offers o) x) as offers,
     (select md5(string_agg(r, '|' order by r)) from (select m.id::text||m.full_name||m.phone||coalesce(m.email,'')||coalesce(m.country,'') as r from members m) x) as members,
     (select md5(string_agg(r, '|' order by r)) from (select p.code||pp.currency||pp.amount_minor as r from plan_prices pp join plans p on p.id = pp.plan_id) x) as prices,
@@ -56,5 +57,21 @@ describe.runIf(url)("SQL seed", () => {
       await sql.end();
     }
     expect(fingerprints[1]).toEqual(fingerprints[0]);
+  });
+
+  it("resets: removes every TEST row, then the seed loads the same set again", async () => {
+    const { sql } = createDb(dbUrl(names.sql), { max: 1 });
+    const [before] = await sql.unsafe(FINGERPRINT);
+    await sql.unsafe(sqlReset);
+    const [left] = await sql.unsafe(`select
+      (select count(*) from partners where is_test) + (select count(*) from venues where is_test) + (select count(*) from offers where is_test) +
+      (select count(*) from plans where is_test) + (select count(*) from members where is_test) + (select count(*) from memberships) + (select count(*) from allowances) as n`);
+    expect(Number(left?.n)).toBe(0);
+    await sql.unsafe(sqlSeed);
+    const [after] = await sql.unsafe(FINGERPRINT);
+    // The audit log is append-only, so only its count grows.
+    const withoutAudit = (f: Record<string, unknown> | undefined) => ({ ...f, counts: String(f?.counts).replace(/\/\d+$/, "") });
+    expect(withoutAudit(after)).toEqual(withoutAudit(before));
+    await sql.end();
   });
 });

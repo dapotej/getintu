@@ -44,7 +44,7 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
   const [partner] = await db.insert(schema.partners).values({ legalName: `TEST Partner ${tag}`, tradingName: `TEST ${tag}`, isTest: true }).returning();
   const [venue] = await db
     .insert(schema.venues)
-    .values({ partnerId: partner!.id, name: `TEST Venue ${tag}`, area: "Oniru", city: "lagos", category: "beach_club", openingHours: allDay, isTest: true })
+    .values({ partnerId: partner!.id, name: `TEST Venue ${tag}`, area: "Oniru", city: "lagos", categoryId: await categoryId(offerCode.split("-").slice(0, 2).join("-")), openingHours: allDay, isTest: true })
     .returning();
   const [offer] = await db
     .insert(schema.offers)

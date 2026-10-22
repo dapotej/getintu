@@ -30,7 +30,7 @@ const prices: Row[] = testPlanPrices.map((p) => ({ id: uid(), ...p }) as Row);
 const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], costBasis: "per_use", plannedCostMinor: null, expectedUsePct: 60, ...b, categoryId: cat(categoryCode).id }) as Row);
 const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, isTest: false, settlementTerms: null, contactEmail: null };
 const partners: Row[] = testPartners.map((p) => ({ ...partnerDefaults, ...stamp, ...p, hasBankDetails: p.id.endsWith("102") }) as Row);
-const venues: Row[] = testVenues.map((v) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v }) as Row);
+const venues: Row[] = testVenues.map(({ categoryCode, ...v }) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v, categoryId: cat(categoryCode).id }) as Row);
 const offers: Row[] = testOffers.map(({ categoryCode, ...o }) => ({ description: null, validHours: null, validFrom: null, validTo: null, active: true, retailMinor: null, offerModel: "included", pricesArePlaceholders: false, ...o, categoryId: cat(categoryCode).id }) as Row);
 const members: Row[] = testMembers.map((m) => ({ consentMarketing: false, ...stamp, ...m, consentTermsAt: String(m.consentTermsAt) }) as Row);
 const memberships: Row[] = testMemberships.map((m) => ({ arrivesOn: null, departsOn: null, paymentSource: "direct", ...m }) as Row);
@@ -65,13 +65,14 @@ function sampleVisit(pass: string, venueId: string, at: string, serviceCode: str
   const a = allowances.find((x) => x.benefitId === b?.id && (x.membershipId === ms.id || (x.groupId && x.groupId === ms.groupId)));
   if (a) a.used = Number(a.used) + 1;
 }
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:05:00.000Z", "C03-S01-T01", "approved");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000204", "2026-12-16T15:30:00.000Z", "C04-S05-T01", "approved");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:07:00.000Z", "C03-S01-T01", "declined", "DUPLICATE_SCAN");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000206", "2026-12-19T23:40:00.000Z", "C06-S01-T03", "approved");
-sampleVisit("TEST-0002", "00000000-0000-4000-8000-000000000204", "2026-12-20T11:00:00.000Z", "C04-S05-T01", "declined", "BENEFIT_NOT_IN_PLAN");
-sampleVisit("TEST-0005", "00000000-0000-4000-8000-000000000207", "2026-12-26T22:30:00.000Z", "C06-S04-T01", "approved", null, 4);
-sampleVisit("TEST-0006", "00000000-0000-4000-8000-000000000207", "2026-12-27T22:10:00.000Z", "C06-S04-T01", "declined", "ALLOWANCE_USED_UP");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001201", "2026-12-14T15:20:00.000Z", "C01-S01-T01", "approved");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001204", "2026-12-15T13:05:00.000Z", "C03-S01-T01", "approved");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001204", "2026-12-15T13:07:00.000Z", "C03-S01-T01", "declined", "DUPLICATE_SCAN");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001209", "2026-12-16T15:30:00.000Z", "C04-S05-T01", "approved");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001211", "2026-12-19T23:40:00.000Z", "C06-S01-T03", "approved");
+sampleVisit("TEST-0002", "00000000-0000-4000-8000-000000001209", "2026-12-20T11:00:00.000Z", "C04-S05-T01", "declined", "BENEFIT_NOT_IN_PLAN");
+sampleVisit("TEST-0005", "00000000-0000-4000-8000-000000001210", "2026-12-26T22:30:00.000Z", "C06-S04-T01", "approved", null, 4);
+sampleVisit("TEST-0006", "00000000-0000-4000-8000-000000001210", "2026-12-27T22:10:00.000Z", "C06-S04-T01", "declined", "ALLOWANCE_USED_UP");
 
 class HttpError extends Error {
   constructor(
@@ -254,6 +255,7 @@ const routes: [string, RegExp, Handler][] = [
     return { venue, partner: { id: partner.id, tradingName: partner.tradingName }, offers: offers.filter((o) => o.venueId === m[1]).map(offerOut) };
   }],
   ["POST", /^\/admin\/venues$/, (_m, b) => {
+    if (need(categories.find((c) => c.id === b.categoryId), "Category").level === "service") throw new HttpError(400, "venue_category_is_service", "Choose a category or subcategory for the venue; service types belong on its offers");
     const row = { id: uid(), tier: "standard", description: null, capacityNotes: null, externalRef: null, active: true, isTest: true, ...stamp, ...b } as Row;
     venues.push(row);
     return { venue: row };

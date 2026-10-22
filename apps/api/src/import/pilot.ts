@@ -113,17 +113,6 @@ const key = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-
 /** The service type code for a benefit name in the sheet, or null if it isn't one we know. */
 export const benefitFromSheet = (s: string): string | null => BENEFIT_NAMES[key(s)] ?? null;
 
-/** A pilot venue's category, from the first benefit it offers. */
-const VENUE_CATEGORY_FOR: Record<string, (typeof venues.$inferInsert)["category"]> = {
-  "C03-S01-T01": "beach_club",
-  "C04-S01-T02": "hotel",
-  "C04-S08-T01": "golf",
-  "C04-S05-T01": "spa",
-  "C06-S04-T01": "members_club",
-  "C01-S01-T03": "lounge",
-  "C06-S01-T03": "nightclub",
-  "C02-S01-T01": "restaurant",
-};
 
 const ALL_DAY: WeeklyHours = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]])) as WeeklyHours;
 
@@ -241,9 +230,11 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
           .returning());
         await audit(tx, input.actor, { action: "partner.imported", entity: "partner", entityId: partner.id, after: partner });
         count("partners", "created");
+        // A pilot venue is the kind of place its first benefit belongs to: Entry only → Beach Clubs.
+        const venueCategory = await categoryIdFor(tx, (known[0] ?? "").split("-").slice(0, 2).join("-"));
         venue = one(await tx
           .insert(venues)
-          .values({ partnerId: partner.id, name, area: r.get("area") || "Lagos", city: "lagos", category: VENUE_CATEGORY_FOR[known[0] ?? ""] ?? "hotel", openingHours: ALL_DAY, externalRef: ref, active: partner.active })
+          .values({ partnerId: partner.id, name, area: r.get("area") || "Lagos", city: "lagos", categoryId: venueCategory, openingHours: ALL_DAY, externalRef: ref, active: partner.active })
           .returning());
         await audit(tx, input.actor, { action: "venue.imported", entity: "venue", entityId: venue.id, after: venue });
         count("venues", "created");

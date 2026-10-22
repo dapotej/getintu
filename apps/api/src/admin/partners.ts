@@ -24,7 +24,8 @@ const VenueFields = z.object({
   name: z.string().min(2).max(200),
   area: z.string().min(2).max(120),
   city: z.enum(["lagos", "abuja"]),
-  category: z.enum(["beach_club", "hotel", "golf", "spa", "gym", "nightclub", "members_club", "restaurant", "lounge"]),
+  // A catalogue category or subcategory: what kind of place it is.
+  categoryId: uuid,
   tier: venueTier,
   description: z.string().max(4000).nullable(),
   openingHours: WeeklyHours,
@@ -117,12 +118,21 @@ export function partnerRoutes(db: Db) {
     return c.json({ venue, partner, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })) });
   });
 
+  // A venue is a kind of place (Beach Clubs), not a single service (Entry only).
+  const checkVenueCategory = async (tx: Pick<Db, "select">, categoryId: string | undefined) => {
+    if (categoryId === undefined) return;
+    const [category] = await tx.select({ level: categories.level }).from(categories).where(eq(categories.id, categoryId));
+    if (!category) fail(422, "unknown_category", "Category not found");
+    if (category.level === "service") fail(400, "venue_category_is_service", "Choose a category or subcategory for the venue; service types belong on its offers");
+  };
+
   app.post("/venues", requirePermission("partners.write"), async (c) => {
-    const input = await body(c, VenueFields.partial().required({ partnerId: true, name: true, area: true, city: true, category: true, openingHours: true }));
+    const input = await body(c, VenueFields.partial().required({ partnerId: true, name: true, area: true, city: true, categoryId: true, openingHours: true }));
     const staff = c.get("staff");
     const row = await db.transaction(async (tx) => {
       const [partner] = await tx.select({ id: partners.id }).from(partners).where(eq(partners.id, input.partnerId));
       if (!partner) fail(422, "unknown_partner", "Partner not found");
+      await checkVenueCategory(tx, input.categoryId);
       const created = one(await tx.insert(venues).values(input).returning());
       await staffAudit(tx, staff, "venue.created", "venue", created.id, null, created);
       return created;
@@ -137,6 +147,7 @@ export function partnerRoutes(db: Db) {
     const row = await db.transaction(async (tx) => {
       const [before] = await tx.select().from(venues).where(eq(venues.id, id)).for("update");
       if (!before) fail(404, "not_found", "Venue not found");
+      await checkVenueCategory(tx, input.categoryId);
       const after = one(await tx.update(venues).set(input).where(eq(venues.id, id)).returning());
       await staffAudit(tx, staff, "venue.updated", "venue", id, before, after);
       return after;

@@ -10,7 +10,6 @@ import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import type { Offer, Venue } from "@/lib/types";
-import { CATEGORIES } from "@/lib/labels";
 
 const naira = (form: FormData, name: string, label: string) => {
   const minor = parseMajorToMinor(text(form, name));
@@ -51,7 +50,7 @@ export default function VenuePage() {
                 body: {
                   name: text(form, "name"),
                   area: text(form, "area"),
-                  category: text(form, "category"),
+                  categoryId: text(form, "categoryId"),
                   tier: text(form, "tier"),
                   description: textOrNull(form, "description"),
                   capacityNotes: textOrNull(form, "capacityNotes"),
@@ -71,14 +70,8 @@ export default function VenuePage() {
                   <Field label="Area">
                     <Input name="area" defaultValue={venue.area} required />
                   </Field>
-                  <Field label="Category">
-                    <Select name="category" defaultValue={venue.category}>
-                      {Object.entries(CATEGORIES).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </Select>
+                  <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers below.">
+                    <CategorySelect name="categoryId" placesOnly required defaultValue={venue.categoryId} />
                   </Field>
                   <Field label="Tier" hint="Which plans can use it is set on each plan's benefits.">
                     <Select name="tier" defaultValue={venue.tier}>

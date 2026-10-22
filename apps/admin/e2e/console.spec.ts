@@ -20,7 +20,7 @@ test("find a member, see their allowances, suspend and reinstate with a reason",
 
   await expect(page.getByRole("heading", { name: "TEST Kemi Crew" })).toBeVisible();
   const card = page.locator("section", { hasText: "TEST December Pass Crew" });
-  await expect(card.getByText("Shared by Crew")).toHaveCount(2);
+  await expect(card.getByText("Shared by Crew")).toHaveCount(3);
   await expect(card.getByText("Hosted member access")).toBeVisible();
   await expect(card).toContainText("Beach Clubs");
 
@@ -139,7 +139,7 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await page.getByRole("button", { name: "Add venue" }).click();
   await page.getByLabel("Venue name").fill(`TEST Rooftop ${tag}`);
   await page.getByLabel("Area").fill("Ikoyi");
-  await page.getByLabel("Category").selectOption({ label: "Members' club" });
+  await pickCategory(page.getByLabel("Kind of place"), "Members' Clubs");
   await page.getByLabel("Tier").selectOption({ label: "Top tier" });
   await page.getByLabel("Sat opens").fill("22:00");
   await page.getByLabel("Sat closes").fill("04:00");

@@ -7,7 +7,8 @@ import { ActionForm, checked, text, textOrNull } from "@/components/forms";
 import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { CATEGORIES } from "@/lib/labels";
+import { CategorySelect } from "@/components/category-select";
+import { useCatalogue } from "@/lib/catalogue";
 import type { Partner, Venue } from "@/lib/types";
 
 export default function PartnerPage() {
@@ -17,6 +18,7 @@ export default function PartnerPage() {
   const router = useRouter();
   const { data, error, setData } = useApi<{ partner: Partner; venues: Venue[] }>(`/admin/partners/${id}`);
   const [adding, setAdding] = useState(false);
+  const { byId } = useCatalogue();
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
@@ -59,7 +61,7 @@ export default function PartnerPage() {
                   action={async (form) => {
                     const { venue } = await api<{ venue: Venue }>("/admin/venues", {
                       method: "POST",
-                      body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), category: text(form, "category"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
+                      body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
                     });
                     router.push(`/partners/${id}/venues/${venue.id}`);
                   }}
@@ -81,14 +83,8 @@ export default function PartnerPage() {
                             <option value="abuja">Abuja</option>
                           </Select>
                         </Field>
-                        <Field label="Category">
-                          <Select name="category">
-                            {Object.entries(CATEGORIES).map(([k, v]) => (
-                              <option key={k} value={k}>
-                                {v}
-                              </option>
-                            ))}
-                          </Select>
+                        <Field label="Kind of place" hint="From the catalogue, e.g. Beach Clubs">
+                          <CategorySelect name="categoryId" placesOnly required />
                         </Field>
                         <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
                           <Select name="tier">
@@ -122,7 +118,7 @@ export default function PartnerPage() {
                         {v.area}, {v.city === "lagos" ? "Lagos" : "Abuja"}
                       </p>
                     </Td>
-                    <Td className="text-muted">{CATEGORIES[v.category as keyof typeof CATEGORIES] ?? v.category}</Td>
+                    <Td className="text-muted">{byId.get(v.categoryId)?.name ?? "–"}</Td>
                     <Td>
                       <Badge tone={v.tier === "top" ? "day" : "neutral"}>{v.tier === "top" ? "Top tier" : "Standard"}</Badge>
                     </Td>

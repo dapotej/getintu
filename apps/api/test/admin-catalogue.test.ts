@@ -78,7 +78,7 @@ describe.runIf(url)("admin catalogue", () => {
     const lead = await createStaff(db, "ops_lead");
     const api = as(lead);
     const partner = (await api.post("/admin/partners", { legalName: "TEST Tiers Ltd", tradingName: "TEST Tiers" })).json.partner;
-    const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Rooftop", area: "Ikoyi", city: "lagos", category: "members_club", tier: "top", openingHours: allDay })).json.venue;
+    const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Rooftop", area: "Ikoyi", city: "lagos", categoryId: await categoryIdOf(db, "C06-S04"), tier: "top", openingHours: allDay })).json.venue;
     const offer = (await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C04-S08-T01"), rateMinor: 4_000_000 })).json.offer;
     expect(venue.tier).toBe("top");
 
@@ -110,12 +110,16 @@ describe.runIf(url)("admin catalogue", () => {
     expect((await api.patch(`/admin/partners/${partner.id}`, { contactEmail: "not an email" })).status).toBe(400);
 
     const badHours = { ...allDay, "6": [{ open: "25:00", close: "02:00" }] };
-    expect((await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Bad", area: "VI", city: "lagos", category: "nightclub", openingHours: badHours })).status).toBe(400);
-    const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Good", area: "VI", city: "lagos", category: "nightclub", openingHours: allDay })).json.venue;
+    expect((await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Bad", area: "VI", city: "lagos", categoryId: await categoryIdOf(db, "C06-S01"), openingHours: badHours })).status).toBe(400);
+    const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Good", area: "VI", city: "lagos", categoryId: await categoryIdOf(db, "C06-S01"), openingHours: allDay })).json.venue;
     expect((await api.get(`/admin/partners/${partner.id}`)).json.venues.map((v: { id: string }) => v.id)).toEqual([venue.id]);
     expect((await api.get(`/admin/venues/${venue.id}`)).json.partner).toEqual({ id: partner.id, tradingName: "TEST Bank" });
     expect((await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C06-S01-T03"), rateMinor: 0, validFrom: "2026-12-10", validTo: "2026-12-01" })).status).toBe(400);
-    expect((await api.post("/admin/venues", { partnerId: randomUUID(), name: "TEST Orphan", area: "VI", city: "lagos", category: "spa", openingHours: allDay })).status).toBe(422);
+    // A venue is a kind of place, so a single service type won't do.
+    const asService = await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Service", area: "VI", city: "lagos", categoryId: await categoryIdOf(db, "C06-S01-T03"), openingHours: allDay });
+    expect(asService.json.error.code).toBe("venue_category_is_service");
+    expect((await api.patch(`/admin/venues/${venue.id}`, { categoryId: await categoryIdOf(db, "C06") })).json.venue.categoryId).toBe(await categoryIdOf(db, "C06"));
+    expect((await api.post("/admin/venues", { partnerId: randomUUID(), name: "TEST Orphan", area: "VI", city: "lagos", categoryId: await categoryIdOf(db, "C04-S05"), openingHours: allDay })).status).toBe(422);
 
     const offer = (await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C06-S01-T03"), rateMinor: 0, dailyCap: 40 })).json.offer;
     const updated = await api.patch(`/admin/offers/${offer.id}`, { dailyCap: 25, active: false });
@@ -131,7 +135,7 @@ describe.runIf(url)("admin catalogue", () => {
     // A fresh service type, so only this test's offers count towards its average.
     const service = (await api.post("/admin/categories", { parentId: await categoryIdOf(db, "C07-S03"), name: `TEST Costing ${randomUUID().slice(0, 4)}` })).json.category;
     const partner = (await api.post("/admin/partners", { legalName: "TEST Costing Ltd", tradingName: "TEST Costing" })).json.partner;
-    const venue = (tier: string) => api.post("/admin/venues", { partnerId: partner.id, name: `TEST Stage ${tier}`, area: "VI", city: "lagos", category: "lounge", tier, openingHours: allDay });
+    const venue = async (tier: string) => api.post("/admin/venues", { partnerId: partner.id, name: `TEST Stage ${tier}`, area: "VI", city: "lagos", categoryId: await categoryIdOf(db, "C06-S02"), tier, openingHours: allDay });
     const standard = (await venue("standard")).json.venue;
     const top = (await venue("top")).json.venue;
     await api.post("/admin/offers", { venueId: standard.id, categoryId: service.id, rateMinor: 1_000_000, pricesArePlaceholders: true });

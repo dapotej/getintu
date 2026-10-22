@@ -7,16 +7,19 @@ import { testBenefits, testFxRates, testMembers, testMemberships, testOffers, te
 /** Loads TEST data. Safe to run more than once: rows that already exist are left alone. */
 export async function seed(db: Db) {
   return db.transaction(async (tx) => {
-    await tx.insert(partners).values(testPartners).onConflictDoNothing();
-    await tx.insert(venues).values(testVenues).onConflictDoNothing();
     // The catalogue itself is loaded by migration 0009; seed rows refer to it by code.
-    const codes = [...new Set([...testOffers, ...testBenefits].map((x) => x.categoryCode))];
+    const codes = [...new Set([...testVenues, ...testOffers, ...testBenefits].map((x) => x.categoryCode))];
     const cats = await tx.select({ id: categories.id, code: categories.code }).from(categories).where(inArray(categories.code, codes));
     const categoryId = (code: string) => {
       const c = cats.find((x) => x.code === code);
       if (!c) throw new Error(`Category ${code} is missing; run the migrations first`);
       return c.id;
     };
+    await tx.insert(partners).values(testPartners).onConflictDoNothing();
+    await tx
+      .insert(venues)
+      .values(testVenues.map(({ categoryCode, ...v }) => ({ ...v, categoryId: categoryId(categoryCode) })))
+      .onConflictDoNothing();
     await tx
       .insert(offers)
       .values(testOffers.map(({ categoryCode, ...o }) => ({ ...o, categoryId: categoryId(categoryCode) })))

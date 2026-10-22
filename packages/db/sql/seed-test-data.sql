@@ -1,98 +1,121 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
--- Needs migrations 0000-0010: the catalogue (categories) comes from migration 0009.
+-- Needs migrations 0000-0014: the catalogue (categories) comes from migration 0009.
+-- To replace older TEST data first, run sql/reset-test-data.sql.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
 
 INSERT INTO partners (id, legal_name, trading_name, contact_email, settlement_terms, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000101', 'TEST Coastline Leisure Ltd', 'TEST Coastline', 'ops+101@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000102', 'TEST Island Hotels Ltd', 'TEST Island Hotels', 'ops+102@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Ltd', 'TEST Lagoon Golf', 'ops+103@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000104', 'TEST Afterdark Ltd', 'TEST Afterdark', 'ops+104@example.com', 'TEST: monthly in arrears', true)
+  ('00000000-0000-4000-8000-000000001101', 'TEST SkyPort Protocol Ltd', 'TEST SkyPort Protocol', 'ops+101@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001102', 'TEST SkyPort Lounges Ltd', 'TEST SkyPort Lounges', 'ops+102@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001103', 'TEST Coastal Rides Ltd', 'TEST Coastal Rides', 'ops+103@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001104', 'TEST Atlantic Shore Leisure Ltd', 'TEST Atlantic Shore', 'ops+104@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001105', 'TEST Marina Hotels Ltd', 'TEST Marina Hotels', 'ops+105@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001106', 'TEST Lagoon Golf Club Ltd', 'TEST Lagoon Golf Club', 'ops+106@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001107', 'TEST Serenity Spa Ltd', 'TEST Serenity Spa', 'ops+107@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001108', 'TEST Ikoyi House Ltd', 'TEST Ikoyi House', 'ops+108@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001109', 'TEST Afterdark Nightlife Ltd', 'TEST Afterdark', 'ops+109@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001110', 'TEST Table Collective Ltd', 'TEST Table Collective', 'ops+110@example.com', 'TEST: monthly in arrears', true),
+  ('00000000-0000-4000-8000-000000001111', 'TEST CareLine Health Ltd', 'TEST CareLine Health', 'ops+111@example.com', 'TEST: monthly in arrears', true)
 ON CONFLICT DO NOTHING;
 
-WITH h(name, hours) AS (VALUES
-  ('beach1', '{"0":[{"open":"10:00","close":"19:00"}],"1":[{"open":"10:00","close":"19:00"}],"2":[{"open":"10:00","close":"19:00"}],"3":[{"open":"10:00","close":"19:00"}],"4":[{"open":"10:00","close":"19:00"}],"5":[{"open":"10:00","close":"19:00"}],"6":[{"open":"10:00","close":"19:00"}]}'::jsonb),
-  ('beach2', '{"0":[{"open":"09:00","close":"18:00"}],"1":[{"open":"09:00","close":"18:00"}],"2":[{"open":"09:00","close":"18:00"}],"3":[{"open":"09:00","close":"18:00"}],"4":[{"open":"09:00","close":"18:00"}],"5":[{"open":"09:00","close":"18:00"}],"6":[{"open":"09:00","close":"18:00"}]}'::jsonb),
-  ('hotel',  '{"0":[{"open":"06:00","close":"22:00"}],"1":[{"open":"06:00","close":"22:00"}],"2":[{"open":"06:00","close":"22:00"}],"3":[{"open":"06:00","close":"22:00"}],"4":[{"open":"06:00","close":"22:00"}],"5":[{"open":"06:00","close":"22:00"}],"6":[{"open":"06:00","close":"22:00"}]}'::jsonb),
-  ('spa',    '{"0":[{"open":"09:00","close":"21:00"}],"1":[{"open":"09:00","close":"21:00"}],"2":[{"open":"09:00","close":"21:00"}],"3":[{"open":"09:00","close":"21:00"}],"4":[{"open":"09:00","close":"21:00"}],"5":[{"open":"09:00","close":"21:00"}],"6":[{"open":"09:00","close":"21:00"}]}'::jsonb),
-  ('golf',   '{"0":[{"open":"06:30","close":"18:30"}],"1":[{"open":"06:30","close":"18:30"}],"2":[{"open":"06:30","close":"18:30"}],"3":[{"open":"06:30","close":"18:30"}],"4":[{"open":"06:30","close":"18:30"}],"5":[{"open":"06:30","close":"18:30"}],"6":[{"open":"06:30","close":"18:30"}]}'::jsonb),
-  ('nights', '{"0":[],"1":[],"2":[],"3":[],"4":[{"open":"22:00","close":"04:00"}],"5":[{"open":"22:00","close":"04:00"}],"6":[{"open":"22:00","close":"04:00"}]}'::jsonb)
-)
-INSERT INTO venues (id, partner_id, name, area, city, category, tier, opening_hours, is_test)
-SELECT v.id::uuid, v.partner_id::uuid, v.name, v.area, 'lagos', v.category::venue_category, v.tier::venue_tier, h.hours, true
+-- A venue's kind is a catalogue category or subcategory, by code.
+INSERT INTO venues (id, partner_id, name, area, city, category_id, tier, opening_hours, is_test)
+SELECT v.id::uuid, v.partner_id::uuid, v.name, v.area, 'lagos', c.id, v.tier::venue_tier, v.hours::jsonb, true
 FROM (VALUES
-  ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', 'TEST Oniru Beach Club', 'Oniru', 'beach_club', 'standard', 'beach1'),
-  ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', 'TEST Lekki Sands Resort', 'Lekki', 'beach_club', 'standard', 'beach2'),
-  ('00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000102', 'TEST Victoria Island Hotel Pool and Gym', 'Victoria Island', 'hotel', 'standard', 'hotel'),
-  ('00000000-0000-4000-8000-000000000204', '00000000-0000-4000-8000-000000000102', 'TEST Ikoyi Spa', 'Ikoyi', 'spa', 'top', 'spa'),
-  ('00000000-0000-4000-8000-000000000205', '00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Course', 'Ikoyi', 'golf', 'standard', 'golf'),
-  ('00000000-0000-4000-8000-000000000206', '00000000-0000-4000-8000-000000000104', 'TEST Afterdark Nightclub', 'Victoria Island', 'nightclub', 'standard', 'nights'),
-  ('00000000-0000-4000-8000-000000000207', '00000000-0000-4000-8000-000000000104', 'TEST Waterfront Members Club', 'Ikoyi', 'members_club', 'top', 'nights')
-) AS v(id, partner_id, name, area, category, tier, hours_name)
-JOIN h ON h.name = v.hours_name
+  ('00000000-0000-4000-8000-000000001201', '00000000-0000-4000-8000-000000001101', 'TEST SkyPort Arrivals Desk', 'Ikeja', 'C01-S01', 'standard', '{"0":[{"open":"00:00","close":"24:00"}],"1":[{"open":"00:00","close":"24:00"}],"2":[{"open":"00:00","close":"24:00"}],"3":[{"open":"00:00","close":"24:00"}],"4":[{"open":"00:00","close":"24:00"}],"5":[{"open":"00:00","close":"24:00"}],"6":[{"open":"00:00","close":"24:00"}]}'),
+  ('00000000-0000-4000-8000-000000001202', '00000000-0000-4000-8000-000000001102', 'TEST SkyPort Departure Lounge', 'Ikeja', 'C01-S01', 'standard', '{"0":[{"open":"00:00","close":"24:00"}],"1":[{"open":"00:00","close":"24:00"}],"2":[{"open":"00:00","close":"24:00"}],"3":[{"open":"00:00","close":"24:00"}],"4":[{"open":"00:00","close":"24:00"}],"5":[{"open":"00:00","close":"24:00"}],"6":[{"open":"00:00","close":"24:00"}]}'),
+  ('00000000-0000-4000-8000-000000001203', '00000000-0000-4000-8000-000000001103', 'TEST Coastal Rides Airport Desk', 'Ikeja', 'C01-S02', 'standard', '{"0":[{"open":"00:00","close":"24:00"}],"1":[{"open":"00:00","close":"24:00"}],"2":[{"open":"00:00","close":"24:00"}],"3":[{"open":"00:00","close":"24:00"}],"4":[{"open":"00:00","close":"24:00"}],"5":[{"open":"00:00","close":"24:00"}],"6":[{"open":"00:00","close":"24:00"}]}'),
+  ('00000000-0000-4000-8000-000000001204', '00000000-0000-4000-8000-000000001104', 'TEST Atlantic Shore Oniru', 'Oniru', 'C03-S01', 'standard', '{"0":[{"open":"10:00","close":"19:00"}],"1":[{"open":"10:00","close":"19:00"}],"2":[{"open":"10:00","close":"19:00"}],"3":[{"open":"10:00","close":"19:00"}],"4":[{"open":"10:00","close":"19:00"}],"5":[{"open":"10:00","close":"19:00"}],"6":[{"open":"10:00","close":"19:00"}]}'),
+  ('00000000-0000-4000-8000-000000001205', '00000000-0000-4000-8000-000000001104', 'TEST Atlantic Shore Lekki', 'Lekki', 'C03-S01', 'standard', '{"0":[{"open":"09:00","close":"18:00"}],"1":[{"open":"09:00","close":"18:00"}],"2":[{"open":"09:00","close":"18:00"}],"3":[{"open":"09:00","close":"18:00"}],"4":[{"open":"09:00","close":"18:00"}],"5":[{"open":"09:00","close":"18:00"}],"6":[{"open":"09:00","close":"18:00"}]}'),
+  ('00000000-0000-4000-8000-000000001206', '00000000-0000-4000-8000-000000001105', 'TEST Marina Grand Hotel', 'Victoria Island', 'C04-S01', 'standard', '{"0":[{"open":"06:00","close":"22:00"}],"1":[{"open":"06:00","close":"22:00"}],"2":[{"open":"06:00","close":"22:00"}],"3":[{"open":"06:00","close":"22:00"}],"4":[{"open":"06:00","close":"22:00"}],"5":[{"open":"06:00","close":"22:00"}],"6":[{"open":"06:00","close":"22:00"}]}'),
+  ('00000000-0000-4000-8000-000000001207', '00000000-0000-4000-8000-000000001105', 'TEST Marina Suites Ikoyi', 'Ikoyi', 'C04-S01', 'standard', '{"0":[{"open":"06:00","close":"21:00"}],"1":[{"open":"06:00","close":"21:00"}],"2":[{"open":"06:00","close":"21:00"}],"3":[{"open":"06:00","close":"21:00"}],"4":[{"open":"06:00","close":"21:00"}],"5":[{"open":"06:00","close":"21:00"}],"6":[{"open":"06:00","close":"21:00"}]}'),
+  ('00000000-0000-4000-8000-000000001208', '00000000-0000-4000-8000-000000001106', 'TEST Lagoon Golf Club', 'Ikoyi', 'C04-S08', 'standard', '{"0":[{"open":"06:30","close":"18:30"}],"1":[{"open":"06:30","close":"18:30"}],"2":[{"open":"06:30","close":"18:30"}],"3":[{"open":"06:30","close":"18:30"}],"4":[{"open":"06:30","close":"18:30"}],"5":[{"open":"06:30","close":"18:30"}],"6":[{"open":"06:30","close":"18:30"}]}'),
+  ('00000000-0000-4000-8000-000000001209', '00000000-0000-4000-8000-000000001107', 'TEST Serenity Spa Ikoyi', 'Ikoyi', 'C04-S05', 'standard', '{"0":[{"open":"09:00","close":"21:00"}],"1":[{"open":"09:00","close":"21:00"}],"2":[{"open":"09:00","close":"21:00"}],"3":[{"open":"09:00","close":"21:00"}],"4":[{"open":"09:00","close":"21:00"}],"5":[{"open":"09:00","close":"21:00"}],"6":[{"open":"09:00","close":"21:00"}]}'),
+  ('00000000-0000-4000-8000-000000001210', '00000000-0000-4000-8000-000000001108', 'TEST Ikoyi House', 'Ikoyi', 'C06-S04', 'top', '{"0":[],"1":[],"2":[],"3":[],"4":[{"open":"22:00","close":"04:00"}],"5":[{"open":"22:00","close":"04:00"}],"6":[{"open":"22:00","close":"04:00"}]}'),
+  ('00000000-0000-4000-8000-000000001211', '00000000-0000-4000-8000-000000001109', 'TEST Afterdark Victoria Island', 'Victoria Island', 'C06-S01', 'standard', '{"0":[],"1":[],"2":[],"3":[],"4":[{"open":"22:00","close":"04:00"}],"5":[{"open":"22:00","close":"04:00"}],"6":[{"open":"22:00","close":"04:00"}]}'),
+  ('00000000-0000-4000-8000-000000001212', '00000000-0000-4000-8000-000000001109', 'TEST Afterdark Lekki', 'Lekki', 'C06-S01', 'standard', '{"0":[],"1":[],"2":[],"3":[],"4":[{"open":"22:00","close":"04:00"}],"5":[{"open":"22:00","close":"04:00"}],"6":[{"open":"22:00","close":"04:00"}]}'),
+  ('00000000-0000-4000-8000-000000001213', '00000000-0000-4000-8000-000000001110', 'TEST Marina Grill', 'Victoria Island', 'C02-S01', 'standard', '{"0":[{"open":"12:00","close":"23:00"}],"1":[{"open":"12:00","close":"23:00"}],"2":[{"open":"12:00","close":"23:00"}],"3":[{"open":"12:00","close":"23:00"}],"4":[{"open":"12:00","close":"23:00"}],"5":[{"open":"12:00","close":"23:00"}],"6":[{"open":"12:00","close":"23:00"}]}'),
+  ('00000000-0000-4000-8000-000000001214', '00000000-0000-4000-8000-000000001110', 'TEST Ikoyi Kitchen', 'Ikoyi', 'C02-S01', 'standard', '{"0":[{"open":"12:00","close":"23:00"}],"1":[{"open":"12:00","close":"23:00"}],"2":[{"open":"12:00","close":"23:00"}],"3":[{"open":"12:00","close":"23:00"}],"4":[{"open":"12:00","close":"23:00"}],"5":[{"open":"12:00","close":"23:00"}],"6":[{"open":"12:00","close":"23:00"}]}')
+) AS v(id, partner_id, name, area, code, tier, hours)
+JOIN categories c ON c.code = v.code
 ON CONFLICT DO NOTHING;
 
--- Rates are TEST placeholders in kobo until partners quote; retail is cost plus half.
+-- Costs per use in kobo: placeholders from the concept's wholesale estimates; retail is cost plus half.
 INSERT INTO offers (id, venue_id, category_id, rate_minor, retail_minor, rate_currency, daily_cap, prices_are_placeholders, is_test)
 SELECT o.id::uuid, o.venue_id::uuid, c.id, o.rate, o.rate * 3 / 2, 'NGN', o.cap, true, true
 FROM (VALUES
-  ('00000000-0000-4000-8000-000000000501', '00000000-0000-4000-8000-000000000201', 'C03-S01-T01', 1800000, 30),
-  ('00000000-0000-4000-8000-000000000502', '00000000-0000-4000-8000-000000000202', 'C03-S01-T01', 1800000, 30),
-  ('00000000-0000-4000-8000-000000000503', '00000000-0000-4000-8000-000000000203', 'C04-S01-T02', 2500000, 15),
-  ('00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000204', 'C04-S05-T01', 6000000, 5),
-  ('00000000-0000-4000-8000-000000000505', '00000000-0000-4000-8000-000000000205', 'C04-S08-T01', 4000000, 8),
-  ('00000000-0000-4000-8000-000000000506', '00000000-0000-4000-8000-000000000206', 'C06-S01-T03', 0, 40),
-  ('00000000-0000-4000-8000-000000000507', '00000000-0000-4000-8000-000000000207', 'C06-S04-T01', 2500000, 10)
+  ('00000000-0000-4000-8000-000000001501', '00000000-0000-4000-8000-000000001201', 'C01-S01-T01', 6000000, 20),
+  ('00000000-0000-4000-8000-000000001502', '00000000-0000-4000-8000-000000001201', 'C01-S01-T02', 4500000, 20),
+  ('00000000-0000-4000-8000-000000001503', '00000000-0000-4000-8000-000000001202', 'C01-S01-T03', 3500000, 30),
+  ('00000000-0000-4000-8000-000000001504', '00000000-0000-4000-8000-000000001203', 'C01-S02-T01', 4500000, 15),
+  ('00000000-0000-4000-8000-000000001505', '00000000-0000-4000-8000-000000001203', 'C01-S02-T02', 4500000, 15),
+  ('00000000-0000-4000-8000-000000001506', '00000000-0000-4000-8000-000000001204', 'C03-S01-T01', 1500000, 30),
+  ('00000000-0000-4000-8000-000000001507', '00000000-0000-4000-8000-000000001205', 'C03-S01-T02', 2200000, 30),
+  ('00000000-0000-4000-8000-000000001508', '00000000-0000-4000-8000-000000001206', 'C04-S01-T02', 2500000, 15),
+  ('00000000-0000-4000-8000-000000001509', '00000000-0000-4000-8000-000000001207', 'C04-S01-T02', 2800000, 10),
+  ('00000000-0000-4000-8000-000000001510', '00000000-0000-4000-8000-000000001208', 'C04-S08-T01', 4000000, 8),
+  ('00000000-0000-4000-8000-000000001511', '00000000-0000-4000-8000-000000001209', 'C04-S05-T01', 6000000, 6),
+  ('00000000-0000-4000-8000-000000001512', '00000000-0000-4000-8000-000000001209', 'C04-S05-T02', 4500000, 6),
+  ('00000000-0000-4000-8000-000000001513', '00000000-0000-4000-8000-000000001210', 'C06-S04-T01', 2500000, 10),
+  ('00000000-0000-4000-8000-000000001514', '00000000-0000-4000-8000-000000001211', 'C06-S01-T03', 0, 40),
+  ('00000000-0000-4000-8000-000000001515', '00000000-0000-4000-8000-000000001212', 'C06-S01-T03', 0, 30),
+  ('00000000-0000-4000-8000-000000001516', '00000000-0000-4000-8000-000000001213', 'C02-S01-T01', 0, 10),
+  ('00000000-0000-4000-8000-000000001517', '00000000-0000-4000-8000-000000001214', 'C02-S01-T01', 0, 10)
 ) AS o(id, venue_id, code, rate, cap)
 JOIN categories c ON c.code = o.code
 ON CONFLICT DO NOTHING;
 
--- December Pass tiers from the one-page concept (proposed prices).
+-- December Pass tiers from the one-page concept (proposed prices), with ₦42,000 fixed costs per member.
 INSERT INTO plans (id, code, name, season_starts_on, season_ends_on, on_sale_from, on_sale_to, group_size, overhead_per_member_minor, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000401', 'TEST-DEC26-ESSENTIAL', 'TEST December Pass Essential', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 3000000, true),
-  ('00000000-0000-4000-8000-000000000402', 'TEST-DEC26-PLUS', 'TEST December Pass Plus', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 3000000, true),
-  ('00000000-0000-4000-8000-000000000403', 'TEST-DEC26-CREW', 'TEST December Pass Crew', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 4, 3000000, true)
+  ('00000000-0000-4000-8000-000000000401', 'TEST-DEC26-ESSENTIAL', 'TEST December Pass Essential', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 4200000, true),
+  ('00000000-0000-4000-8000-000000000402', 'TEST-DEC26-PLUS', 'TEST December Pass Plus', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 4200000, true),
+  ('00000000-0000-4000-8000-000000000403', 'TEST-DEC26-CREW', 'TEST December Pass Crew', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 4, 4200000, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO plan_prices (plan_id, currency, amount_minor) VALUES
-  ('00000000-0000-4000-8000-000000000401', 'GBP', 14900), ('00000000-0000-4000-8000-000000000401', 'USD', 18900),
-  ('00000000-0000-4000-8000-000000000402', 'GBP', 29900), ('00000000-0000-4000-8000-000000000402', 'USD', 37900),
-  ('00000000-0000-4000-8000-000000000403', 'GBP', 89900), ('00000000-0000-4000-8000-000000000403', 'USD', 113900)
+  ('00000000-0000-4000-8000-000000000401', 'GBP', 14900),
+  ('00000000-0000-4000-8000-000000000401', 'USD', 18900),
+  ('00000000-0000-4000-8000-000000000402', 'GBP', 29900),
+  ('00000000-0000-4000-8000-000000000402', 'USD', 37900),
+  ('00000000-0000-4000-8000-000000000403', 'GBP', 89900),
+  ('00000000-0000-4000-8000-000000000403', 'USD', 113900)
 ON CONFLICT DO NOTHING;
 
--- TEST planning costs for benefits no seed venue offers yet. Meet-and-assist is always used.
+-- Arrival services are always used; doctor on call is a flat fee per member.
 INSERT INTO benefits (plan_id, category_id, quantity, period, shared_by_group, allowed_venue_tiers, cost_basis, planned_cost_minor, expected_use_pct)
-SELECT b.plan_id::uuid, c.id, b.quantity, 'per_pass', b.shared, '{standard,top}',
-  CASE b.code WHEN 'C02-S01-T01' THEN 'flat_per_member' ELSE 'per_use' END::benefit_cost_basis,
-  CASE b.code WHEN 'C01-S01-T01' THEN 10000000 WHEN 'C01-S01-T03' THEN 3500000 WHEN 'C02-S01-T01' THEN 0 END,
-  CASE b.code WHEN 'C01-S01-T01' THEN 100 ELSE 60 END
+SELECT b.plan_id::uuid, c.id, b.quantity, 'per_pass', b.shared, '{standard,top}', b.basis::benefit_cost_basis, b.planned, b.pct
 FROM (VALUES
-  ('00000000-0000-4000-8000-000000000401', 'C01-S01-T01', 1, false),
-  ('00000000-0000-4000-8000-000000000401', 'C03-S01', 2, false),
-  ('00000000-0000-4000-8000-000000000401', 'C04-S01-T02', 2, false),
-  ('00000000-0000-4000-8000-000000000401', 'C06-S01-T03', NULL, false),
-  ('00000000-0000-4000-8000-000000000401', 'C02-S01-T01', NULL, false),
-  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T01', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'C03-S01', 4, false),
-  ('00000000-0000-4000-8000-000000000402', 'C04-S01-T02', 4, false),
-  ('00000000-0000-4000-8000-000000000402', 'C04-S08', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'C04-S05', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'C06-S04-T01', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T03', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'C06-S01-T03', NULL, false),
-  ('00000000-0000-4000-8000-000000000402', 'C02-S01-T01', NULL, false),
-  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T01', 1, true),
-  ('00000000-0000-4000-8000-000000000403', 'C03-S01', 4, false),
-  ('00000000-0000-4000-8000-000000000403', 'C04-S01-T02', 4, false),
-  ('00000000-0000-4000-8000-000000000403', 'C04-S08', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'C04-S05', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'C06-S04-T01', 1, true),
-  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T03', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'C06-S01-T03', NULL, false),
-  ('00000000-0000-4000-8000-000000000403', 'C02-S01-T01', NULL, false)
-) AS b(plan_id, code, quantity, shared)
+  ('00000000-0000-4000-8000-000000000401', 'C01-S01-T01', 1, false, 'per_use', NULL, 100),
+  ('00000000-0000-4000-8000-000000000401', 'C03-S01', 2, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000401', 'C04-S01-T02', 2, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000401', 'C02-S01-T01', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000401', 'C06-S01-T03', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000401', 'C08-S02', NULL, false, 'flat_per_member', 900000, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T01', 1, false, 'per_use', NULL, 100),
+  ('00000000-0000-4000-8000-000000000402', 'C01-S02-T01', 1, false, 'per_use', NULL, 100),
+  ('00000000-0000-4000-8000-000000000402', 'C03-S01', 4, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S01-T02', 4, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S08', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S05', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C02-S01-T01', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C06-S01-T03', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C06-S04-T01', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T03', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000402', 'C08-S02', NULL, false, 'flat_per_member', 900000, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T01', 1, true, 'per_use', NULL, 100),
+  ('00000000-0000-4000-8000-000000000403', 'C01-S02-T01', 1, true, 'per_use', NULL, 100),
+  ('00000000-0000-4000-8000-000000000403', 'C03-S01', 4, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S01-T02', 4, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S08', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S05', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C02-S01-T01', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C06-S01-T03', NULL::int, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C06-S04-T01', 1, true, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T03', 1, false, 'per_use', NULL, 60),
+  ('00000000-0000-4000-8000-000000000403', 'C08-S02', NULL, false, 'flat_per_member', 900000, 60)
+) AS b(plan_id, code, quantity, shared, basis, planned, pct)
 JOIN categories c ON c.code = b.code
 ON CONFLICT DO NOTHING;
 

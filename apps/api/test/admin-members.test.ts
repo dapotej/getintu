@@ -30,8 +30,8 @@ describe.runIf(url)("admin members", () => {
     const crew = res.json.memberships[0];
     expect(crew.plan.code).toBe("TEST-DEC26-CREW");
     const shared = crew.allowances.filter((a: { shared: boolean }) => a.shared).map((a: { category: { name: string } }) => a.category.name).sort();
-    expect(shared).toEqual(["Hosted member access", "Meet-and-assist"]);
-    expect(crew.allowances).toHaveLength(9);
+    expect(shared).toEqual(["Airport pickup", "Hosted member access", "Meet-and-assist"]);
+    expect(crew.allowances).toHaveLength(11);
   });
 
   it("creates a member, refusing duplicate or badly formatted phone numbers", async () => {
@@ -49,7 +49,7 @@ describe.runIf(url)("admin members", () => {
     expect(res.status).toBe(201);
     const [ms] = res.json.memberships;
     expect(ms).toMatchObject({ status: "active", startsOn: "2026-12-01", endsOn: "2027-01-10", arrivesOn: "2026-12-18", paymentSource: "gift" });
-    expect(ms.allowances).toHaveLength(9);
+    expect(ms.allowances).toHaveLength(11);
     expect(ms.allowances.find((a: { category: { code: string } }) => a.category.code === "C03-S01")).toMatchObject({ granted: 4, used: 0 });
   });
 

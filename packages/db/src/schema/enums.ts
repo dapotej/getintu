@@ -12,17 +12,6 @@ export const offerModelEnum = pgEnum("offer_model", ["included", "included_or_ad
 
 export const currencyEnum = pgEnum("currency", ["GBP", "USD", "NGN"]);
 export const cityEnum = pgEnum("city", ["lagos", "abuja"]);
-export const venueCategoryEnum = pgEnum("venue_category", [
-  "beach_club",
-  "hotel",
-  "golf",
-  "spa",
-  "gym",
-  "nightclub",
-  "members_club",
-  "restaurant",
-  "lounge",
-]);
 // How a benefit is costed for plan margins: per use, or a flat fee per member.
 export const benefitCostBasisEnum = pgEnum("benefit_cost_basis", ["per_use", "flat_per_member"]);
 export const allowancePeriodEnum = pgEnum("allowance_period", ["per_pass", "per_month", "per_year"]);

@@ -42,3 +42,12 @@ An addition to milestone 3, from the "Global Access Categories and Partner Datab
 - **Exchange rates for margins** on the Plans page: naira per £1 and per $1, used only for the margin.
 - The calculation is `costPlan()` in `packages/rules`, with its own tests; the API returns it with each plan. Migration 0012 adds the fields and the `fx_rates` table.
 - TEST data: ₦30,000 fixed costs per member, planning costs for meet-and-assist (₦100,000, always used) and the departure lounge (₦35,000), and rates of ₦1,770/£ and ₦1,400/$.
+
+## Added: venue kinds from the catalogue, and fresh TEST data
+
+- A venue's "kind of place" is now picked from the catalogue (categories and subcategories only); the old fixed list is gone (migrations 0013–0014 map existing venues from their first offer). The pilot import does the same.
+- TEST data rebuilt around the December Pass in `docs/CONCEPT.md`:
+  - Plans: Essential, Plus and Crew (4 people), with the concept's benefits, prices, ₦42,000 fixed costs per member, arrival services at 100% expected use, and doctor on call as a flat ₦9,000 per member. WhatsApp concierge sits in the fixed costs; event presales have no catalogue entry yet.
+  - Partners and venues: airport protocol, departure lounge, airport transfers, two beach clubs, two hotel pool and gym venues, golf, spa, a members' club, two nightclubs and two restaurants, plus a doctor-on-call partner with no venue. All names fictional and marked TEST.
+  - Offers: placeholder costs from the concept's wholesale estimates (e.g. beach entry ₦15,000–₦22,000, golf ₦40,000, spa ₦45,000–₦60,000); guest list and reservations are free.
+- `packages/db/sql/reset-test-data.sql` removes every TEST row (partners, venues, offers, plans, members, passes, allowances, visits) so the seed can load the current set. A test checks reset then reseed gives the same data.
