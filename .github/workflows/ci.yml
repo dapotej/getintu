@@ -40,7 +40,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-  # Admin console end to end: real API, real Postgres, Supabase Auth faked in the browser.
+  # Admin console and door scanner end to end: real API, real Postgres, Supabase Auth faked in the browser.
   e2e:
     runs-on: ubuntu-24.04
     services:
@@ -71,11 +71,15 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm --filter @intu/admin exec playwright install --with-deps chromium
       - run: pnpm --filter @intu/admin test:e2e
+      # The partner door scanner: online, offline, sync and a throttled 3G phone.
+      - run: pnpm --filter @intu/partner test:e2e
       - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: playwright-report
-          path: apps/admin/playwright-report
+          path: |
+            apps/admin/playwright-report
+            apps/partner/playwright-report
           retention-days: 7
 
   # Applies new migrations to the Supabase staging database after checks pass on main.

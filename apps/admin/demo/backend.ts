@@ -1,8 +1,9 @@
 // The admin API, imitated in the browser for the demo build. It starts from the same TEST seed
 // data and catalogue as the real database and answers the same routes with the same shapes.
 // Nothing is saved: reloading the page starts again.
+import { generateKeyPair, PASS_LIFETIME_SECONDS, signPass, toBase64url, fromBase64url } from "@intu/qr";
 import { allowancePeriods, benefitFor, costPlan, covers, type CostingBenefit, type CostingPlan } from "@intu/rules";
-import { testBenefits, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
+import { testBenefits, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
 import { flattenTaxonomy } from "../../../packages/db/src/taxonomy";
 import { readTable } from "../../api/src/import/csv";
 
@@ -38,6 +39,12 @@ memberships.find((m) => m.passNumber === "TEST-0001")!.arrivesOn = "2026-12-14";
 memberships.find((m) => m.passNumber === "TEST-0001")!.departsOn = "2027-01-03";
 const allowances: Row[] = [];
 const visits: Row[] = [];
+// Door staff (PINs never leave the server, so the demo only knows who they are), member devices,
+// and a demo key standing in for the server's pass-signing key.
+const doorStaff: Row[] = testDoorStaff.map((d) => ({ id: d.id, fullName: d.fullName, role: d.role, active: true, hasPin: true, venueId: d.venueId }));
+const devices: Row[] = [];
+const demoServerKey = generateKeyPair();
+const LOGIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const staff: Row[] = [
   { id: "demo-founder", role: "founder", fullName: "Dapo Tejuoso", email: "founder@example.com", active: true, createdAt: "2026-10-21T09:00:00.000Z" },
   { id: uid(), role: "ops_lead", fullName: "TEST Amaka Ops Lead", email: "amaka@example.com", active: true, createdAt: "2026-10-22T09:00:00.000Z" },
@@ -73,6 +80,9 @@ sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000001211", "2026-12-19T23:
 sampleVisit("TEST-0002", "00000000-0000-4000-8000-000000001209", "2026-12-20T11:00:00.000Z", "C04-S05-T01", "declined", "BENEFIT_NOT_IN_PLAN");
 sampleVisit("TEST-0005", "00000000-0000-4000-8000-000000001210", "2026-12-26T22:30:00.000Z", "C06-S04-T01", "approved", null, 4);
 sampleVisit("TEST-0006", "00000000-0000-4000-8000-000000001210", "2026-12-27T22:10:00.000Z", "C06-S04-T01", "declined", "ALLOWANCE_USED_UP");
+// One offline approval that broke a rule when it synced, waiting for ops.
+const ngozi = memberships.find((m) => m.passNumber === "TEST-0005")!;
+visits.push({ id: uid(), memberId: ngozi.memberId, membershipId: ngozi.id, venueId: "00000000-0000-4000-8000-000000001204", occurredAt: "2026-12-27T14:10:00.000Z", serviceDate: "2026-12-27", categoryId: cat("C03-S01-T01").id, result: "approved", reason: null, method: "offline", partySize: 1, flagged: true, flagReason: "Offline visit broke a rule: ALLOWANCE_USED_UP", flagReviewedAt: null, flagReviewNote: null });
 
 class HttpError extends Error {
   constructor(
@@ -269,6 +279,53 @@ const routes: [string, RegExp, Handler][] = [
     return { offer: offerOut(row) };
   }],
   ["PATCH", /^\/admin\/offers\/([^/]+)$/, (m, b) => ({ offer: offerOut(Object.assign(need(offers.find((o) => o.id === m[1]), "Offer"), b)) })],
+
+  ["GET", /^\/admin\/venues\/([^/]+)\/door-staff$/, (m) => ({ loginCode: need(venues.find((v) => v.id === m[1]), "Venue").loginCode ?? null, staff: doorStaff.filter((d) => d.venueId === m[1]) })],
+  ["POST", /^\/admin\/venues\/([^/]+)\/login-code$/, (m) => {
+    const venue = need(venues.find((v) => v.id === m[1]), "Venue");
+    venue.loginCode = Array.from({ length: 6 }, () => LOGIN_ALPHABET[Math.floor(Math.random() * LOGIN_ALPHABET.length)]).join("");
+    return { loginCode: venue.loginCode };
+  }],
+  ["POST", /^\/admin\/venues\/([^/]+)\/door-staff$/, (m, b) => {
+    if (!/^\d{6}$/.test(String(b.pin))) throw new HttpError(400, "invalid_request", "A PIN is 6 digits");
+    const row = { id: uid(), fullName: b.fullName, role: "door_staff", active: true, hasPin: true, venueId: m[1] } as Row;
+    doorStaff.push(row);
+    return { staff: row };
+  }],
+  ["PATCH", /^\/admin\/door-staff\/([^/]+)$/, (m, b) => {
+    const row = need(doorStaff.find((d) => d.id === m[1]), "Door staff");
+    if (b.active !== undefined) row.active = b.active;
+    return { staff: row };
+  }],
+  ["GET", /^\/admin\/members\/([^/]+)\/devices$/, (m) => ({ devices: devices.filter((d) => d.memberId === m[1]) })],
+  ["POST", /^\/admin\/devices\/([^/]+)\/revoke$/, (m) => ({ device: Object.assign(need(devices.find((d) => d.id === m[1]), "Device"), { revokedAt: now() }) })],
+  // Signs a real pass in the browser with the demo key, so the TEST pass page shows a live code.
+  ["POST", /^\/admin\/memberships\/([^/]+)\/test-pass$/, (m, b) => {
+    const ms = need(memberships.find((x) => x.id === m[1]), "Membership");
+    const member = need(members.find((x) => x.id === ms.memberId), "Member");
+    const device = { id: uid(), memberId: member.id, platform: "test-browser", createdAt: now(), revokedAt: null } as Row;
+    devices.push(device);
+    const expiresAt = new Date(Date.now() + PASS_LIFETIME_SECONDS * 1000);
+    const cert = signPass(
+      { keyId: 1, membershipId: ms.id, deviceId: device.id, planId: String(ms.planId), startsOn: String(ms.startsOn), endsOn: String(ms.endsOn), name: String(member.fullName), expiresAt, devicePublicKey: fromBase64url(String(b.devicePublicKey)) },
+      demoServerKey.secretKey,
+    );
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
+    return { pass: { deviceId: device.id, certificate: toBase64url(cert), expiresAt: expiresAt.toISOString(), backupCodes: [{ validOn: today, code: String(Math.floor(100000 + Math.random() * 900000)) }] } };
+  }],
+  ["GET", /^\/admin\/redemptions$/, (_m, _b, q) => ({
+    redemptions: visits
+      .filter((v) => v.flagged && (q.get("status") === "reviewed" ? v.flagReviewedAt : !v.flagReviewedAt))
+      .map((v) => {
+        const venue = venues.find((x) => x.id === v.venueId)!;
+        const member = members.find((x) => x.id === v.memberId)!;
+        return { ...v, member: { id: member.id, fullName: member.fullName }, venue: { id: venue.id, name: venue.name, partnerId: venue.partnerId }, offerName: catRef(v.categoryId).name };
+      }),
+  })],
+  ["POST", /^\/admin\/redemptions\/([^/]+)\/review$/, (m, b) => {
+    Object.assign(need(visits.find((v) => v.id === m[1]), "Visit"), { flagReviewedAt: now(), flagReviewNote: b.note });
+    return { ok: true };
+  }],
 
   ["GET", /^\/admin\/staff$/, () => ({ staff })],
   ["POST", /^\/admin\/staff$/, (_m, b) => {

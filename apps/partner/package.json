@@ -1,0 +1,37 @@
+{
+  "name": "@intu/partner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build && node scripts/build-sw.mjs",
+    "start": "node scripts/serve.mjs out 3002",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@intu/qr": "workspace:*",
+    "@intu/rules": "workspace:*",
+    "@intu/ui": "workspace:*",
+    "jsqr": "1.4.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@intu/config": "workspace:*",
+    "@intu/db": "workspace:*",
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "drizzle-orm": "0.45.4",
+    "eslint": "10.13.0",
+    "postcss": "8.5.31",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3"
+  }
+}

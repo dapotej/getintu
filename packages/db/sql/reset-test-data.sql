@@ -4,25 +4,34 @@
 BEGIN;
 
 CREATE TEMP TABLE test_members ON COMMIT DROP AS SELECT id FROM members WHERE is_test;
-CREATE TEMP TABLE test_memberships ON COMMIT DROP AS
-  SELECT id, group_id FROM memberships WHERE member_id IN (SELECT id FROM test_members) OR pass_number LIKE 'TEST-%';
 CREATE TEMP TABLE test_plans ON COMMIT DROP AS SELECT id FROM plans WHERE is_test;
+-- Passes of TEST members, TEST pass numbers, and any pass on a TEST plan.
+CREATE TEMP TABLE test_memberships ON COMMIT DROP AS
+  SELECT id, group_id FROM memberships
+  WHERE member_id IN (SELECT id FROM test_members) OR pass_number LIKE 'TEST-%' OR plan_id IN (SELECT id FROM test_plans);
 CREATE TEMP TABLE test_partners ON COMMIT DROP AS SELECT id FROM partners WHERE is_test;
 CREATE TEMP TABLE test_venues ON COMMIT DROP AS SELECT id FROM venues WHERE is_test OR partner_id IN (SELECT id FROM test_partners);
 CREATE TEMP TABLE test_offers ON COMMIT DROP AS SELECT id FROM offers WHERE is_test OR venue_id IN (SELECT id FROM test_venues);
+CREATE TEMP TABLE test_allowances ON COMMIT DROP AS
+  SELECT id FROM allowances
+  WHERE membership_id IN (SELECT id FROM test_memberships)
+     OR group_id IN (SELECT group_id FROM test_memberships WHERE group_id IS NOT NULL)
+     OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
 
 DELETE FROM redemptions
 WHERE member_id IN (SELECT id FROM test_members)
    OR membership_id IN (SELECT id FROM test_memberships)
    OR venue_id IN (SELECT id FROM test_venues)
    OR offer_id IN (SELECT id FROM test_offers)
+   OR allowance_id IN (SELECT id FROM test_allowances)
    OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
 DELETE FROM bookings
 WHERE member_id IN (SELECT id FROM test_members)
    OR membership_id IN (SELECT id FROM test_memberships)
-   OR venue_id IN (SELECT id FROM test_venues);
+   OR venue_id IN (SELECT id FROM test_venues)
+   OR allowance_id IN (SELECT id FROM test_allowances);
 DELETE FROM esim_orders WHERE membership_id IN (SELECT id FROM test_memberships);
-DELETE FROM devices WHERE member_id IN (SELECT id FROM test_members);
+DELETE FROM devices WHERE member_id IN (SELECT id FROM test_members) OR member_id IN (SELECT member_id FROM memberships WHERE id IN (SELECT id FROM test_memberships));
 DELETE FROM pass_codes WHERE membership_id IN (SELECT id FROM test_memberships);
 DELETE FROM staff_user_venues WHERE venue_id IN (SELECT id FROM test_venues);
 -- Venue staff belong to their partner: TEST ones go with it, any others are unlinked.
@@ -30,10 +39,7 @@ DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_par
 UPDATE staff_users SET partner_id = NULL WHERE partner_id IN (SELECT id FROM test_partners);
 DELETE FROM settlements WHERE partner_id IN (SELECT id FROM test_partners);
 
-DELETE FROM allowances
-WHERE membership_id IN (SELECT id FROM test_memberships)
-   OR group_id IN (SELECT group_id FROM test_memberships WHERE group_id IS NOT NULL)
-   OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
+DELETE FROM allowances WHERE id IN (SELECT id FROM test_allowances);
 DELETE FROM memberships WHERE id IN (SELECT id FROM test_memberships);
 DELETE FROM members WHERE id IN (SELECT id FROM test_members);
 

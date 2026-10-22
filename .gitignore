@@ -8,6 +8,7 @@ coverage/
 *.log
 .DS_Store
 .next/
+apps/partner/out/
 next-env.d.ts
 *.tsbuildinfo
 playwright-report/

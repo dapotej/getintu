@@ -1,6 +1,7 @@
 "use client";
 import { Badge, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
+import { DoorStaffCard } from "@/components/door-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -168,6 +169,8 @@ export default function VenuePage() {
             </ActionForm>
           ) : null}
         </Card>
+
+        <DoorStaffCard venueId={id} writable={writable} />
       </div>
     </>
   );

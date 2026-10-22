@@ -36,7 +36,8 @@ export interface AppDeps {
 export function createApp(deps: AppDeps) {
   const app = new Hono();
 
-  app.use("*", cors({ origin: deps.corsOrigins ?? [], allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE"] }));
+  // Browsers may cache the pre-flight check for 10 minutes, so a scan on a slow network is one round trip, not two.
+  app.use("*", cors({ origin: deps.corsOrigins ?? [], allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE"], maxAge: 600 }));
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) return err.getResponse();

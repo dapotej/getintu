@@ -10,6 +10,8 @@ import CataloguePage from "../src/app/(console)/catalogue/page";
 import ImportPage from "../src/app/(console)/import/page";
 import ConsoleLayout from "../src/app/(console)/layout";
 import MemberPage from "../src/app/(console)/members/[id]/page";
+import TestPassPage from "../src/app/(console)/members/[id]/passes/[membershipId]/page";
+import VisitsPage from "../src/app/(console)/visits/page";
 import MembersPage from "../src/app/(console)/members/page";
 import Home from "../src/app/(console)/page";
 import PartnerPage from "../src/app/(console)/partners/[id]/page";
@@ -31,6 +33,7 @@ window.fetch = async (input, init) => {
 };
 // The artifact viewer blocks browser dialogs; the demo has nothing to lose, so confirmations pass.
 window.confirm = () => true;
+window.prompt = () => "Demo: phone reported lost";
 window.alert = () => {};
 
 type Layout = ComponentType<{ children: ReactNode }>;
@@ -41,6 +44,8 @@ const ROUTES: [RegExp, ComponentType, Layout][] = [
   [/^\/$/, Home, ConsoleLayout],
   [/^\/members$/, MembersPage, ConsoleLayout],
   [/^\/members\/(?<id>[^/]+)$/, MemberPage, ConsoleLayout],
+  [/^\/members\/(?<id>[^/]+)\/passes\/(?<membershipId>[^/]+)$/, TestPassPage, ConsoleLayout],
+  [/^\/visits$/, VisitsPage, ConsoleLayout],
   [/^\/plans$/, PlansPage, ConsoleLayout],
   [/^\/plans\/(?<id>[^/]+)$/, PlanPage, ConsoleLayout],
   [/^\/partners$/, PartnersPage, ConsoleLayout],

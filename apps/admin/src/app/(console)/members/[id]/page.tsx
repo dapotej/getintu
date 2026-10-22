@@ -89,9 +89,11 @@ export default function MemberPage() {
           </Card>
         ) : null}
         {memberships.map((ms) => (
-          <MembershipCard key={ms.id} ms={ms} canWrite={can("members.write")} onChange={setData} />
+          <MembershipCard key={ms.id} ms={ms} canWrite={can("members.write")} onChange={setData} testPassHref={member.isTest && ms.status === "active" ? `/members/${member.id}/passes/${ms.id}` : null} />
         ))}
         {can("members.write") ? <AddMembership memberId={id} onChange={setData} /> : null}
+
+        <DevicesCard memberId={id} canWrite={can("members.write")} />
 
         <Card title="Visits" description="The last 50 scans at venues, in Lagos time." flush>
           {visits.length === 0 ? (
@@ -162,7 +164,7 @@ function AllowanceBar({ a }: { a: Allowance }) {
   );
 }
 
-function MembershipCard({ ms, canWrite, onChange }: { ms: Membership; canWrite: boolean; onChange: (d: MemberDetail) => void }) {
+function MembershipCard({ ms, canWrite, onChange, testPassHref }: { ms: Membership; canWrite: boolean; onChange: (d: MemberDetail) => void; testPassHref: string | null }) {
   const [changing, setChanging] = useState(false);
   const action = ms.status === "active" ? "suspend" : ms.status === "suspended" ? "reinstate" : null;
   const meta = [
@@ -181,6 +183,11 @@ function MembershipCard({ ms, canWrite, onChange }: { ms: Membership; canWrite: 
           <Badge dot tone={statusTone(ms.status)}>
             {STATUS_LABELS[ms.status] ?? ms.status}
           </Badge>
+          {canWrite && testPassHref ? (
+            <Link href={testPassHref} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-accent hover:bg-subtle">
+              TEST pass
+            </Link>
+          ) : null}
           {canWrite && action ? (
             <Button size="sm" tone={action === "suspend" && !changing ? "secondary" : "ghost"} onClick={() => setChanging((c) => !c)}>
               {changing ? "Cancel" : action === "suspend" ? "Suspend" : "Reinstate"}
@@ -300,6 +307,54 @@ function AddMembership({ memberId, onChange }: { memberId: string; onChange: (d:
           </>
         )}
       </ActionForm>
+    </Card>
+  );
+}
+
+interface Device {
+  id: string;
+  platform: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+/** Phones holding this member's pass. Revoking one stops its codes everywhere within 15 minutes. */
+function DevicesCard({ memberId, canWrite }: { memberId: string; canWrite: boolean }) {
+  const { data, reload } = useApi<{ devices: Device[] }>(`/admin/members/${memberId}/devices`);
+  if (!data || data.devices.length === 0) return null;
+  return (
+    <Card title="Devices" description="Phones that can show this member's pass. Revoke one that's lost or stolen: scanners refuse it at once online and within 15 minutes offline." flush>
+      <Table head={["Device", "Added", "Status", ""]}>
+        {data.devices.map((d) => (
+          <tr key={d.id}>
+            <Td className="font-mono text-xs">{d.id.slice(0, 8)}</Td>
+            <Td className="whitespace-nowrap text-muted">
+              {formatLagosDateTime(d.createdAt)} · {d.platform}
+            </Td>
+            <Td>
+              <Badge dot tone={d.revokedAt ? "danger" : "night"}>
+                {d.revokedAt ? "Revoked" : "Active"}
+              </Badge>
+            </Td>
+            <Td className="text-right">
+              {canWrite && !d.revokedAt ? (
+                <Button
+                  size="sm"
+                  tone="ghost"
+                  onClick={async () => {
+                    const reason = window.prompt("Why revoke this device? Kept in the audit log.");
+                    if (!reason || reason.trim().length < 3) return;
+                    await api(`/admin/devices/${d.id}/revoke`, { method: "POST", body: { reason } });
+                    reload();
+                  }}
+                >
+                  Revoke
+                </Button>
+              ) : null}
+            </Td>
+          </tr>
+        ))}
+      </Table>
     </Card>
   );
 }

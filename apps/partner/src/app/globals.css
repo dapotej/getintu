@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "@intu/ui/theme.css";
+@source "../../../../packages/ui/src";
+
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Big taps at a busy door: no double-tap zoom, no text selection on buttons. */
+  touch-action: manipulation;
+}

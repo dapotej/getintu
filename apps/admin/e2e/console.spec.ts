@@ -226,3 +226,47 @@ test("grow the catalogue: add a service type, rename it, and use it in a plan", 
   await page.getByRole("link", { name: "TEST December Pass Plus" }).click();
   await expect(page.getByLabel("Add benefit").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
 });
+
+test("set up a venue's door scanner, show a TEST pass, and review a visit the venue reported", async ({ page, request }) => {
+  const API = "http://localhost:8788";
+  const pin = String(randomInt(100000, 999999));
+  await page.goto("/partners");
+  await page.getByRole("link", { name: "TEST Atlantic Shore" }).click();
+  await page.getByRole("link", { name: "TEST Atlantic Shore Oniru" }).click();
+  const scanner = page.locator("section", { hasText: "Door scanner" });
+  await expect(scanner).toContainText("ATLONI");
+  await scanner.getByLabel("Add door staff").fill(`TEST Door E2E ${pin}`);
+  await scanner.getByLabel("PIN", { exact: true }).fill(pin);
+  await scanner.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(scanner.getByText(`TEST Door E2E ${pin}`)).toBeVisible();
+
+  // The member's pass, shown on this browser as the member app will.
+  await page.goto("/members");
+  await page.getByLabel("Search members").fill("TEST Ada");
+  await page.getByLabel("Search members").press("Enter");
+  await page.getByRole("link", { name: "TEST Ada London" }).click();
+  await page.getByRole("link", { name: "TEST pass" }).click();
+  await page.getByRole("button", { name: "Show TEST pass on this browser" }).click();
+  await expect(page.getByRole("img", { name: "Pass QR code" }).locator("svg")).toBeVisible();
+  await expect(page.getByLabel("Backup code")).toHaveText(/^\d{6}$/);
+  const code = await page.evaluate(() => document.body.dataset.passCode ?? "");
+  expect(code.startsWith("I1.")).toBe(true);
+
+  // The new door staff member scans it and reports a problem with the visit.
+  const session = await (await request.post(`${API}/partner/session`, { data: { venueCode: "ATLONI", pin } })).json();
+  const venue = await (await request.get(`${API}/partner/venue`, { headers: { authorization: `Bearer ${session.token}` } })).json();
+  const scan = await (await request.post(`${API}/scan`, { headers: { authorization: `Bearer ${session.token}` }, data: { code, offerId: venue.offers[0].id } })).json();
+  expect(scan.member.name).toBe("TEST Ada London");
+  const report = await request.post(`${API}/partner/visits/${scan.redemptionId}/report`, { headers: { authorization: `Bearer ${session.token}` }, data: { kind: "dispute", note: `TEST e2e ${pin}` } });
+  expect(report.ok()).toBe(true);
+
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Visits to review" }).click();
+  const flagged = page.locator("section", { hasText: `TEST e2e ${pin}` });
+  await expect(flagged).toContainText("TEST Ada London");
+  await flagged.getByRole("button", { name: "Review" }).click();
+  await flagged.getByLabel("What was decided").fill("TEST e2e: spoke to the venue");
+  await flagged.getByRole("button", { name: "Mark reviewed" }).click();
+  await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toHaveCount(0);
+  await page.getByRole("button", { name: "Reviewed" }).click();
+  await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toContainText("spoke to the venue");
+});
