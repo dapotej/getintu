@@ -1,0 +1,26 @@
+# Replaces the TEST data on staging with the current seed. Run by hand from the Actions tab
+# (or `gh workflow run staging-test-data.yml -f confirm=reset`). Only rows marked TEST, the TEST-
+# passes and what hangs off them are removed; the catalogue, staff and real records stay.
+name: Reset staging TEST data
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "reset" to replace staging's TEST data
+        required: true
+
+jobs:
+  reset:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'reset'
+    runs-on: ubuntu-24.04
+    environment: staging
+    env:
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reset and reseed
+        run: |
+          test -n "$DATABASE_URL" || { echo "STAGING_DATABASE_URL is not set"; exit 1; }
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f packages/db/sql/reset-test-data.sql -f packages/db/sql/seed-test-data.sql
+          psql "$DATABASE_URL" -c "select (select count(*) from partners where is_test) partners, (select count(*) from venues where is_test) venues, (select count(*) from offers where is_test) offers, (select count(*) from plans where is_test) plans, (select count(*) from members where is_test) members, (select count(*) from allowances) allowances"
