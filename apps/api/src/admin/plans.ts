@@ -1,13 +1,17 @@
 import { Hono } from "hono";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { one, schema, type Db } from "@intu/db";
+import { costPlan, covers } from "@intu/rules";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail } from "../http.ts";
 import { staffAudit } from "./audited.ts";
 import { currency, idParam, isoDate, minorUnits, uuid, venueTier } from "./validation.ts";
 
-const { plans, planPrices, benefits, allowances, categories } = schema;
+const { plans, planPrices, benefits, allowances, categories, offers, venues, partners, fxRates } = schema;
+
+// Audit rows need an entity id; exchange rates are one settings record.
+const FX_RATES_ENTITY = "00000000-0000-0000-0000-000000000000";
 
 const PlanFields = z.object({
   code: z.string().min(2).max(40),
@@ -19,6 +23,7 @@ const PlanFields = z.object({
   onSaleFrom: isoDate.nullable(),
   onSaleTo: isoDate.nullable(),
   groupSize: z.number().int().min(1).max(20),
+  overheadPerMemberMinor: minorUnits,
   active: z.boolean(),
 });
 const CreatePlan = PlanFields.partial().required({ code: true, name: true });
@@ -34,9 +39,13 @@ const BenefitFields = z.object({
   capOncePerVenuePerDay: z.boolean(),
   drawPerPerson: z.boolean(),
   allowedVenueTiers: z.array(venueTier).min(1),
+  costBasis: z.enum(["per_use", "flat_per_member"]),
+  plannedCostMinor: minorUnits.nullable(),
+  expectedUsePct: z.number().int().min(0).max(100),
 });
 const CreateBenefit = BenefitFields.partial().required({ categoryId: true, period: true });
 const UpdateBenefit = BenefitFields.omit({ categoryId: true }).partial();
+const Rates = z.object({ rates: z.array(z.object({ currency: z.enum(["GBP", "USD"]), koboPerUnit: z.number().int().positive() })).max(2) });
 
 export function planRoutes(db: Db) {
   const app = new Hono<AdminEnv>();
@@ -51,7 +60,24 @@ export function planRoutes(db: Db) {
       .innerJoin(categories, eq(categories.id, benefits.categoryId))
       .where(eq(benefits.planId, id))
       .orderBy(asc(categories.code));
-    return { ...plan, prices, benefits: planBenefits.map((b) => ({ ...b.benefit, category: b.category })) };
+    // What each benefit can be used at: active offers at active venues of the tiers it allows.
+    const live = await db
+      .select({ rateMinor: offers.rateMinor, placeholder: offers.pricesArePlaceholders, code: categories.code, tier: venues.tier })
+      .from(offers)
+      .innerJoin(categories, eq(categories.id, offers.categoryId))
+      .innerJoin(venues, eq(venues.id, offers.venueId))
+      .innerJoin(partners, eq(partners.id, venues.partnerId))
+      .where(and(eq(offers.active, true), isNull(offers.deletedAt), eq(venues.active, true), isNull(venues.deletedAt), eq(partners.active, true), isNull(partners.deletedAt)));
+    const rates = Object.fromEntries((await db.select().from(fxRates)).map((r) => [r.currency, r.koboPerUnit]));
+    const costing = costPlan(
+      { ...plan, prices },
+      planBenefits.map(({ benefit: b, category }) => ({
+        ...b,
+        offers: live.filter((o) => covers(category.code, o.code) && b.allowedVenueTiers.includes(o.tier)),
+      })),
+      rates,
+    );
+    return { ...plan, prices, benefits: planBenefits.map((b) => ({ ...b.benefit, category: b.category })), costing };
   };
 
   app.get("/plans", requirePermission("plans.read"), async (c) => {
@@ -151,6 +177,27 @@ export function planRoutes(db: Db) {
       return before.planId;
     });
     return c.json({ plan: await loadPlan(planId) });
+  });
+
+  // Planning exchange rates, used only to show margins on pound and dollar prices.
+  app.get("/fx-rates", requirePermission("plans.read"), async (c) => {
+    return c.json({ rates: await db.select().from(fxRates).orderBy(asc(fxRates.currency)) });
+  });
+
+  app.put("/fx-rates", requirePermission("plans.write"), async (c) => {
+    const { rates } = await body(c, Rates);
+    if (new Set(rates.map((r) => r.currency)).size !== rates.length) fail(400, "duplicate_currency", "One rate per currency");
+    const staff = c.get("staff");
+    const after = await db.transaction(async (tx) => {
+      const before = await tx.select().from(fxRates).orderBy(asc(fxRates.currency));
+      for (const r of rates) {
+        await tx.insert(fxRates).values(r).onConflictDoUpdate({ target: fxRates.currency, set: { koboPerUnit: r.koboPerUnit, updatedAt: new Date() } });
+      }
+      const rows = await tx.select().from(fxRates).orderBy(asc(fxRates.currency));
+      await staffAudit(tx, staff, "fx_rates.set", "fx_rates", FX_RATES_ENTITY, before, rows);
+      return rows;
+    });
+    return c.json({ rates: after });
   });
 
   return app;

@@ -57,7 +57,8 @@ export const testMembers = [
 const essential = "00000000-0000-4000-8000-000000000401";
 const plus = "00000000-0000-4000-8000-000000000402";
 const crew = "00000000-0000-4000-8000-000000000403";
-const season = { seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", onSaleFrom: "2026-11-15", onSaleTo: "2027-01-05", isTest: true };
+// ₦30,000 per member for concierge, operations and payment fees: a TEST planning figure.
+const season = { seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", onSaleFrom: "2026-11-15", onSaleTo: "2027-01-05", overheadPerMemberMinor: 3_000_000, isTest: true };
 
 export const testPlans: (typeof plans.$inferInsert)[] = [
   { id: essential, code: "TEST-DEC26-ESSENTIAL", name: "TEST December Pass Essential", ...season },
@@ -76,12 +77,19 @@ export const testPlanPrices: (typeof planPrices.$inferInsert)[] = [
 
 /** A seed benefit names its category by code; seed() looks up the id. */
 export type SeedBenefit = Omit<typeof benefits.$inferInsert, "categoryId"> & { categoryCode: string };
+// TEST planning costs for benefits no seed venue offers yet. Meet-and-assist is always used.
+const COSTING: Record<string, Partial<SeedBenefit>> = {
+  "C01-S01-T01": { plannedCostMinor: 10_000_000, expectedUsePct: 100 },
+  "C01-S01-T03": { plannedCostMinor: 3_500_000 },
+  "C02-S01-T01": { costBasis: "flat_per_member", plannedCostMinor: 0 },
+};
 const perPass = (planId: string, categoryCode: string, quantity: number | null, extra: Partial<SeedBenefit> = {}): SeedBenefit => ({
   planId,
   categoryCode,
   quantity,
   period: "per_pass",
   allowedVenueTiers: ["standard", "top"],
+  ...COSTING[categoryCode],
   ...extra,
 });
 
@@ -149,4 +157,10 @@ export const testMemberships = [
   membershipFor(6, m[5] ?? "", crew, crewGroup),
   membershipFor(7, m[6] ?? "", crew, crewGroup),
   membershipFor(8, m[7] ?? "", crew, crewGroup),
+];
+
+/** TEST planning exchange rates, in kobo per pound and per dollar. */
+export const testFxRates = [
+  { currency: "GBP" as const, koboPerUnit: 177_000 },
+  { currency: "USD" as const, koboPerUnit: 140_000 },
 ];

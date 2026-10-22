@@ -1,6 +1,7 @@
 "use client";
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
+import { PlanCostingCard } from "@/components/plan-costing";
 import { isNight, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -12,6 +13,14 @@ import type { Benefit, Plan } from "@/lib/types";
 
 const CURRENCIES = ["GBP", "USD", "NGN"] as const;
 const PERIODS = { per_pass: "Per pass", per_month: "Per calendar month", per_year: "Per membership year" };
+
+/** Naira typed as major units → kobo; blank → null. */
+const nairaOrNull = (form: FormData, name: string, label: string) => {
+  if (!text(form, name)) return null;
+  const kobo = parseMajorToMinor(text(form, name));
+  if (kobo === null) throw new Error(`Enter the ${label} in naira, e.g. 30000`);
+  return kobo;
+};
 
 export default function PlanPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +61,7 @@ export default function PlanPage() {
                     onSaleFrom: textOrNull(form, "onSaleFrom"),
                     onSaleTo: textOrNull(form, "onSaleTo"),
                     groupSize: intOrNull(form, "groupSize") ?? 1,
+                    overheadPerMemberMinor: nairaOrNull(form, "overhead", "fixed costs") ?? 0,
                     active: checked(form, "active"),
                   },
                 }),
@@ -85,6 +95,11 @@ export default function PlanPage() {
                   <Field label="People per pass">
                     <Input name="groupSize" type="number" min={1} defaultValue={plan.groupSize} />
                   </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Fixed costs per member (₦)" hint="Concierge, operations and payment fees. Used for the cost and margin below.">
+                      <Input name="overhead" inputMode="decimal" className="tabular-nums" defaultValue={plan.overheadPerMemberMinor ? minorToMajorInput(plan.overheadPerMemberMinor) : ""} placeholder="e.g. 30,000" />
+                    </Field>
+                  </div>
                 </div>
                 <Checkbox name="active" defaultChecked={plan.active} label="Active" hint="Inactive plans can't be given to new members." />
                 {writable ? (
@@ -181,6 +196,8 @@ export default function PlanPage() {
           </ActionForm>
         ) : null}
       </Card>
+
+      {plan.costing ? <PlanCostingCard plan={plan} costing={plan.costing} /> : null}
     </>
   );
 }
@@ -230,7 +247,7 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
     <tr>
       <Td colSpan={5} className="bg-subtle/60">
         <ActionForm
-          className="grid gap-5 py-2 md:grid-cols-3"
+          className="grid gap-5 py-2 md:grid-cols-2 xl:grid-cols-4"
           action={async (form) => {
             const tiers = (["standard", "top"] as const).filter((t) => checked(form, `tier_${t}`));
             if (!tiers.length) throw new Error("Pick at least one venue tier");
@@ -245,6 +262,9 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
                   sharedByGroup: checked(form, "shared"),
                   drawPerPerson: checked(form, "perPerson"),
                   allowedVenueTiers: tiers,
+                  costBasis: text(form, "costBasis"),
+                  plannedCostMinor: nairaOrNull(form, "plannedCost", "planning cost"),
+                  expectedUsePct: intOrNull(form, "expectedUsePct") ?? 60,
                 },
               }),
             );
@@ -253,7 +273,7 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
         >
           {(busy) => (
             <>
-              <p className="font-semibold md:col-span-3">{path(b.category.code) || b.category.name}</p>
+              <p className="font-semibold md:col-span-2 xl:col-span-4">{path(b.category.code) || b.category.name}</p>
               <div className="flex flex-col gap-4">
                 <Field label="Quantity">
                   <Input name="quantity" type="number" min={0} placeholder="Unlimited" defaultValue={b.quantity ?? ""} />
@@ -280,7 +300,22 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
                 <Checkbox name="tier_standard" defaultChecked={b.allowedVenueTiers.includes("standard")} label="Standard" />
                 <Checkbox name="tier_top" defaultChecked={b.allowedVenueTiers.includes("top")} label="Top tier" hint="Only venues marked top tier" />
               </fieldset>
-              <div className="flex gap-2 md:col-span-3">
+              <fieldset className="flex flex-col gap-4">
+                <legend className="mb-2 text-sm font-medium">Costing</legend>
+                <Field label="Paid">
+                  <Select name="costBasis" defaultValue={b.costBasis}>
+                    <option value="per_use">Per use</option>
+                    <option value="flat_per_member">Flat fee per member</option>
+                  </Select>
+                </Field>
+                <Field label="Planning cost (₦)" hint="Per use, or per member when flat. Blank uses the average of the venues' offers.">
+                  <Input name="plannedCost" inputMode="decimal" className="tabular-nums" placeholder="Average of offers" defaultValue={b.plannedCostMinor === null ? "" : minorToMajorInput(b.plannedCostMinor)} />
+                </Field>
+                <Field label="Expected use (%)">
+                  <Input name="expectedUsePct" type="number" min={0} max={100} defaultValue={b.expectedUsePct} />
+                </Field>
+              </fieldset>
+              <div className="flex gap-2 md:col-span-2 xl:col-span-4">
                 <Button type="submit" disabled={busy}>
                   Save
                 </Button>

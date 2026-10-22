@@ -1,8 +1,8 @@
 // The admin API, imitated in the browser for the demo build. It starts from the same TEST seed
 // data and catalogue as the real database and answers the same routes with the same shapes.
 // Nothing is saved: reloading the page starts again.
-import { allowancePeriods, benefitFor } from "@intu/rules";
-import { testBenefits, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
+import { allowancePeriods, benefitFor, costPlan, covers, type CostingBenefit, type CostingPlan } from "@intu/rules";
+import { testBenefits, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
 import { flattenTaxonomy } from "../../../packages/db/src/taxonomy";
 import { readTable } from "../../api/src/import/csv";
 
@@ -25,9 +25,9 @@ const catRef = (id: unknown) => {
   return { id: c.id, code: c.code, name: c.name, level: c.level };
 };
 
-const plans: Row[] = testPlans.map((p) => ({ description: null, durationDays: null, groupSize: 1, active: true, ...stamp, ...p }) as Row);
+const plans: Row[] = testPlans.map((p) => ({ description: null, durationDays: null, groupSize: 1, overheadPerMemberMinor: 0, active: true, ...stamp, ...p }) as Row);
 const prices: Row[] = testPlanPrices.map((p) => ({ id: uid(), ...p }) as Row);
-const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b, categoryId: cat(categoryCode).id }) as Row);
+const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], costBasis: "per_use", plannedCostMinor: null, expectedUsePct: 60, ...b, categoryId: cat(categoryCode).id }) as Row);
 const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, isTest: false, settlementTerms: null, contactEmail: null };
 const partners: Row[] = testPartners.map((p) => ({ ...partnerDefaults, ...stamp, ...p, hasBankDetails: p.id.endsWith("102") }) as Row);
 const venues: Row[] = testVenues.map((v) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v }) as Row);
@@ -88,10 +88,29 @@ const need = <T>(v: T | undefined, what: string): T => {
 };
 
 const planOut = (p: Row) => ({ ...p, prices: prices.filter((x) => x.planId === p.id).sort((a, b) => String(a.currency).localeCompare(String(b.currency))) });
+const fxRates: Row[] = testFxRates.map((r) => ({ id: r.currency, ...r, updatedAt: stamp.updatedAt }));
 const planDetail = (id: string) => {
-  const p = need(plans.find((x) => x.id === id), "Plan");
-  const bs = benefits.filter((b) => b.planId === id).map((b) => ({ ...b, category: catRef(b.categoryId) }));
-  return { plan: { ...planOut(p), benefits: bs.sort((a, b) => a.category.code.localeCompare(b.category.code)) } };
+  const p = planOut(need(plans.find((x) => x.id === id), "Plan"));
+  const bs = benefits
+    .filter((b) => b.planId === id)
+    .map((b) => ({ ...b, category: catRef(b.categoryId) }))
+    .sort((a, b) => a.category.code.localeCompare(b.category.code));
+  // The same costing the API does: active offers at active venues of the tiers each benefit allows.
+  const live = offers
+    .filter((o) => o.active)
+    .map((o) => ({ o, v: venues.find((v) => v.id === o.venueId)! }))
+    .filter(({ v }) => v.active && partners.find((x) => x.id === v.partnerId)?.active);
+  const costing = costPlan(
+    p as unknown as CostingPlan,
+    bs.map((b) => ({
+      ...(b as unknown as CostingBenefit),
+      offers: live
+        .filter(({ o, v }) => covers(b.category.code, catRef(o.categoryId).code) && (b.allowedVenueTiers as string[]).includes(String(v.tier)))
+        .map(({ o }) => ({ rateMinor: Number(o.rateMinor), placeholder: Boolean(o.pricesArePlaceholders) })),
+    })),
+    Object.fromEntries(fxRates.map((r) => [r.currency, Number(r.koboPerUnit)])),
+  );
+  return { plan: { ...p, benefits: bs, costing } };
 };
 const memberDetail = (id: string) => {
   const member = need(members.find((m) => m.id === id), "Member");
@@ -201,13 +220,23 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ["POST", /^\/admin\/plans\/([^/]+)\/benefits$/, (m, b) => {
     if (benefits.some((x) => x.planId === m[1] && x.categoryId === b.categoryId)) throw new HttpError(409, "duplicate_benefit", "This plan already has that benefit");
-    benefits.push({ id: uid(), planId: m[1], quantity: null, sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b } as Row);
+    benefits.push({ id: uid(), planId: m[1], quantity: null, sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], costBasis: "per_use", plannedCostMinor: null, expectedUsePct: 60, ...b } as Row);
     return planDetail(m[1]!);
   }],
   ["PATCH", /^\/admin\/benefits\/([^/]+)$/, (m, b) => {
     const row = need(benefits.find((x) => x.id === m[1]), "Benefit");
     Object.assign(row, b);
     return planDetail(String(row.planId));
+  }],
+
+  ["GET", /^\/admin\/fx-rates$/, () => ({ rates: fxRates })],
+  ["PUT", /^\/admin\/fx-rates$/, (_m, b) => {
+    for (const r of b.rates as { currency: string; koboPerUnit: number }[]) {
+      const row = fxRates.find((x) => x.currency === r.currency);
+      if (row) Object.assign(row, r, { updatedAt: now() });
+      else fxRates.push({ id: r.currency, ...r, updatedAt: now() });
+    }
+    return { rates: fxRates };
   }],
 
   ["GET", /^\/admin\/partners$/, () => ({ partners: [...partners].sort((a, b) => String(a.tradingName).localeCompare(String(b.tradingName))) })],

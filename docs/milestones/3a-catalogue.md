@@ -34,3 +34,11 @@ An addition to milestone 3, from the "Global Access Categories and Partner Datab
 
 - "Body scrub" appears twice (Spa & Massage and Body Treatments), as in the sheet.
 - Packages and destinations from the sheet are deferred.
+
+## Added: plan cost and margin
+
+- Each plan's page has a **Cost and margin** panel: one row per benefit (uses, cost per use and where it came from, cost if fully used, expected use, expected cost), the fixed costs per member, totals, and the margin at each price in naira, at expected use and if every allowance is used. Placeholder prices and unpriced benefits are flagged.
+- The benefit editor sets how it's paid (per use or flat fee per member), an optional planning cost and the expected use. The plan's details set its fixed costs per member.
+- **Exchange rates for margins** on the Plans page: naira per £1 and per $1, used only for the margin.
+- The calculation is `costPlan()` in `packages/rules`, with its own tests; the API returns it with each plan. Migration 0012 adds the fields and the `fx_rates` table.
+- TEST data: ₦30,000 fixed costs per member, planning costs for meet-and-assist (₦100,000, always used) and the departure lounge (₦35,000), and rates of ₦1,770/£ and ₦1,400/$.

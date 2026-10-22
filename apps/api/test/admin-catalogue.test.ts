@@ -124,4 +124,41 @@ describe.runIf(url)("admin catalogue", () => {
     expect(audit?.before).toMatchObject({ dailyCap: 40, active: true });
     expect(audit?.after).toMatchObject({ dailyCap: 25, active: false });
   });
+
+  it("works out a plan's cost and margin from its benefits, the venues' offers and the set exchange rates", async () => {
+    const founder = await createStaff(db, "founder");
+    const api = as(founder);
+    // A fresh service type, so only this test's offers count towards its average.
+    const service = (await api.post("/admin/categories", { parentId: await categoryIdOf(db, "C07-S03"), name: `TEST Costing ${randomUUID().slice(0, 4)}` })).json.category;
+    const partner = (await api.post("/admin/partners", { legalName: "TEST Costing Ltd", tradingName: "TEST Costing" })).json.partner;
+    const venue = (tier: string) => api.post("/admin/venues", { partnerId: partner.id, name: `TEST Stage ${tier}`, area: "VI", city: "lagos", category: "lounge", tier, openingHours: allDay });
+    const standard = (await venue("standard")).json.venue;
+    const top = (await venue("top")).json.venue;
+    await api.post("/admin/offers", { venueId: standard.id, categoryId: service.id, rateMinor: 1_000_000, pricesArePlaceholders: true });
+    await api.post("/admin/offers", { venueId: standard.id, categoryId: service.id, rateMinor: 2_000_000 });
+    await api.post("/admin/offers", { venueId: top.id, categoryId: service.id, rateMinor: 9_000_000 });
+
+    const plan = (await api.post("/admin/plans", { code: `TEST-${randomUUID().slice(0, 6)}`, name: "TEST Costed", seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", groupSize: 2, overheadPerMemberMinor: 500_000 })).json.plan;
+    await api.put(`/admin/plans/${plan.id}/prices`, { prices: [{ currency: "GBP", amountMinor: 10_000 }, { currency: "NGN", amountMinor: 20_000_000 }] });
+    const withBenefit = (await api.post(`/admin/plans/${plan.id}/benefits`, { categoryId: service.id, quantity: 2, period: "per_pass" })).json.plan;
+
+    // Standard tier only: the top-tier offer doesn't count. Two uses each for two people at the ₦15,000 average.
+    const row = withBenefit.costing.benefits[0];
+    expect(row).toMatchObject({ uses: 4, unitCostMinor: 1_500_000, source: "offers", offerRange: { minMinor: 1_000_000, maxMinor: 2_000_000, count: 2 }, fullMinor: 6_000_000, expectedMinor: 3_600_000, placeholder: true });
+    expect(withBenefit.costing).toMatchObject({ overheadMinor: 1_000_000, fullMinor: 7_000_000, expectedMinor: 4_600_000, complete: true });
+
+    await api.put("/admin/fx-rates", { rates: [{ currency: "GBP", koboPerUnit: 200_000 }] });
+    const benefitId = withBenefit.benefits[0].id;
+    const planned = (await api.patch(`/admin/benefits/${benefitId}`, { plannedCostMinor: 2_500_000, expectedUsePct: 100 })).json.plan.costing;
+    expect(planned).toMatchObject({ fullMinor: 11_000_000, expectedMinor: 11_000_000, placeholder: false });
+    expect(planned.margins).toEqual([
+      { currency: "GBP", priceMinor: 10_000, priceNgnMinor: 20_000_000, expectedMarginMinor: 9_000_000, expectedMarginPct: 45, fullMarginMinor: 9_000_000 },
+      { currency: "NGN", priceMinor: 20_000_000, priceNgnMinor: 20_000_000, expectedMarginMinor: 9_000_000, expectedMarginPct: 45, fullMarginMinor: 9_000_000 },
+    ]);
+    expect((await api.patch(`/admin/benefits/${benefitId}`, { expectedUsePct: 120 })).status).toBe(400);
+
+    const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.action, "fx_rates.set"), eq(schema.auditLog.actorId, founder.id)));
+    expect(audit?.after).toEqual(expect.arrayContaining([expect.objectContaining({ currency: "GBP", koboPerUnit: 200_000 })]));
+    expect((await as(await createStaff(db, "concierge")).put("/admin/fx-rates", { rates: [{ currency: "GBP", koboPerUnit: 1 }] })).status).toBe(403);
+  });
 });

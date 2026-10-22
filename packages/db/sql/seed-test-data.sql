@@ -50,10 +50,10 @@ JOIN categories c ON c.code = o.code
 ON CONFLICT DO NOTHING;
 
 -- December Pass tiers from the one-page concept (proposed prices).
-INSERT INTO plans (id, code, name, season_starts_on, season_ends_on, on_sale_from, on_sale_to, group_size, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000401', 'TEST-DEC26-ESSENTIAL', 'TEST December Pass Essential', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, true),
-  ('00000000-0000-4000-8000-000000000402', 'TEST-DEC26-PLUS', 'TEST December Pass Plus', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, true),
-  ('00000000-0000-4000-8000-000000000403', 'TEST-DEC26-CREW', 'TEST December Pass Crew', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 4, true)
+INSERT INTO plans (id, code, name, season_starts_on, season_ends_on, on_sale_from, on_sale_to, group_size, overhead_per_member_minor, is_test) VALUES
+  ('00000000-0000-4000-8000-000000000401', 'TEST-DEC26-ESSENTIAL', 'TEST December Pass Essential', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 3000000, true),
+  ('00000000-0000-4000-8000-000000000402', 'TEST-DEC26-PLUS', 'TEST December Pass Plus', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 1, 3000000, true),
+  ('00000000-0000-4000-8000-000000000403', 'TEST-DEC26-CREW', 'TEST December Pass Crew', '2026-12-01', '2027-01-10', '2026-11-15', '2027-01-05', 4, 3000000, true)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO plan_prices (plan_id, currency, amount_minor) VALUES
@@ -62,8 +62,12 @@ INSERT INTO plan_prices (plan_id, currency, amount_minor) VALUES
   ('00000000-0000-4000-8000-000000000403', 'GBP', 89900), ('00000000-0000-4000-8000-000000000403', 'USD', 113900)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO benefits (plan_id, category_id, quantity, period, shared_by_group, allowed_venue_tiers)
-SELECT b.plan_id::uuid, c.id, b.quantity, 'per_pass', b.shared, '{standard,top}'
+-- TEST planning costs for benefits no seed venue offers yet. Meet-and-assist is always used.
+INSERT INTO benefits (plan_id, category_id, quantity, period, shared_by_group, allowed_venue_tiers, cost_basis, planned_cost_minor, expected_use_pct)
+SELECT b.plan_id::uuid, c.id, b.quantity, 'per_pass', b.shared, '{standard,top}',
+  CASE b.code WHEN 'C02-S01-T01' THEN 'flat_per_member' ELSE 'per_use' END::benefit_cost_basis,
+  CASE b.code WHEN 'C01-S01-T01' THEN 10000000 WHEN 'C01-S01-T03' THEN 3500000 WHEN 'C02-S01-T01' THEN 0 END,
+  CASE b.code WHEN 'C01-S01-T01' THEN 100 ELSE 60 END
 FROM (VALUES
   ('00000000-0000-4000-8000-000000000401', 'C01-S01-T01', 1, false),
   ('00000000-0000-4000-8000-000000000401', 'C03-S01', 2, false),
@@ -90,6 +94,9 @@ FROM (VALUES
   ('00000000-0000-4000-8000-000000000403', 'C02-S01-T01', NULL, false)
 ) AS b(plan_id, code, quantity, shared)
 JOIN categories c ON c.code = b.code
+ON CONFLICT DO NOTHING;
+
+INSERT INTO fx_rates (currency, kobo_per_unit) VALUES ('GBP', 177000), ('USD', 140000)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO members (id, full_name, phone, email, country, consent_terms_at, is_test)

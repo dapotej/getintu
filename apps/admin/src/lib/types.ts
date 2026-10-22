@@ -1,3 +1,4 @@
+import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
 export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
@@ -46,6 +47,9 @@ export interface Benefit {
   capOncePerVenuePerDay: boolean;
   drawPerPerson: boolean;
   allowedVenueTiers: ("standard" | "top")[];
+  costBasis: CostBasis;
+  plannedCostMinor: number | null;
+  expectedUsePct: number;
 }
 
 export interface Plan {
@@ -59,10 +63,19 @@ export interface Plan {
   onSaleFrom: string | null;
   onSaleTo: string | null;
   groupSize: number;
+  overheadPerMemberMinor: number;
   active: boolean;
   isTest: boolean;
   prices: Price[];
   benefits?: Benefit[];
+  /** On a single plan: what it costs to deliver and the margin at each price. */
+  costing?: PlanCosting;
+}
+
+export interface FxRate {
+  currency: "GBP" | "USD";
+  koboPerUnit: number;
+  updatedAt: string;
 }
 
 export interface Partner {

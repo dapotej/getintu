@@ -73,20 +73,58 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await page.getByLabel("Quantity").fill("3");
   await page.getByLabel("Period").selectOption({ label: "Per membership year" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  const row = page.getByRole("row", { name: /Spa & Massage/ });
+  // The benefits table comes first; the cost and margin table lists the benefit again.
+  const row = page.getByRole("row", { name: /Spa & Massage/ }).first();
   await expect(row).toContainText("per membership year");
 
   await row.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Top tier").check();
   await page.getByLabel("Uses one per person in the party").check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  const saved = page.getByRole("row", { name: /Spa & Massage/ });
+  const saved = page.getByRole("row", { name: /Spa & Massage/ }).first();
   await expect(saved).toContainText("one per person");
   await expect(saved).toContainText("top");
 
   await page.goto("/plans");
   await expect(page.getByRole("row", { name: new RegExp(code) })).toContainText("₦1,500,000");
   await expect(page.getByRole("row", { name: new RegExp(code) })).toContainText("£849.99");
+});
+
+test("see a plan's cost and margin, and price a benefit no venue offers yet", async ({ page }) => {
+  const code = `E2E-${randomUUID().slice(0, 6).toUpperCase()}`;
+  await page.goto("/plans");
+  await page.getByRole("button", { name: "New plan" }).click();
+  await page.getByLabel("Name").fill(`TEST Costed ${code}`);
+  await page.getByLabel("Code").fill(code);
+  await page.getByLabel("Season starts").fill("2026-12-01");
+  await page.getByLabel("Season ends").fill("2027-01-10");
+  await page.getByRole("button", { name: "Create plan" }).click();
+  await expect(page.getByRole("heading", { name: `TEST Costed ${code}` })).toBeVisible();
+
+  await page.getByLabel("NGN").fill("100,000");
+  await page.getByRole("button", { name: "Save prices" }).click();
+  await page.getByLabel("Fixed costs per member (₦)").fill("10,000");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+
+  // No venue offers theatre tickets yet, so it has nothing to be costed from.
+  await pickCategory(page.getByLabel("Add benefit"), "Theatre ticket");
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  const cost = page.getByRole("row", { name: /Theatre ticket/ }).last();
+  await expect(cost).toContainText("No venue offers it yet: set a planning cost");
+  await expect(page.getByText("Leaves out 1 unpriced benefit")).toBeVisible();
+
+  await page.getByRole("row", { name: /Theatre ticket/ }).first().getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Planning cost (₦)").fill("20,000");
+  await page.getByLabel("Expected use (%)").fill("50");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(cost).toContainText("Planning cost");
+  await expect(cost).toContainText("₦40,000");
+  await expect(cost).toContainText("₦20,000");
+  await expect(page.getByRole("row", { name: /Total cost/ })).toContainText("₦50,000");
+  await expect(page.getByRole("row", { name: /Total cost/ })).toContainText("₦30,000");
+  await expect(page.getByText("₦70,000 70%")).toBeVisible();
 });
 
 test("add a partner and a late-night top-tier venue with a naira offer", async ({ page }) => {
