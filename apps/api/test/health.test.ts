@@ -2,10 +2,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createDb } from "@intu/db";
 import { createApp } from "../src/app.ts";
 import { createTokenVerifier } from "../src/auth/tokens.ts";
-import { fakeAuthAdmin, jwks, SUPABASE_URL } from "./support/auth.ts";
+import { fakeAuthAdmin, jwks, PARTNER_SESSION_SECRET, passKeys, SUPABASE_URL } from "./support/auth.ts";
 
 const url = process.env.DATABASE_URL;
-const deps = { verify: createTokenVerifier({ supabaseUrl: SUPABASE_URL, jwks }), authAdmin: fakeAuthAdmin().admin };
+const deps = { verify: createTokenVerifier({ supabaseUrl: SUPABASE_URL, jwks }), authAdmin: fakeAuthAdmin().admin, passKeys, partnerSessionSecret: PARTNER_SESSION_SECRET };
 
 describe.runIf(url)("GET /health", () => {
   const { db, sql } = createDb(url ?? "", { max: 1 });

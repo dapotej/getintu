@@ -9,8 +9,11 @@ import { importRoutes } from "./admin/import.ts";
 import { memberRoutes } from "./admin/members.ts";
 import { partnerRoutes } from "./admin/partners.ts";
 import { planRoutes } from "./admin/plans.ts";
+import { scannerAdminRoutes } from "./admin/scanner.ts";
 import { staffRoutes } from "./admin/staff.ts";
 import { requireStaff, type AdminEnv } from "./auth/staff.ts";
+import { scannerRoutes } from "./partner/routes.ts";
+import type { PassKeys } from "./passes.ts";
 import type { AuthAdmin } from "./auth/supabase-admin.ts";
 import type { TokenVerifier } from "./auth/tokens.ts";
 
@@ -22,6 +25,12 @@ export interface AppDeps {
   authAdmin: AuthAdmin;
   corsOrigins?: string[];
   inviteRedirectUrl?: string | undefined;
+  /** Signs member passes; scanners trust the public halves. */
+  passKeys: PassKeys;
+  /** Signs door staff shift sessions. */
+  partnerSessionSecret: string;
+  /** The time, replaceable in tests. */
+  clock?: () => Date;
 }
 
 export function createApp(deps: AppDeps) {
@@ -47,6 +56,9 @@ export function createApp(deps: AppDeps) {
     return c.json(body, database === "ok" ? 200 : 503);
   });
 
+  const clock = deps.clock ?? (() => new Date());
+  app.route("/", scannerRoutes({ db: deps.db, passKeys: deps.passKeys, partnerSessionSecret: deps.partnerSessionSecret, clock }));
+
   const admin = new Hono<AdminEnv>();
   admin.use("*", requireStaff(deps));
   admin.route("/", staffRoutes(deps));
@@ -55,6 +67,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", partnerRoutes(deps.db));
   admin.route("/", memberRoutes(deps.db));
   admin.route("/", importRoutes(deps.db));
+  admin.route("/", scannerAdminRoutes({ db: deps.db, passKeys: deps.passKeys, clock }));
   app.route("/admin", admin);
 
   return app;

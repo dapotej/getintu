@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { char, check, date, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { deletedAt, id, timestamps } from "./columns.ts";
 import { membershipStatusEnum, paymentSourceEnum } from "./enums.ts";
 import { members } from "./members.ts";
@@ -86,4 +86,20 @@ export const devices = pgTable(
     ...timestamps,
   },
   (t) => [index().on(t.memberId)],
+);
+
+// The 6-digit code a member reads out when the scanner's camera fails. One per pass per Lagos
+// day, unique that day, checked online only.
+export const passCodes = pgTable(
+  "pass_codes",
+  {
+    id: id(),
+    membershipId: uuid()
+      .notNull()
+      .references(() => memberships.id),
+    code: char({ length: 6 }).notNull(),
+    validOn: date({ mode: "string" }).notNull(),
+    ...timestamps,
+  },
+  (t) => [unique("pass_codes_code_day").on(t.code, t.validOn), unique("pass_codes_pass_day").on(t.membershipId, t.validOn)],
 );

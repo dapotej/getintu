@@ -39,6 +39,8 @@ export const venues = pgTable("venues", {
   description: text(),
   openingHours: jsonb().$type<OpeningHours>().notNull(),
   capacityNotes: text(),
+  // What door staff type with their PIN to sign in to the scanner, e.g. K7Q2MX.
+  loginCode: text().unique(),
   // An id from outside the platform, e.g. the pilot sheet's venue ID (V01).
   externalRef: text().unique(),
   photoPaths: text().array().notNull().default([]),

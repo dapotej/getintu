@@ -144,6 +144,11 @@ describe("evaluate: details of each check", () => {
     expect(declinedWith(base({ allowance: { granted: 1, used: 1 }, memberHistory: [prior(2)] }))).toBe("DUPLICATE_SCAN");
   });
 
+  it("declines a code that was already approved, saying when", () => {
+    const claimedAt = new Date("2026-12-12T12:59:40Z");
+    expect(evaluate(base({ codeClaimedAt: claimedAt }))).toEqual({ result: "declined", serviceDate: "2026-12-12", reason: "DUPLICATE_SCAN", claimedAt });
+  });
+
   it("reports the daily limit, not a duplicate, after 10 minutes", () => {
     expect(declinedWith(base({ memberHistory: [prior(11)] }))).toBe("VENUE_DAILY_LIMIT");
   });

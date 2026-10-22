@@ -1,8 +1,8 @@
 import type { Db } from "./client.ts";
 import { grantAllowances } from "./ledger.ts";
 import { inArray } from "drizzle-orm";
-import { benefits, categories, fxRates, members, memberships, offers, partners, planPrices, plans, venues } from "./schema/index.ts";
-import { testBenefits, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "./seed-data.ts";
+import { benefits, categories, fxRates, members, memberships, offers, partners, planPrices, plans, staffUsers, staffUserVenues, venues } from "./schema/index.ts";
+import { testBenefits, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "./seed-data.ts";
 
 /** Loads TEST data. Safe to run more than once: rows that already exist are left alone. */
 export async function seed(db: Db) {
@@ -20,6 +20,8 @@ export async function seed(db: Db) {
       .insert(venues)
       .values(testVenues.map(({ categoryCode, ...v }) => ({ ...v, categoryId: categoryId(categoryCode) })))
       .onConflictDoNothing();
+    await tx.insert(staffUsers).values(testDoorStaff.map(({ venueId: _venue, ...s }) => s)).onConflictDoNothing();
+    await tx.insert(staffUserVenues).values(testDoorStaff.map((s) => ({ staffUserId: s.id, venueId: s.venueId }))).onConflictDoNothing();
     await tx
       .insert(offers)
       .values(testOffers.map(({ categoryCode, ...o }) => ({ ...o, categoryId: categoryId(categoryCode) })))

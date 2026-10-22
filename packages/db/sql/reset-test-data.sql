@@ -23,7 +23,10 @@ WHERE member_id IN (SELECT id FROM test_members)
    OR venue_id IN (SELECT id FROM test_venues);
 DELETE FROM esim_orders WHERE membership_id IN (SELECT id FROM test_memberships);
 DELETE FROM devices WHERE member_id IN (SELECT id FROM test_members);
+DELETE FROM pass_codes WHERE membership_id IN (SELECT id FROM test_memberships);
 DELETE FROM staff_user_venues WHERE venue_id IN (SELECT id FROM test_venues);
+-- Venue staff belong to their partner: TEST ones go with it, any others are unlinked.
+DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_partners) AND id NOT IN (SELECT staff_user_id FROM staff_user_venues);
 UPDATE staff_users SET partner_id = NULL WHERE partner_id IN (SELECT id FROM test_partners);
 DELETE FROM settlements WHERE partner_id IN (SELECT id FROM test_partners);
 

@@ -15,6 +15,7 @@
   "dependencies": {
     "@hono/node-server": "2.1.5",
     "@intu/db": "workspace:*",
+    "@intu/qr": "workspace:*",
     "@intu/rules": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.13",

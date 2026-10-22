@@ -43,3 +43,13 @@ describe.runIf(url)("seed()", () => {
     expect(first).toMatchObject({ partners: testPartners.length, venues: testVenues.length, members: testMembers.length, memberships: testMemberships.length });
   });
 });
+
+describe("TEST door staff", () => {
+  it("all use the published TEST PIN", async () => {
+    const { verifyPin } = await import("../src/pins.ts");
+    const { TEST_DOOR_PIN, TEST_DOOR_PIN_HASH, testDoorStaff } = await import("../src/seed-data.ts");
+    expect(verifyPin(TEST_DOOR_PIN, TEST_DOOR_PIN_HASH)).toBe(true);
+    expect(verifyPin("000000", TEST_DOOR_PIN_HASH)).toBe(false);
+    for (const s of testDoorStaff) expect(s.fullName.startsWith("TEST ")).toBe(true);
+  });
+});

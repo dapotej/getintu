@@ -5,6 +5,8 @@ import { benefitFor, evaluate, serviceDate as serviceDateFor, type Decision } fr
 const { allowances, benefits, categories, memberships, offers, redemptions, venues } = schema;
 
 export interface RedeemInput {
+  /** Set by an offline scanner, so a visit synced twice can only be recorded once. */
+  id?: string;
   membershipId: string;
   venueId: string;
   offerId: string;
@@ -13,11 +15,15 @@ export interface RedeemInput {
   partySize?: number;
   scanCode?: string | null;
   now?: Date;
+  /** Flags the visit to ops whatever the rules say, e.g. an offline scan of a since-revoked device. */
+  flagReason?: string | null;
 }
 
 export interface RedeemResult {
   redemptionId: string;
   decision: Decision;
+  /** An offline visit that broke a rule: recorded as approved, flagged to ops with the reason. */
+  flagged: boolean;
 }
 
 export class NotFoundError extends Error {}
@@ -27,6 +33,10 @@ export class NotFoundError extends Error {}
  * inputs and writes the outcome. The redemption, the allowance draw-down and their audit rows
  * commit together. Locks on the offer and the allowance serialise concurrent scans, so the
  * same code scanned twice at once produces exactly one approval.
+ *
+ * Offline visits have already happened at the door. If the rules decline one when it syncs,
+ * it's kept as approved and flagged to ops with the reason (spec: flagged rather than reversed),
+ * drawing on the allowance only where there's room.
  */
 export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> {
   const now = input.now ?? new Date();
@@ -99,6 +109,11 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       .from(redemptions)
       .where(and(eq(redemptions.offerId, offer.id), eq(redemptions.serviceDate, day), eq(redemptions.result, "approved"), isNull(redemptions.deletedAt)));
 
+    // A code is only ever approved once.
+    const [claimed] = input.scanCode
+      ? await tx.select({ occurredAt: redemptions.occurredAt }).from(redemptions).where(and(eq(redemptions.scanCode, input.scanCode), eq(redemptions.result, "approved")))
+      : [];
+
     const decision = evaluate({
       now,
       membership: { status: membership.status, startsOn: membership.startsOn, endsOn: membership.endsOn },
@@ -125,12 +140,19 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       allowance: allowance ? { granted: allowance.granted, used: allowance.used } : null,
       memberHistory: history.flatMap((h) => (h.benefitId ? [{ ...h, benefitId: h.benefitId }] : [])),
       offerApprovalsOnServiceDate: offerToday?.n ?? 0,
+      codeClaimedAt: claimed?.occurredAt ?? null,
     });
 
-    const approved = decision.result === "approved";
+    const offline = input.method === "offline";
+    const flagged = (offline && decision.result === "declined") || Boolean(input.flagReason);
+    const approved = decision.result === "approved" || (offline && flagged);
+    // What the visit draws: the rules' units, or for a flagged visit what it would have drawn if there's room.
+    const units = decision.result === "approved" ? decision.units : match?.benefit.drawPerPerson ? partySize : 1;
+    const draws = approved && allowance !== undefined && (decision.result === "approved" || allowance.granted === null || allowance.used + units <= allowance.granted);
     const [row] = await tx
       .insert(redemptions)
       .values({
+        ...(input.id ? { id: input.id } : {}),
         occurredAt: now,
         serviceDate: decision.serviceDate,
         memberId: membership.memberId,
@@ -139,27 +161,30 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
         offerId: offer.id,
         categoryId: offer.categoryId,
         benefitId: benefit?.id ?? null,
-        allowanceId: approved ? (allowance?.id ?? null) : null,
+        allowanceId: draws ? (allowance?.id ?? null) : null,
         staffUserId: input.staffUserId ?? null,
-        result: decision.result,
-        reason: decision.result === "declined" ? decision.reason : null,
+        result: approved ? "approved" : "declined",
+        reason: decision.result === "declined" && !flagged ? decision.reason : null,
         method: input.method,
         partySize,
-        scanCode: input.scanCode ?? null,
+        // A flagged repeat of an approved code can't hold the code again.
+        scanCode: flagged && claimed ? null : (input.scanCode ?? null),
+        flagged,
+        flagReason: !flagged ? null : [input.flagReason, decision.result === "declined" ? `Offline visit broke a rule: ${decision.reason}` : null].filter(Boolean).join(". "),
       })
       .returning();
     if (!row) throw new Error("Redemption insert returned nothing");
-    await audit(tx, actor, { action: `redemption.${decision.result}`, entity: "redemption", entityId: row.id, after: row });
+    await audit(tx, actor, { action: flagged ? "redemption.flagged" : `redemption.${decision.result}`, entity: "redemption", entityId: row.id, after: row });
 
-    if (decision.result === "approved" && allowance) {
+    if (draws && allowance) {
       const [updated] = await tx
         .update(allowances)
-        .set({ used: sql`${allowances.used} + ${decision.units}` })
+        .set({ used: sql`${allowances.used} + ${units}` })
         .where(eq(allowances.id, allowance.id))
         .returning();
       await audit(tx, actor, { action: "allowance.drawn_down", entity: "allowance", entityId: allowance.id, before: allowance, after: updated });
     }
 
-    return { redemptionId: row.id, decision };
+    return { redemptionId: row.id, decision, flagged };
   });
 }

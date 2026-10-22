@@ -41,6 +41,8 @@ export function evaluate(ctx: RedemptionContext): Decision {
     .filter((r) => r.venueId === venue.id && r.offerId === offer.id && r.occurredAt.getTime() > since)
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())[0];
   if (recent) return { result: "declined", serviceDate: day, reason: "DUPLICATE_SCAN", claimedAt: recent.occurredAt };
+  // The same code shown again, here or at another offer: a screenshot or a second scan.
+  if (ctx.codeClaimedAt) return { result: "declined", serviceDate: day, reason: "DUPLICATE_SCAN", claimedAt: ctx.codeClaimedAt };
 
   // 4. Allowance remaining for the current period, enough for everyone it covers.
   const units = benefit.drawPerPerson ? ctx.partySize : 1;

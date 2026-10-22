@@ -47,21 +47,35 @@ export const testPartners = [
 export type SeedVenue = Omit<typeof venues.$inferInsert, "categoryId"> & { categoryCode: string };
 const venueId = (n: number) => `00000000-0000-4000-8000-0000000012${String(n).padStart(2, "0")}`;
 export const testVenues: SeedVenue[] = [
-  { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides Airport Desk", area: "Ikeja", categoryCode: "C01-S02", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", tier: "standard" as const, openingHours: daily("10:00", "19:00") },
-  { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", tier: "standard" as const, openingHours: daily("09:00", "18:00") },
-  { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", tier: "standard" as const, openingHours: daily("06:00", "22:00") },
-  { id: venueId(7), partnerId: partnerId(5), name: "TEST Marina Suites Ikoyi", area: "Ikoyi", categoryCode: "C04-S01", tier: "standard" as const, openingHours: daily("06:00", "21:00") },
-  { id: venueId(8), partnerId: partnerId(6), name: "TEST Lagoon Golf Club", area: "Ikoyi", categoryCode: "C04-S08", tier: "standard" as const, openingHours: daily("06:30", "18:30") },
-  { id: venueId(9), partnerId: partnerId(7), name: "TEST Serenity Spa Ikoyi", area: "Ikoyi", categoryCode: "C04-S05", tier: "standard" as const, openingHours: daily("09:00", "21:00") },
-  { id: venueId(10), partnerId: partnerId(8), name: "TEST Ikoyi House", area: "Ikoyi", categoryCode: "C06-S04", tier: "top" as const, openingHours: weekendNights },
-  { id: venueId(11), partnerId: partnerId(9), name: "TEST Afterdark Victoria Island", area: "Victoria Island", categoryCode: "C06-S01", tier: "standard" as const, openingHours: weekendNights },
-  { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", tier: "standard" as const, openingHours: weekendNights },
-  { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
-  { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYARR", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYLNG", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides Airport Desk", area: "Ikeja", categoryCode: "C01-S02", loginCode: "COASTL", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", loginCode: "ATLONI", tier: "standard" as const, openingHours: daily("10:00", "19:00") },
+  { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", loginCode: "ATLLEK", tier: "standard" as const, openingHours: daily("09:00", "18:00") },
+  { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", loginCode: "MARGRD", tier: "standard" as const, openingHours: daily("06:00", "22:00") },
+  { id: venueId(7), partnerId: partnerId(5), name: "TEST Marina Suites Ikoyi", area: "Ikoyi", categoryCode: "C04-S01", loginCode: "MARSTE", tier: "standard" as const, openingHours: daily("06:00", "21:00") },
+  { id: venueId(8), partnerId: partnerId(6), name: "TEST Lagoon Golf Club", area: "Ikoyi", categoryCode: "C04-S08", loginCode: "LAGOLF", tier: "standard" as const, openingHours: daily("06:30", "18:30") },
+  { id: venueId(9), partnerId: partnerId(7), name: "TEST Serenity Spa Ikoyi", area: "Ikoyi", categoryCode: "C04-S05", loginCode: "SERSPA", tier: "standard" as const, openingHours: daily("09:00", "21:00") },
+  { id: venueId(10), partnerId: partnerId(8), name: "TEST Ikoyi House", area: "Ikoyi", categoryCode: "C06-S04", loginCode: "IKHOUS", tier: "top" as const, openingHours: weekendNights },
+  { id: venueId(11), partnerId: partnerId(9), name: "TEST Afterdark Victoria Island", area: "Victoria Island", categoryCode: "C06-S01", loginCode: "AFTRVI", tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", loginCode: "AFTRLK", tier: "standard" as const, openingHours: weekendNights },
+  { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", loginCode: "MARGRL", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", loginCode: "IKKTCH", tier: "standard" as const, openingHours: daily("12:00", "23:00") },
 ].map((v) => ({ ...v, city: "lagos" as const, isTest: true }));
+
+// Door staff: one per venue, all with the TEST PIN 246810 (hashed with a fixed salt so the SQL
+// seed matches). They sign in to the scanner with their venue's login code.
+export const TEST_DOOR_PIN = "246810";
+export const TEST_DOOR_PIN_HASH = "scrypt$7465737470696e73616c743030303030$862ff69b444925568d4da5f8707dac34d39145715071a6027eef74292e9ce4c9";
+export const testDoorStaff = testVenues.map((v, i) => ({
+  id: `00000000-0000-4000-8000-0000000013${String(i + 1).padStart(2, "0")}`,
+  role: "door_staff" as const,
+  fullName: `TEST Door ${v.name.replace(/^TEST /, "")}`,
+  partnerId: v.partnerId,
+  pinHash: TEST_DOOR_PIN_HASH,
+  isTest: true,
+  venueId: v.id ?? "",
+}));
 
 export const testMembers = [
   { id: "00000000-0000-4000-8000-000000000301", fullName: "TEST Ada London", phone: "+447700900001", country: "GB" },

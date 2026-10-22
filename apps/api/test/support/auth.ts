@@ -6,6 +6,12 @@ import { createApp } from "../../src/app.ts";
 import type { StaffRole } from "../../src/auth/permissions.ts";
 import type { AuthAdmin } from "../../src/auth/supabase-admin.ts";
 import { createTokenVerifier } from "../../src/auth/tokens.ts";
+import { generateKeyPair as generatePassKeys, toBase64url } from "@intu/qr";
+import { passKeysFrom } from "../../src/passes.ts";
+
+/** Pass signing keys and a shift-session secret for tests. */
+export const passKeys = passKeysFrom(`1:${toBase64url(generatePassKeys().secretKey)}`);
+export const PARTNER_SESSION_SECRET = "test-partner-session-secret-0123456789";
 
 export const SUPABASE_URL = "https://test-project.supabase.co";
 const ISSUER = `${SUPABASE_URL}/auth/v1`;
@@ -52,9 +58,17 @@ export async function createStaff(db: Db, role: StaffRole, extra: Partial<typeof
 }
 
 /** The API with test auth, plus a helper that makes authenticated JSON requests as a given staff member. */
-export function testApi(db: Db) {
+export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
   const auth = fakeAuthAdmin();
-  const app = createApp({ db, verify: createTokenVerifier({ supabaseUrl: SUPABASE_URL, jwks }), authAdmin: auth.admin, corsOrigins: ["http://localhost:3001"] });
+  const app = createApp({
+    db,
+    verify: createTokenVerifier({ supabaseUrl: SUPABASE_URL, jwks }),
+    authAdmin: auth.admin,
+    corsOrigins: ["http://localhost:3001"],
+    passKeys,
+    partnerSessionSecret: PARTNER_SESSION_SECRET,
+    ...(opts.clock ? { clock: opts.clock } : {}),
+  });
 
   const as = (staff: { authUserId: string | null }, aal: "aal1" | "aal2" = "aal2") => {
     const call = async (method: string, path: string, body?: unknown) => {

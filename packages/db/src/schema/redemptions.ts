@@ -46,6 +46,10 @@ export const redemptions = pgTable(
     // Offline approvals that broke a rule once synced go to ops for review.
     flagged: boolean().notNull().default(false),
     flagReason: text(),
+    // Ops closes a flag with a note once it's looked into.
+    flagReviewedAt: timestamp({ withTimezone: true }),
+    flagReviewedById: uuid().references(() => staffUsers.id),
+    flagReviewNote: text(),
     settlementId: uuid().references(() => settlements.id),
     ...timestamps,
     deletedAt: deletedAt(),

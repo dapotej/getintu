@@ -88,6 +88,8 @@ export interface RedemptionContext {
   memberHistory: readonly PriorRedemption[];
   /** Approved redemptions of this offer, by anyone, on the service date. */
   offerApprovalsOnServiceDate: number;
+  /** When this exact scanned code was already approved, if it was. A code is only ever approved once. */
+  codeClaimedAt?: Date | null;
 }
 
 export const DECLINE_REASONS = [

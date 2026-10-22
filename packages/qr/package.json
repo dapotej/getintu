@@ -1,0 +1,26 @@
+{
+  "name": "@intu/qr",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "keygen": "tsx scripts/keygen.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0"
+  },
+  "devDependencies": {
+    "@intu/config": "workspace:*",
+    "@types/node": "22.20.5",
+    "eslint": "10.13.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5",
+    "tsx": "4.23.15"
+  }
+}

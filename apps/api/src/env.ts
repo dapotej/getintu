@@ -16,6 +16,12 @@ const Env = z.object({
   TEST_JWKS_JSON: z.string().optional(),
   // Where Supabase sends invited staff to set their password.
   ADMIN_INVITE_REDIRECT_URL: z.url().optional(),
+  // Signs member passes: "<key id>:<base64url Ed25519 secret key>". Make one with `pnpm --filter @intu/qr keygen`.
+  QR_SIGNING_KEY: z.string().optional(),
+  // Retired keys scanners should still trust until their passes expire: "<id>:<base64url public key>,…".
+  QR_PUBLIC_KEYS: z.string().default(""),
+  // Signs door staff shift sessions. At least 32 random characters.
+  PARTNER_SESSION_SECRET: z.string().min(32).optional(),
 });
 
 export type Env = z.infer<typeof Env>;
@@ -23,5 +29,8 @@ export type Env = z.infer<typeof Env>;
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const env = Env.parse(source);
   if (env.TEST_JWKS_JSON && env.NODE_ENV !== "test") throw new Error("TEST_JWKS_JSON is only allowed when NODE_ENV=test");
+  if ((env.NODE_ENV === "staging" || env.NODE_ENV === "production") && (!env.QR_SIGNING_KEY || !env.PARTNER_SESSION_SECRET)) {
+    throw new Error("QR_SIGNING_KEY and PARTNER_SESSION_SECRET are required in staging and production");
+  }
   return env;
 }
