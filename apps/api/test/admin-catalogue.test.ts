@@ -3,6 +3,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { and, asc, eq } from "drizzle-orm";
 import { createDb, schema } from "@intu/db";
+import { planCodeFrom } from "../src/admin/plans.ts";
 import { redeem } from "../src/ledger/redeem.ts";
 import { createStaff, testApi } from "./support/auth.ts";
 import { categoryIdOf } from "./support/fixtures.ts";
@@ -48,6 +49,18 @@ describe.runIf(url)("admin catalogue", () => {
       ["plan.created", "staff", founder.id],
       ["plan.prices_set", "staff", founder.id],
     ]);
+  });
+
+  it("makes a plan's code from its name when none is given, numbering repeats", async () => {
+    const api = as(await createStaff(db, "ops_lead"));
+    const name = `TEST Always-on Access ${randomUUID().slice(0, 6)}`;
+    const first = (await api.post("/admin/plans", { name })).json.plan;
+    const second = (await api.post("/admin/plans", { name })).json.plan;
+    expect(first.code).toBe(planCodeFrom(name));
+    expect(second.code).toBe(`${first.code}-2`);
+    expect(planCodeFrom("December Pass Plus 2027")).toBe("DECEMBER-PASS-PLUS-2027");
+    expect(planCodeFrom("Crème Brûlée Club")).toBe("CREME-BRULEE-CLUB");
+    expect(planCodeFrom("★")).toBe("PLAN");
   });
 
   it("rejects bad input: duplicate codes, duplicate benefits, floats for money, unknown fields' types", async () => {

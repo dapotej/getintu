@@ -17,6 +17,7 @@ const NAV: { href: string; label: string; icon: IconName; needs: Permission | nu
   { href: "/visits", label: "Visits to review", icon: "alert", needs: "members.read" },
   { href: "/staff", label: "Team", icon: "shield", needs: "staff.manage" },
   { href: "/import", label: "Pilot import", icon: "upload", needs: "import.pilot" },
+  { href: "/settings", label: "Settings", icon: "sliders", needs: "plans.read" },
 ];
 
 const initials = (name: string) =>

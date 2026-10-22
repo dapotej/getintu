@@ -26,7 +26,13 @@ const PlanFields = z.object({
   overheadPerMemberMinor: minorUnits,
   active: z.boolean(),
 });
-const CreatePlan = PlanFields.partial().required({ code: true, name: true });
+const CreatePlan = PlanFields.partial().required({ name: true });
+
+/** A plan's code from its name: "December Pass Plus 2027" becomes DECEMBER-PASS-PLUS-2027. */
+export function planCodeFrom(name: string) {
+  const code = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "");
+  return code.length >= 2 ? code : "PLAN";
+}
 const UpdatePlan = PlanFields.partial();
 const Prices = z.object({ prices: z.array(z.object({ currency, amountMinor: minorUnits })).max(3) });
 
@@ -95,9 +101,17 @@ export function planRoutes(db: Db) {
     const input = await body(c, CreatePlan);
     const staff = c.get("staff");
     const plan = await db.transaction(async (tx) => {
-      const [existing] = await tx.select({ id: plans.id }).from(plans).where(eq(plans.code, input.code));
-      if (existing) fail(409, "duplicate_code", `A plan with code ${input.code} already exists`);
-      const row = one(await tx.insert(plans).values(input).returning());
+      const taken = async (code: string) => (await tx.select({ id: plans.id }).from(plans).where(eq(plans.code, code))).length > 0;
+      let code = input.code;
+      if (code) {
+        if (await taken(code)) fail(409, "duplicate_code", `A plan with code ${code} already exists`);
+      } else {
+        // Made from the name; a number on the end when another plan has it.
+        const base = planCodeFrom(input.name);
+        code = base;
+        for (let n = 2; await taken(code); n++) code = `${base}-${n}`;
+      }
+      const row = one(await tx.insert(plans).values({ ...input, code }).returning());
       await staffAudit(tx, staff, "plan.created", "plan", row.id, null, row);
       return row;
     });

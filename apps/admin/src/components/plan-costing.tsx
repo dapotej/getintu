@@ -30,7 +30,7 @@ export function PlanCostingCard({ plan, costing }: { plan: Plan; costing: PlanCo
             </p>
             {m.expectedMarginMinor === null ? (
               <p className="mt-2 text-sm text-muted">
-                No exchange rate for {m.currency}. <Link href="/plans" className="font-semibold text-accent hover:underline">Set one on Plans</Link>.
+                No exchange rate for {m.currency}. <Link href="/settings" className="font-semibold text-accent hover:underline">Set one in Settings</Link>.
               </p>
             ) : (
               <>

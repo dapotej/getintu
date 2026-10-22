@@ -10,14 +10,19 @@ import { createTokenVerifier } from "./auth/tokens.ts";
 import type { Env } from "./env.ts";
 import { passKeysFrom } from "./passes.ts";
 
-export function appFromEnv(env: Env, opts: { poolSize?: number } = {}) {
+export function appFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSeconds?: number } = {}) {
+  return apiFromEnv(env, opts).app;
+}
+
+/** The API plus a way to close its database connections. */
+export function apiFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSeconds?: number } = {}) {
   // Development and tests can run without keys: throwaway ones last until the server restarts,
   // so passes and shift sessions issued before a restart stop working.
   const signingKey = env.QR_SIGNING_KEY ?? `1:${toBase64url(generateKeyPair().secretKey)}`;
   const partnerSessionSecret = env.PARTNER_SESSION_SECRET ?? randomBytes(32).toString("base64url");
   if (!env.QR_SIGNING_KEY || !env.PARTNER_SESSION_SECRET) console.warn("QR_SIGNING_KEY or PARTNER_SESSION_SECRET not set: using throwaway keys until restart");
-  const { db } = createDb(env.DATABASE_URL, opts.poolSize ? { max: opts.poolSize } : {});
-  return createApp({
+  const { db, sql } = createDb(env.DATABASE_URL, { ...(opts.poolSize ? { max: opts.poolSize } : {}), ...(opts.connectTimeoutSeconds ? { connectTimeoutSeconds: opts.connectTimeoutSeconds } : {}) });
+  const app = createApp({
     db,
     verify: createTokenVerifier(
       env.TEST_JWKS_JSON
@@ -32,4 +37,34 @@ export function appFromEnv(env: Env, opts: { poolSize?: number } = {}) {
     passKeys: passKeysFrom(signingKey, env.QR_PUBLIC_KEYS),
     partnerSessionSecret,
   });
+  return { app, close: () => sql.end({ timeout: 0 }) };
+}
+
+type Api = { app: { fetch: (req: Request) => Response | Promise<Response> }; close: () => Promise<void> };
+
+/**
+ * Serves requests from an API that is rebuilt, with fresh database connections, when a request
+ * arrives after a quiet spell. A serverless instance is paused between requests, and the pooler
+ * can drop its connection meanwhile: a query on a dropped connection can hang until the
+ * platform's time limit. Nothing is rebuilt while a request is still running.
+ */
+export function freshAfterQuiet(make: () => Api, opts: { quietMs: number; now?: () => number }) {
+  const now = opts.now ?? Date.now;
+  let api = make();
+  let lastActive = now();
+  let running = 0;
+  return async (req: Request) => {
+    if (running === 0 && now() - lastActive > opts.quietMs) {
+      const stale = api;
+      api = make();
+      stale.close().catch(() => {});
+    }
+    running++;
+    try {
+      return await api.app.fetch(req);
+    } finally {
+      running--;
+      lastActive = now();
+    }
+  };
 }

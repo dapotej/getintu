@@ -58,10 +58,11 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await page.goto("/plans");
   await page.getByRole("button", { name: "New plan" }).click();
   await page.getByLabel("Name").fill(`TEST Gold ${code}`);
-  await page.getByLabel("Code").fill(code);
   await page.getByLabel("Duration (days)").fill("365");
   await page.getByRole("button", { name: "Create plan" }).click();
   await expect(page.getByRole("heading", { name: `TEST Gold ${code}` })).toBeVisible();
+  // The code comes from the name.
+  await expect(page.getByText(`TEST-GOLD-${code}`)).toBeVisible();
 
   await page.getByLabel("NGN").fill("1,500,000");
   await page.getByLabel("GBP").fill("849.99");
@@ -90,12 +91,20 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await expect(page.getByRole("row", { name: new RegExp(code) })).toContainText("£849.99");
 });
 
+test("exchange rates for margins live in Settings", async ({ page }) => {
+  await page.goto("/settings");
+  await page.getByLabel("Naira per £1").fill("1,770");
+  await page.getByRole("button", { name: "Save rates" }).click();
+  await expect(page.getByText("Rates saved.")).toBeVisible();
+  await page.goto("/plans");
+  await expect(page.getByLabel("Naira per £1")).toHaveCount(0);
+});
+
 test("see a plan's cost and margin, and price a benefit no venue offers yet", async ({ page }) => {
   const code = `E2E-${randomUUID().slice(0, 6).toUpperCase()}`;
   await page.goto("/plans");
   await page.getByRole("button", { name: "New plan" }).click();
   await page.getByLabel("Name").fill(`TEST Costed ${code}`);
-  await page.getByLabel("Code").fill(code);
   await page.getByLabel("Season starts").fill("2026-12-01");
   await page.getByLabel("Season ends").fill("2027-01-10");
   await page.getByRole("button", { name: "Create plan" }).click();
@@ -272,6 +281,7 @@ test("set up a venue's intu scanner, show a TEST pass, and review a visit the ve
 });
 
 test("book a visiting service for a member, and cancel it", async ({ page }) => {
+  const note = `TEST e2e flight lands 16:00 ${randomUUID().slice(0, 6)}`;
   page.on("dialog", (d) => d.accept("TEST e2e: member changed flights"));
   await page.goto("/members");
   await page.getByLabel("Search members").fill("TEST Chioma");
@@ -283,11 +293,11 @@ test("book a visiting service for a member, and cancel it", async ({ page }) => 
   await expect(card.getByLabel("What's booked").locator("option", { hasText: "Airport pickup" })).toHaveCount(1);
   await card.getByLabel("What's booked").selectOption({ label: "Airport pickup" });
   await card.getByLabel("Date (Lagos)").fill("2026-12-20");
-  await card.getByLabel("Notes for the partner").fill("TEST e2e flight lands 16:00");
+  await card.getByLabel("Notes for the partner").fill(note);
   await card.getByRole("button", { name: "Confirm booking" }).click();
-  const row = card.getByRole("row", { name: /TEST e2e flight lands 16:00/ });
+  const row = card.getByRole("row", { name: new RegExp(note) });
   await expect(row).toContainText("Confirmed");
   await expect(row).toContainText("Airport pickup");
   await row.getByRole("button", { name: "Cancel" }).click();
-  await expect(card.getByRole("row", { name: /TEST e2e flight lands 16:00/ })).toContainText("Cancelled");
+  await expect(card.getByRole("row", { name: new RegExp(note) })).toContainText("Cancelled");
 });

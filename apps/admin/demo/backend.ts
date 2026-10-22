@@ -229,8 +229,12 @@ const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/admin\/plans$/, () => ({ plans: [...plans].sort((a, b) => String(a.name).localeCompare(String(b.name))).map(planOut) })],
   ["GET", /^\/admin\/plans\/([^/]+)$/, (m) => planDetail(m[1]!)],
   ["POST", /^\/admin\/plans$/, (_m, b) => {
-    if (plans.some((p) => p.code === b.code)) throw new HttpError(409, "duplicate_code", `A plan with code ${String(b.code)} already exists`);
-    const row = { id: uid(), description: null, seasonStartsOn: null, seasonEndsOn: null, durationDays: null, onSaleFrom: null, onSaleTo: null, groupSize: 1, active: true, isTest: true, ...stamp, ...b } as Row;
+    if (b.code && plans.some((p) => p.code === b.code)) throw new HttpError(409, "duplicate_code", `A plan with code ${String(b.code)} already exists`);
+    // As the API does: a code from the name, numbered if taken.
+    const base = String(b.name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32).replace(/-+$/, "") || "PLAN";
+    let code = (b.code as string | undefined) ?? base;
+    for (let n = 2; plans.some((p) => p.code === code); n++) code = `${base}-${n}`;
+    const row = { id: uid(), description: null, seasonStartsOn: null, seasonEndsOn: null, durationDays: null, onSaleFrom: null, onSaleTo: null, groupSize: 1, active: true, isTest: true, ...stamp, ...b, code } as Row;
     plans.push(row);
     return planDetail(row.id);
   }],
