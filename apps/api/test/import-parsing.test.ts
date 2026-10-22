@@ -61,11 +61,11 @@ describe("pilot values", () => {
     expect(normalisePhone("07700900123")).toBeNull();
   });
 
-  it("maps the sheet's benefit names", () => {
-    expect(benefitFromSheet("Pool and gym")).toBe("pool_gym");
-    expect(benefitFromSheet("Pool & Gym")).toBe("pool_gym");
-    expect(benefitFromSheet("Hosted night")).toBe("hosted_night");
-    expect(benefitFromSheet("Beach")).toBe("beach_club");
+  it("maps the sheet's benefit names to catalogue service types", () => {
+    expect(benefitFromSheet("Pool and gym")).toBe("C04-S01-T02");
+    expect(benefitFromSheet("Pool & Gym")).toBe("C04-S01-T02");
+    expect(benefitFromSheet("Hosted night")).toBe("C06-S04-T01");
+    expect(benefitFromSheet("Beach")).toBe("C03-S01-T01");
     expect(benefitFromSheet("Karaoke")).toBeNull();
   });
 

@@ -7,7 +7,7 @@ import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
 import { idParam, isoDate, uuid } from "./validation.ts";
 
-const { members, memberships, plans, allowances, benefits, redemptions, venues } = schema;
+const { members, memberships, plans, allowances, benefits, categories, redemptions, venues } = schema;
 
 const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format, e.g. +447700900001");
 const MemberFields = z.object({
@@ -78,11 +78,12 @@ export function memberRoutes(db: Db) {
       : undefined;
     const allowanceRows = ownerFilter
       ? await db
-          .select({ allowance: allowances, benefitType: benefits.type, planId: benefits.planId, shared: benefits.sharedByGroup })
+          .select({ allowance: allowances, category: { code: categories.code, name: categories.name }, planId: benefits.planId, shared: benefits.sharedByGroup })
           .from(allowances)
           .innerJoin(benefits, eq(benefits.id, allowances.benefitId))
+          .innerJoin(categories, eq(categories.id, benefits.categoryId))
           .where(ownerFilter)
-          .orderBy(asc(benefits.type))
+          .orderBy(asc(categories.code))
       : [];
     const visits = await db
       .select({
@@ -90,7 +91,7 @@ export function memberRoutes(db: Db) {
         occurredAt: redemptions.occurredAt,
         serviceDate: redemptions.serviceDate,
         venueName: venues.name,
-        benefitType: redemptions.benefitType,
+        category: { code: categories.code, name: categories.name },
         result: redemptions.result,
         reason: redemptions.reason,
         method: redemptions.method,
@@ -98,6 +99,7 @@ export function memberRoutes(db: Db) {
       })
       .from(redemptions)
       .innerJoin(venues, eq(venues.id, redemptions.venueId))
+      .innerJoin(categories, eq(categories.id, redemptions.categoryId))
       .where(eq(redemptions.memberId, id))
       .orderBy(desc(redemptions.occurredAt))
       .limit(50);
@@ -108,7 +110,7 @@ export function memberRoutes(db: Db) {
         plan,
         allowances: allowanceRows
           .filter((a) => a.allowance.membershipId === membership.id || (a.allowance.groupId !== null && a.allowance.groupId === membership.groupId))
-          .map((a) => ({ ...a.allowance, benefitType: a.benefitType, shared: a.allowance.groupId !== null })),
+          .map((a) => ({ ...a.allowance, category: a.category, shared: a.allowance.groupId !== null })),
       })),
       visits,
     };

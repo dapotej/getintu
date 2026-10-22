@@ -1,4 +1,5 @@
 export * from "./enums.ts";
+export * from "./categories.ts";
 export * from "./members.ts";
 export * from "./partners.ts";
 export * from "./plans.ts";

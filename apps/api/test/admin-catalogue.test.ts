@@ -5,6 +5,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { createDb, schema } from "@intu/db";
 import { redeem } from "../src/ledger/redeem.ts";
 import { createStaff, testApi } from "./support/auth.ts";
+import { categoryIdOf } from "./support/fixtures.ts";
 
 const url = process.env.DATABASE_URL;
 const allDay = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]]));
@@ -30,9 +31,17 @@ describe.runIf(url)("admin catalogue", () => {
       ["NGN", 150_000_000],
     ]);
 
-    const withBenefit = await api.post(`/admin/plans/${planId}/benefits`, { type: "club_visit", quantity: 12, period: "per_year", capOncePerVenuePerMonth: true });
+    const beachClubs = await categoryIdOf(db, "C03-S01");
+    const withBenefit = await api.post(`/admin/plans/${planId}/benefits`, { categoryId: beachClubs, quantity: 12, period: "per_year", capOncePerVenuePerMonth: true });
     expect(withBenefit.status).toBe(201);
-    expect(withBenefit.json.plan.benefits[0]).toMatchObject({ type: "club_visit", quantity: 12, period: "per_year", capOncePerVenuePerMonth: true, allowedVenueTiers: ["standard"] });
+    expect(withBenefit.json.plan.benefits[0]).toMatchObject({
+      categoryId: beachClubs,
+      category: { code: "C03-S01", name: "Beach Clubs", level: "subcategory" },
+      quantity: 12,
+      period: "per_year",
+      capOncePerVenuePerMonth: true,
+      allowedVenueTiers: ["standard"],
+    });
 
     const audits = await auditFor(planId);
     expect(audits.map((a) => [a.action, a.actorType, a.actorId])).toEqual([
@@ -48,9 +57,11 @@ describe.runIf(url)("admin catalogue", () => {
     expect((await api.post("/admin/plans", { code, name: "TEST again" })).status).toBe(409);
     expect((await api.put(`/admin/plans/${json.plan.id}/prices`, { prices: [{ currency: "GBP", amountMinor: 149.99 }] })).status).toBe(400);
     expect((await api.put(`/admin/plans/${json.plan.id}/prices`, { prices: [{ currency: "GBP", amountMinor: 1 }, { currency: "GBP", amountMinor: 2 }] })).status).toBe(400);
-    await api.post(`/admin/plans/${json.plan.id}/benefits`, { type: "spa", period: "per_year", quantity: 3 });
-    expect((await api.post(`/admin/plans/${json.plan.id}/benefits`, { type: "spa", period: "per_year", quantity: 1 })).status).toBe(409);
-    expect((await api.post(`/admin/plans/${json.plan.id}/benefits`, { type: "jacuzzi", period: "per_year" })).status).toBe(400);
+    const spa = await categoryIdOf(db, "C04-S05");
+    await api.post(`/admin/plans/${json.plan.id}/benefits`, { categoryId: spa, period: "per_year", quantity: 3 });
+    expect((await api.post(`/admin/plans/${json.plan.id}/benefits`, { categoryId: spa, period: "per_year", quantity: 1 })).status).toBe(409);
+    expect((await api.post(`/admin/plans/${json.plan.id}/benefits`, { categoryId: randomUUID(), period: "per_year" })).status).toBe(422);
+    expect((await api.post(`/admin/plans/${json.plan.id}/benefits`, { categoryId: "jacuzzi", period: "per_year" })).status).toBe(400);
     expect((await api.get("/admin/plans/not-a-uuid")).status).toBe(400);
     expect((await api.get(`/admin/plans/${randomUUID()}`)).status).toBe(404);
   });
@@ -68,11 +79,11 @@ describe.runIf(url)("admin catalogue", () => {
     const api = as(lead);
     const partner = (await api.post("/admin/partners", { legalName: "TEST Tiers Ltd", tradingName: "TEST Tiers" })).json.partner;
     const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Rooftop", area: "Ikoyi", city: "lagos", category: "members_club", tier: "top", openingHours: allDay })).json.venue;
-    const offer = (await api.post("/admin/offers", { venueId: venue.id, benefitType: "golf", rateMinor: 4_000_000 })).json.offer;
+    const offer = (await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C04-S08-T01"), rateMinor: 4_000_000 })).json.offer;
     expect(venue.tier).toBe("top");
 
     const plan = (await api.post("/admin/plans", { code: `TEST-${randomUUID().slice(0, 6)}`, name: "TEST Tier plan", seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10" })).json.plan;
-    const benefitId = (await api.post(`/admin/plans/${plan.id}/benefits`, { type: "golf", quantity: 2, period: "per_pass" })).json.plan.benefits[0].id;
+    const benefitId = (await api.post(`/admin/plans/${plan.id}/benefits`, { categoryId: await categoryIdOf(db, "C04-S08"), quantity: 2, period: "per_pass" })).json.plan.benefits[0].id;
     const member = (await api.post("/admin/members", { fullName: "TEST Tier Member", phone: `+999${randomInt(10 ** 9, 10 ** 10)}` })).json.member;
     const detail = (await api.post(`/admin/members/${member.id}/memberships`, { planId: plan.id, paymentSource: "gift" })).json;
     const membershipId = detail.memberships[0].id;
@@ -93,14 +104,21 @@ describe.runIf(url)("admin catalogue", () => {
     const list = (await api.get("/admin/partners")).json.partners.find((p: { id: string }) => p.id === partner.id);
     expect(list).not.toHaveProperty("bankDetailsEncrypted");
     expect(list.hasBankDetails).toBe(true);
+    const one = (await api.get(`/admin/partners/${partner.id}`)).json;
+    expect(one.partner).not.toHaveProperty("bankDetailsEncrypted");
+    expect(one).toMatchObject({ partner: { id: partner.id, status: "prospect", hasBankDetails: true }, venues: [] });
+
+    const pipeline = await api.patch(`/admin/partners/${partner.id}`, { status: "negotiating", priority: "P1", proposedCostMinor: 3_000_000, proposedRetailMinor: 4_500_000, pricesArePlaceholders: true, nextAction: "TEST send contract" });
+    expect(pipeline.json.partner).toMatchObject({ status: "negotiating", priority: "P1", proposedCostMinor: 3_000_000, proposedRetailMinor: 4_500_000, nextAction: "TEST send contract" });
+    expect((await api.patch(`/admin/partners/${partner.id}`, { status: "maybe" })).status).toBe(400);
 
     const badHours = { ...allDay, "6": [{ open: "25:00", close: "02:00" }] };
     expect((await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Bad", area: "VI", city: "lagos", category: "nightclub", openingHours: badHours })).status).toBe(400);
     const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: "TEST Good", area: "VI", city: "lagos", category: "nightclub", openingHours: allDay })).json.venue;
-    expect((await api.post("/admin/offers", { venueId: venue.id, benefitType: "guest_list", rateMinor: 0, validFrom: "2026-12-10", validTo: "2026-12-01" })).status).toBe(400);
+    expect((await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C06-S01-T03"), rateMinor: 0, validFrom: "2026-12-10", validTo: "2026-12-01" })).status).toBe(400);
     expect((await api.post("/admin/venues", { partnerId: randomUUID(), name: "TEST Orphan", area: "VI", city: "lagos", category: "spa", openingHours: allDay })).status).toBe(422);
 
-    const offer = (await api.post("/admin/offers", { venueId: venue.id, benefitType: "guest_list", rateMinor: 0, dailyCap: 40 })).json.offer;
+    const offer = (await api.post("/admin/offers", { venueId: venue.id, categoryId: await categoryIdOf(db, "C06-S01-T03"), rateMinor: 0, dailyCap: 40 })).json.offer;
     const updated = await api.patch(`/admin/offers/${offer.id}`, { dailyCap: 25, active: false });
     expect(updated.json.offer).toMatchObject({ dailyCap: 25, active: false });
     const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, offer.id), eq(schema.auditLog.action, "offer.updated")));

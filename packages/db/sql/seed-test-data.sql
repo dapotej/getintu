@@ -1,14 +1,15 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
+-- Needs migrations 0000-0010: the catalogue (categories) comes from migration 0009.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
 
-INSERT INTO partners (id, legal_name, trading_name, contact_email, settlement_terms, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000101', 'TEST Coastline Leisure Ltd', 'TEST Coastline', 'ops+101@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000102', 'TEST Island Hotels Ltd', 'TEST Island Hotels', 'ops+102@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Ltd', 'TEST Lagoon Golf', 'ops+103@example.com', 'TEST: monthly in arrears', true),
-  ('00000000-0000-4000-8000-000000000104', 'TEST Afterdark Ltd', 'TEST Afterdark', 'ops+104@example.com', 'TEST: monthly in arrears', true)
+INSERT INTO partners (id, legal_name, trading_name, contact_email, settlement_terms, status, is_test) VALUES
+  ('00000000-0000-4000-8000-000000000101', 'TEST Coastline Leisure Ltd', 'TEST Coastline', 'ops+101@example.com', 'TEST: monthly in arrears', 'live', true),
+  ('00000000-0000-4000-8000-000000000102', 'TEST Island Hotels Ltd', 'TEST Island Hotels', 'ops+102@example.com', 'TEST: monthly in arrears', 'live', true),
+  ('00000000-0000-4000-8000-000000000103', 'TEST Lagoon Golf Ltd', 'TEST Lagoon Golf', 'ops+103@example.com', 'TEST: monthly in arrears', 'live', true),
+  ('00000000-0000-4000-8000-000000000104', 'TEST Afterdark Ltd', 'TEST Afterdark', 'ops+104@example.com', 'TEST: monthly in arrears', 'live', true)
 ON CONFLICT DO NOTHING;
 
 WITH h(name, hours) AS (VALUES
@@ -33,15 +34,19 @@ FROM (VALUES
 JOIN h ON h.name = v.hours_name
 ON CONFLICT DO NOTHING;
 
--- Rates are TEST placeholders in kobo until partners quote.
-INSERT INTO offers (id, venue_id, benefit_type, rate_minor, rate_currency, daily_cap, is_test) VALUES
-  ('00000000-0000-4000-8000-000000000501', '00000000-0000-4000-8000-000000000201', 'beach_club', 1800000, 'NGN', 30, true),
-  ('00000000-0000-4000-8000-000000000502', '00000000-0000-4000-8000-000000000202', 'beach_club', 1800000, 'NGN', 30, true),
-  ('00000000-0000-4000-8000-000000000503', '00000000-0000-4000-8000-000000000203', 'pool_gym', 2500000, 'NGN', 15, true),
-  ('00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000204', 'spa', 6000000, 'NGN', 5, true),
-  ('00000000-0000-4000-8000-000000000505', '00000000-0000-4000-8000-000000000205', 'golf', 4000000, 'NGN', 8, true),
-  ('00000000-0000-4000-8000-000000000506', '00000000-0000-4000-8000-000000000206', 'guest_list', 0, 'NGN', 40, true),
-  ('00000000-0000-4000-8000-000000000507', '00000000-0000-4000-8000-000000000207', 'hosted_night', 2500000, 'NGN', 10, true)
+-- Rates are TEST placeholders in kobo until partners quote; retail is cost plus half.
+INSERT INTO offers (id, venue_id, category_id, rate_minor, retail_minor, rate_currency, daily_cap, prices_are_placeholders, is_test)
+SELECT o.id::uuid, o.venue_id::uuid, c.id, o.rate, o.rate * 3 / 2, 'NGN', o.cap, true, true
+FROM (VALUES
+  ('00000000-0000-4000-8000-000000000501', '00000000-0000-4000-8000-000000000201', 'C03-S01-T01', 1800000, 30),
+  ('00000000-0000-4000-8000-000000000502', '00000000-0000-4000-8000-000000000202', 'C03-S01-T01', 1800000, 30),
+  ('00000000-0000-4000-8000-000000000503', '00000000-0000-4000-8000-000000000203', 'C04-S01-T02', 2500000, 15),
+  ('00000000-0000-4000-8000-000000000504', '00000000-0000-4000-8000-000000000204', 'C04-S05-T01', 6000000, 5),
+  ('00000000-0000-4000-8000-000000000505', '00000000-0000-4000-8000-000000000205', 'C04-S08-T01', 4000000, 8),
+  ('00000000-0000-4000-8000-000000000506', '00000000-0000-4000-8000-000000000206', 'C06-S01-T03', 0, 40),
+  ('00000000-0000-4000-8000-000000000507', '00000000-0000-4000-8000-000000000207', 'C06-S04-T01', 2500000, 10)
+) AS o(id, venue_id, code, rate, cap)
+JOIN categories c ON c.code = o.code
 ON CONFLICT DO NOTHING;
 
 -- December Pass tiers from the one-page concept (proposed prices).
@@ -57,33 +62,34 @@ INSERT INTO plan_prices (plan_id, currency, amount_minor) VALUES
   ('00000000-0000-4000-8000-000000000403', 'GBP', 89900), ('00000000-0000-4000-8000-000000000403', 'USD', 113900)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO benefits (plan_id, type, quantity, period, shared_by_group, allowed_venue_tiers)
-SELECT b.plan_id::uuid, b.type::benefit_type, b.quantity, 'per_pass', b.shared, '{standard,top}'
+INSERT INTO benefits (plan_id, category_id, quantity, period, shared_by_group, allowed_venue_tiers)
+SELECT b.plan_id::uuid, c.id, b.quantity, 'per_pass', b.shared, '{standard,top}'
 FROM (VALUES
-  ('00000000-0000-4000-8000-000000000401', 'meet_assist', 1, false),
-  ('00000000-0000-4000-8000-000000000401', 'beach_club', 2, false),
-  ('00000000-0000-4000-8000-000000000401', 'pool_gym', 2, false),
-  ('00000000-0000-4000-8000-000000000401', 'guest_list', NULL, false),
-  ('00000000-0000-4000-8000-000000000401', 'priority_dining', NULL, false),
-  ('00000000-0000-4000-8000-000000000402', 'meet_assist', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'beach_club', 4, false),
-  ('00000000-0000-4000-8000-000000000402', 'pool_gym', 4, false),
-  ('00000000-0000-4000-8000-000000000402', 'golf', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'spa', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'hosted_night', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'lounge', 1, false),
-  ('00000000-0000-4000-8000-000000000402', 'guest_list', NULL, false),
-  ('00000000-0000-4000-8000-000000000402', 'priority_dining', NULL, false),
-  ('00000000-0000-4000-8000-000000000403', 'meet_assist', 1, true),
-  ('00000000-0000-4000-8000-000000000403', 'beach_club', 4, false),
-  ('00000000-0000-4000-8000-000000000403', 'pool_gym', 4, false),
-  ('00000000-0000-4000-8000-000000000403', 'golf', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'spa', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'hosted_night', 1, true),
-  ('00000000-0000-4000-8000-000000000403', 'lounge', 1, false),
-  ('00000000-0000-4000-8000-000000000403', 'guest_list', NULL, false),
-  ('00000000-0000-4000-8000-000000000403', 'priority_dining', NULL, false)
-) AS b(plan_id, type, quantity, shared)
+  ('00000000-0000-4000-8000-000000000401', 'C01-S01-T01', 1, false),
+  ('00000000-0000-4000-8000-000000000401', 'C03-S01', 2, false),
+  ('00000000-0000-4000-8000-000000000401', 'C04-S01-T02', 2, false),
+  ('00000000-0000-4000-8000-000000000401', 'C06-S01-T03', NULL, false),
+  ('00000000-0000-4000-8000-000000000401', 'C02-S01-T01', NULL, false),
+  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T01', 1, false),
+  ('00000000-0000-4000-8000-000000000402', 'C03-S01', 4, false),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S01-T02', 4, false),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S08', 1, false),
+  ('00000000-0000-4000-8000-000000000402', 'C04-S05', 1, false),
+  ('00000000-0000-4000-8000-000000000402', 'C06-S04-T01', 1, false),
+  ('00000000-0000-4000-8000-000000000402', 'C01-S01-T03', 1, false),
+  ('00000000-0000-4000-8000-000000000402', 'C06-S01-T03', NULL, false),
+  ('00000000-0000-4000-8000-000000000402', 'C02-S01-T01', NULL, false),
+  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T01', 1, true),
+  ('00000000-0000-4000-8000-000000000403', 'C03-S01', 4, false),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S01-T02', 4, false),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S08', 1, false),
+  ('00000000-0000-4000-8000-000000000403', 'C04-S05', 1, false),
+  ('00000000-0000-4000-8000-000000000403', 'C06-S04-T01', 1, true),
+  ('00000000-0000-4000-8000-000000000403', 'C01-S01-T03', 1, false),
+  ('00000000-0000-4000-8000-000000000403', 'C06-S01-T03', NULL, false),
+  ('00000000-0000-4000-8000-000000000403', 'C02-S01-T01', NULL, false)
+) AS b(plan_id, code, quantity, shared)
+JOIN categories c ON c.code = b.code
 ON CONFLICT DO NOTHING;
 
 INSERT INTO members (id, full_name, phone, email, country, consent_terms_at, is_test)

@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import { boolean, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { deletedAt, id, timestamps } from "./columns.ts";
-import { benefitTypeEnum, bookingStatusEnum, declineReasonEnum, redemptionMethodEnum, redemptionResultEnum } from "./enums.ts";
+import { bookingStatusEnum, declineReasonEnum, redemptionMethodEnum, redemptionResultEnum } from "./enums.ts";
 import { members } from "./members.ts";
+import { categories } from "./categories.ts";
 import { allowances, memberships } from "./memberships.ts";
+import { benefits } from "./plans.ts";
 import { offers, venues } from "./partners.ts";
 import { staffUsers } from "./staff.ts";
 import { settlements } from "./money.ts";
@@ -28,7 +30,11 @@ export const redemptions = pgTable(
     offerId: uuid()
       .notNull()
       .references(() => offers.id),
-    benefitType: benefitTypeEnum().notNull(),
+    // The offer's service type, and the plan benefit it was checked against (null if none covered it).
+    categoryId: uuid()
+      .notNull()
+      .references(() => categories.id),
+    benefitId: uuid().references(() => benefits.id),
     allowanceId: uuid().references(() => allowances.id),
     staffUserId: uuid().references(() => staffUsers.id),
     result: redemptionResultEnum().notNull(),

@@ -13,10 +13,32 @@ export interface Price {
   amountMinor: number;
 }
 
+export type CategoryLevel = "category" | "subcategory" | "service";
+
+export interface Category {
+  id: string;
+  code: string;
+  parentId: string | null;
+  level: CategoryLevel;
+  name: string;
+  sortOrder: number;
+  customerVisible: boolean;
+  active: boolean;
+}
+
+/** The short form of a category embedded in other records. */
+export interface CategoryRef {
+  id?: string;
+  code: string;
+  name: string;
+  level?: CategoryLevel;
+}
+
 export interface Benefit {
   id: string;
   planId: string;
-  type: string;
+  categoryId: string;
+  category: CategoryRef;
   quantity: number | null;
   period: "per_pass" | "per_month" | "per_year";
   sharedByGroup: boolean;
@@ -54,7 +76,20 @@ export interface Partner {
   active: boolean;
   isTest: boolean;
   hasBankDetails: boolean;
+  status: PartnerStatus;
+  priority: "P1" | "P2" | "P3" | null;
+  categoryId: string | null;
+  proposedOffer: string | null;
+  offerModel: OfferModel | null;
+  proposedCostMinor: number | null;
+  proposedRetailMinor: number | null;
+  pricesArePlaceholders: boolean;
+  nextAction: string | null;
+  notes: string | null;
 }
+
+export type PartnerStatus = "to_identify" | "to_verify" | "prospect" | "personal_lead" | "negotiating" | "signed" | "live" | "paused" | "declined";
+export type OfferModel = "included" | "included_or_add_on" | "add_on" | "member_privilege";
 
 export type WeeklyHours = Record<"0" | "1" | "2" | "3" | "4" | "5" | "6", { open: string; close: string }[]>;
 
@@ -77,9 +112,13 @@ export interface Venue {
 export interface Offer {
   id: string;
   venueId: string;
-  benefitType: string;
+  categoryId: string;
+  category: CategoryRef;
   description: string | null;
   rateMinor: number;
+  retailMinor: number | null;
+  offerModel: OfferModel;
+  pricesArePlaceholders: boolean;
   rateCurrency: "GBP" | "USD" | "NGN";
   validFrom: string | null;
   validTo: string | null;
@@ -100,7 +139,7 @@ export interface Member {
 
 export interface Allowance {
   id: string;
-  benefitType: string;
+  category: CategoryRef;
   granted: number | null;
   used: number;
   periodStart: string;
@@ -127,7 +166,7 @@ export interface Visit {
   occurredAt: string;
   serviceDate: string;
   venueName: string;
-  benefitType: string;
+  category: CategoryRef;
   result: "approved" | "declined";
   reason: string | null;
   method: "online" | "offline" | "manual";

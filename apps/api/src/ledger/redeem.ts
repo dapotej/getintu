@@ -1,8 +1,8 @@
 import { and, count, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { audit, schema, type Db } from "@intu/db";
-import { evaluate, serviceDate as serviceDateFor, type Decision } from "@intu/rules";
+import { benefitFor, evaluate, serviceDate as serviceDateFor, type Decision } from "@intu/rules";
 
-const { allowances, benefits, memberships, offers, redemptions, venues } = schema;
+const { allowances, benefits, categories, memberships, offers, redemptions, venues } = schema;
 
 export interface RedeemInput {
   membershipId: string;
@@ -45,10 +45,16 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       .for("update");
     if (!membership || !venue || !offer) throw new NotFoundError("Membership, venue or offer not found");
 
-    const [benefit] = await tx
-      .select()
+    const [offerCategory] = await tx.select({ code: categories.code }).from(categories).where(eq(categories.id, offer.categoryId));
+    if (!offerCategory) throw new NotFoundError("Offer category not found");
+    // The plan's most specific benefit covering the offer's category.
+    const planBenefits = await tx
+      .select({ benefit: benefits, categoryCode: categories.code })
       .from(benefits)
-      .where(and(eq(benefits.planId, membership.planId), eq(benefits.type, offer.benefitType)));
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .where(eq(benefits.planId, membership.planId));
+    const match = benefitFor(planBenefits, offerCategory.code);
+    const benefit = match?.benefit;
 
     const day = serviceDateFor(venue.openingHours, now);
 
@@ -74,7 +80,7 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       .select({
         venueId: redemptions.venueId,
         offerId: redemptions.offerId,
-        benefitType: redemptions.benefitType,
+        benefitId: redemptions.benefitId,
         serviceDate: redemptions.serviceDate,
         occurredAt: redemptions.occurredAt,
       })
@@ -100,23 +106,24 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       offer: {
         id: offer.id,
         active: offer.active,
-        benefitType: offer.benefitType,
+        categoryCode: offerCategory.code,
         validHours: offer.validHours,
         validFrom: offer.validFrom,
         validTo: offer.validTo,
         dailyCap: offer.dailyCap,
       },
-      benefit: benefit
+      benefit: match
         ? {
-            type: benefit.type,
-            allowedVenueTiers: benefit.allowedVenueTiers,
-            caps: { oncePerVenuePerMonth: benefit.capOncePerVenuePerMonth, oncePerVenuePerDay: benefit.capOncePerVenuePerDay },
-            drawPerPerson: benefit.drawPerPerson,
+            id: match.benefit.id,
+            categoryCode: match.categoryCode,
+            allowedVenueTiers: match.benefit.allowedVenueTiers,
+            caps: { oncePerVenuePerMonth: match.benefit.capOncePerVenuePerMonth, oncePerVenuePerDay: match.benefit.capOncePerVenuePerDay },
+            drawPerPerson: match.benefit.drawPerPerson,
           }
         : null,
       partySize,
       allowance: allowance ? { granted: allowance.granted, used: allowance.used } : null,
-      memberHistory: history,
+      memberHistory: history.flatMap((h) => (h.benefitId ? [{ ...h, benefitId: h.benefitId }] : [])),
       offerApprovalsOnServiceDate: offerToday?.n ?? 0,
     });
 
@@ -130,7 +137,8 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
         membershipId: membership.id,
         venueId: venue.id,
         offerId: offer.id,
-        benefitType: offer.benefitType,
+        categoryId: offer.categoryId,
+        benefitId: benefit?.id ?? null,
         allowanceId: approved ? (allowance?.id ?? null) : null,
         staffUserId: input.staffUserId ?? null,
         result: decision.result,

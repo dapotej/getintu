@@ -1,5 +1,7 @@
 "use client";
-import { Badge, BENEFIT_LABELS, Button, Card, Checkbox, EmptyState, Field, Icon, Input, minorToMajorInput, NIGHT_BENEFITS, PageHeader, parseMajorToMinor, Select, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, EmptyState, Field, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td } from "@intu/ui";
+import { CategorySelect } from "@/components/category-select";
+import { isNight, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -20,7 +22,7 @@ export default function PlanPage() {
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { plan } = data;
   const benefits = plan.benefits ?? [];
-  const missing = Object.keys(BENEFIT_LABELS).filter((t) => !benefits.some((b) => b.type === t));
+  const taken = benefits.map((b) => b.categoryId);
 
   return (
     <>
@@ -144,19 +146,21 @@ export default function PlanPage() {
             ))}
           </Table>
         )}
-        {writable && missing.length ? (
-          <ActionForm className="flex flex-wrap items-end gap-3 border-t border-line bg-subtle/60 px-5 py-4" action={async (form) => setData(await api(`/admin/plans/${id}/benefits`, { method: "POST", body: { type: text(form, "type"), quantity: intOrNull(form, "quantity"), period: text(form, "period") } }))}>
+        {writable ? (
+          <ActionForm
+            className="flex flex-wrap items-end gap-3 border-t border-line bg-subtle/60 px-5 py-4"
+            action={async (form) => {
+              if (!text(form, "categoryId")) throw new Error("Choose what the benefit covers");
+              setData(await api(`/admin/plans/${id}/benefits`, { method: "POST", body: { categoryId: text(form, "categoryId"), quantity: intOrNull(form, "quantity"), period: text(form, "period") } }));
+            }}
+          >
             {(busy) => (
               <>
-                <Field label="Add benefit">
-                  <Select name="type">
-                    {missing.map((t) => (
-                      <option key={t} value={t}>
-                        {BENEFIT_LABELS[t]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                <div className="min-w-64 flex-1">
+                  <Field label="Add benefit" hint="A whole category, a subcategory, or one service type">
+                    <CategorySelect name="categoryId" exclude={taken} />
+                  </Field>
+                </div>
                 <Field label="Quantity">
                   <Input name="quantity" type="number" min={0} placeholder="Unlimited" className="w-32" />
                 </Field>
@@ -183,6 +187,7 @@ export default function PlanPage() {
 
 function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writable: boolean; onChange: (d: { plan: Plan }) => void }) {
   const [editing, setEditing] = useState(false);
+  const { path } = useCatalogue();
   if (!editing) {
     const rules = [
       b.capOncePerVenuePerDay && "once per venue per day",
@@ -194,9 +199,11 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
       <tr>
         <Td>
           <span className="flex items-center gap-2 font-semibold">
-            <span aria-hidden className={`size-2 rounded-full ${NIGHT_BENEFITS.has(b.type) ? "bg-brand-night" : "bg-brand-day"}`} />
-            {BENEFIT_LABELS[b.type] ?? b.type}
+            <span aria-hidden className={`size-2 shrink-0 rounded-full ${isNight(b.category.code) ? "bg-brand-night" : "bg-brand-day"}`} />
+            {b.category.name}
+            {b.category.level !== "service" ? <span className="font-normal text-muted">(all)</span> : null}
           </span>
+          <span className="mt-0.5 block text-xs text-muted">{path(b.category.code)}</span>
         </Td>
         <Td className="whitespace-nowrap">
           <span className="font-medium tabular-nums">{b.quantity ?? "Unlimited"}</span> <span className="text-muted">{PERIODS[b.period].toLowerCase()}</span>
@@ -246,7 +253,7 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
         >
           {(busy) => (
             <>
-              <p className="font-semibold md:col-span-3">{BENEFIT_LABELS[b.type] ?? b.type}</p>
+              <p className="font-semibold md:col-span-3">{path(b.category.code) || b.category.name}</p>
               <div className="flex flex-col gap-4">
                 <Field label="Quantity">
                   <Input name="quantity" type="number" min={0} placeholder="Unlimited" defaultValue={b.quantity ?? ""} />

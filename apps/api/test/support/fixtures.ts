@@ -2,7 +2,8 @@
 // allowances, so tests never depend on each other or on seed data.
 import { randomInt, randomUUID } from "node:crypto";
 import { grantAllowances, schema, type Db } from "@intu/db";
-import type { BenefitType, WeeklyHours } from "@intu/rules";
+import { eq } from "drizzle-orm";
+import type { WeeklyHours } from "@intu/rules";
 
 const allDay: WeeklyHours = {
   "0": [{ open: "00:00", close: "24:00" }],
@@ -18,7 +19,10 @@ const allDay: WeeklyHours = {
 const fakePhone = () => `+999${randomInt(10 ** 9, 10 ** 10)}`;
 
 export interface WorldOptions {
-  benefitType?: BenefitType;
+  /** The plan benefit's category (any level). Defaults to C03-S01 Beach Clubs. */
+  benefitCode?: string;
+  /** The offer's service type. Defaults to the benefit's code if that's a service type, else C03-S01-T01. */
+  offerCode?: string;
   quantity?: number | null;
   sharedByGroup?: boolean;
   members?: number;
@@ -28,7 +32,13 @@ export interface WorldOptions {
 
 export async function createWorld(db: Db, opts: WorldOptions = {}) {
   const tag = randomUUID().slice(0, 8);
-  const benefitType = opts.benefitType ?? "beach_club";
+  const benefitCode = opts.benefitCode ?? "C03-S01";
+  const offerCode = opts.offerCode ?? (benefitCode.split("-").length === 3 ? benefitCode : "C03-S01-T01");
+  const categoryId = async (code: string) => {
+    const [c] = await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, code));
+    if (!c) throw new Error(`No category ${code}`);
+    return c.id;
+  };
   const memberCount = opts.members ?? 1;
 
   const [partner] = await db.insert(schema.partners).values({ legalName: `TEST Partner ${tag}`, tradingName: `TEST ${tag}`, isTest: true }).returning();
@@ -38,7 +48,7 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
     .returning();
   const [offer] = await db
     .insert(schema.offers)
-    .values({ venueId: venue!.id, benefitType, rateMinor: 1_800_000, dailyCap: opts.dailyCap ?? null, isTest: true })
+    .values({ venueId: venue!.id, categoryId: await categoryId(offerCode), rateMinor: 1_800_000, dailyCap: opts.dailyCap ?? null, isTest: true })
     .returning();
   const [plan] = await db
     .insert(schema.plans)
@@ -46,7 +56,7 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
     .returning();
   await db.insert(schema.benefits).values({
     planId: plan!.id,
-    type: benefitType,
+    categoryId: await categoryId(benefitCode),
     quantity: opts.quantity === undefined ? 4 : opts.quantity,
     period: "per_pass",
     sharedByGroup: opts.sharedByGroup ?? false,
@@ -66,4 +76,11 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
   }
 
   return { venue: venue!, offer: offer!, plan: plan!, people, first: people[0]! };
+}
+
+/** A catalogue category's id by code, e.g. "C04-S05". */
+export async function categoryIdOf(db: Db, code: string) {
+  const [c] = await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, code));
+  if (!c) throw new Error(`No category ${code}`);
+  return c.id;
 }

@@ -1,5 +1,6 @@
 // Builds the admin console as one self-contained HTML page with in-browser stand-ins for the
 // API and Supabase, for sharing as a click-through demo. Usage: pnpm --filter @intu/admin demo
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,12 @@ import postcss from "postcss";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, "dist");
+
+// A local export of the partner sheet's pipeline tab, if present, is baked into this private demo.
+// The file is gitignored: the repo itself only ever holds TEST data.
+const pipelineFile = join(here, "pipeline.local.csv");
+const pipelineCsv = existsSync(pipelineFile) ? await readFile(pipelineFile, "utf8") : "";
+if (pipelineCsv) console.log("Including the partner pipeline from demo/pipeline.local.csv");
 
 const js = await build({
   entryPoints: [join(here, "main.tsx")],
@@ -41,6 +48,7 @@ const js = await build({
     "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(""),
     "process.env.NEXT_PUBLIC_SUPABASE_URL": '"demo"',
     "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": '"demo"',
+    DEMO_PIPELINE_CSV: JSON.stringify(pipelineCsv),
   },
   logLevel: "warning",
 });

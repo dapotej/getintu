@@ -6,11 +6,13 @@ import AuthLayout from "../src/app/(auth)/layout";
 import LoginPage from "../src/app/(auth)/login/page";
 import SetPasswordPage from "../src/app/(auth)/set-password/page";
 import TwoStepPage from "../src/app/(auth)/two-step/page";
+import CataloguePage from "../src/app/(console)/catalogue/page";
 import ImportPage from "../src/app/(console)/import/page";
 import ConsoleLayout from "../src/app/(console)/layout";
 import MemberPage from "../src/app/(console)/members/[id]/page";
 import MembersPage from "../src/app/(console)/members/page";
 import Home from "../src/app/(console)/page";
+import PartnerPage from "../src/app/(console)/partners/[id]/page";
 import PartnersPage from "../src/app/(console)/partners/page";
 import PlanPage from "../src/app/(console)/plans/[id]/page";
 import PlansPage from "../src/app/(console)/plans/page";
@@ -42,6 +44,8 @@ const ROUTES: [RegExp, ComponentType, Layout][] = [
   [/^\/plans$/, PlansPage, ConsoleLayout],
   [/^\/plans\/(?<id>[^/]+)$/, PlanPage, ConsoleLayout],
   [/^\/partners$/, PartnersPage, ConsoleLayout],
+  [/^\/partners\/(?<id>[^/]+)$/, PartnerPage, ConsoleLayout],
+  [/^\/catalogue$/, CataloguePage, ConsoleLayout],
   [/^\/venues\/(?<id>[^/]+)$/, VenuePage, ConsoleLayout],
   [/^\/staff$/, StaffPage, ConsoleLayout],
   [/^\/import$/, ImportPage, ConsoleLayout],

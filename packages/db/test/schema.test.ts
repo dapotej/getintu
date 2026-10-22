@@ -14,3 +14,19 @@ describe.runIf(url)("schema safety", () => {
     expect(rows.map((r) => r.tablename)).toEqual([]);
   });
 });
+
+describe.runIf(url)("catalogue", () => {
+  const { sql } = createDb(url ?? "", { max: 1 });
+  afterAll(() => sql.end());
+
+  it("matches src/taxonomy.ts: every code, name, level and parent", async () => {
+    const { flattenTaxonomy } = await import("../src/taxonomy.ts");
+    const rows = await sql<{ code: string; name: string; level: string; parent: string | null }[]>`
+      select c.code, c.name, c.level, p.code as parent from categories c left join categories p on p.id = c.parent_id order by c.code`;
+    const expected = flattenTaxonomy()
+      .map((r) => ({ code: r.code, name: r.name, level: r.level, parent: r.parentCode }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+    // Staff can add entries in the console; the original catalogue must all be there, unchanged.
+    expect(rows.filter((r) => expected.some((e) => e.code === r.code))).toEqual(expected);
+  });
+});

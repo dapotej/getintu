@@ -5,9 +5,9 @@ import { one, schema, type Db } from "@intu/db";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail } from "../http.ts";
 import { staffAudit } from "./audited.ts";
-import { benefitType, currency, idParam, isoDate, minorUnits, venueTier } from "./validation.ts";
+import { currency, idParam, isoDate, minorUnits, uuid, venueTier } from "./validation.ts";
 
-const { plans, planPrices, benefits, allowances } = schema;
+const { plans, planPrices, benefits, allowances, categories } = schema;
 
 const PlanFields = z.object({
   code: z.string().min(2).max(40),
@@ -26,7 +26,7 @@ const UpdatePlan = PlanFields.partial();
 const Prices = z.object({ prices: z.array(z.object({ currency, amountMinor: minorUnits })).max(3) });
 
 const BenefitFields = z.object({
-  type: benefitType,
+  categoryId: uuid,
   quantity: z.number().int().nonnegative().nullable(),
   period: z.enum(["per_pass", "per_month", "per_year"]),
   sharedByGroup: z.boolean(),
@@ -35,8 +35,8 @@ const BenefitFields = z.object({
   drawPerPerson: z.boolean(),
   allowedVenueTiers: z.array(venueTier).min(1),
 });
-const CreateBenefit = BenefitFields.partial().required({ type: true, period: true });
-const UpdateBenefit = BenefitFields.omit({ type: true }).partial();
+const CreateBenefit = BenefitFields.partial().required({ categoryId: true, period: true });
+const UpdateBenefit = BenefitFields.omit({ categoryId: true }).partial();
 
 export function planRoutes(db: Db) {
   const app = new Hono<AdminEnv>();
@@ -45,8 +45,13 @@ export function planRoutes(db: Db) {
     const [plan] = await db.select().from(plans).where(eq(plans.id, id));
     if (!plan) fail(404, "not_found", "Plan not found");
     const prices = await db.select().from(planPrices).where(eq(planPrices.planId, id)).orderBy(asc(planPrices.currency));
-    const planBenefits = await db.select().from(benefits).where(eq(benefits.planId, id)).orderBy(asc(benefits.type));
-    return { ...plan, prices, benefits: planBenefits };
+    const planBenefits = await db
+      .select({ benefit: benefits, category: { id: categories.id, code: categories.code, name: categories.name, level: categories.level } })
+      .from(benefits)
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .where(eq(benefits.planId, id))
+      .orderBy(asc(categories.code));
+    return { ...plan, prices, benefits: planBenefits.map((b) => ({ ...b.benefit, category: b.category })) };
   };
 
   app.get("/plans", requirePermission("plans.read"), async (c) => {
@@ -109,8 +114,10 @@ export function planRoutes(db: Db) {
     await db.transaction(async (tx) => {
       const [plan] = await tx.select({ id: plans.id }).from(plans).where(eq(plans.id, id));
       if (!plan) fail(404, "not_found", "Plan not found");
-      const [dup] = await tx.select({ id: benefits.id }).from(benefits).where(and(eq(benefits.planId, id), eq(benefits.type, input.type)));
-      if (dup) fail(409, "duplicate_benefit", `This plan already has a ${input.type} benefit`);
+      const [category] = await tx.select().from(categories).where(eq(categories.id, input.categoryId));
+      if (!category) fail(422, "unknown_category", "Category not found");
+      const [dup] = await tx.select({ id: benefits.id }).from(benefits).where(and(eq(benefits.planId, id), eq(benefits.categoryId, input.categoryId)));
+      if (dup) fail(409, "duplicate_benefit", `This plan already has a ${category.name} benefit`);
       const row = one(await tx.insert(benefits).values({ ...input, planId: id }).returning());
       await staffAudit(tx, staff, "benefit.created", "benefit", row.id, null, row);
     });

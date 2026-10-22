@@ -6,6 +6,7 @@ import { createDb, schema } from "@intu/db";
 import { importPilot } from "../src/import/pilot.ts";
 import { redeem } from "../src/ledger/redeem.ts";
 import { createStaff, testApi } from "./support/auth.ts";
+import { categoryIdOf } from "./support/fixtures.ts";
 
 const url = process.env.DATABASE_URL;
 
@@ -95,12 +96,13 @@ describe.runIf(url)("pilot import", () => {
 
     // Allowances follow the sheet; the Crew's shared hosted night combines both members' rows.
     const allowances = await db
-      .select({ type: schema.benefits.type, granted: schema.allowances.granted, used: schema.allowances.used, groupId: schema.allowances.groupId, membershipId: schema.allowances.membershipId })
+      .select({ type: schema.categories.code, granted: schema.allowances.granted, used: schema.allowances.used, groupId: schema.allowances.groupId, membershipId: schema.allowances.membershipId })
       .from(schema.allowances)
-      .innerJoin(schema.benefits, eq(schema.benefits.id, schema.allowances.benefitId));
+      .innerJoin(schema.benefits, eq(schema.benefits.id, schema.allowances.benefitId))
+      .innerJoin(schema.categories, eq(schema.categories.id, schema.benefits.categoryId));
     const one = allowances.filter((a) => a.membershipId === byPass[s.pass(1)]?.id);
-    expect(Object.fromEntries(one.map((a) => [a.type, a.used]))).toMatchObject({ beach_club: 2, pool_gym: 1, spa: 1, golf: 0 });
-    expect(allowances.filter((a) => a.groupId === byPass[s.pass(3)]?.groupId && a.type === "hosted_night")).toEqual([
+    expect(Object.fromEntries(one.map((a) => [a.type, a.used]))).toMatchObject({ "C03-S01": 2, "C04-S01-T02": 1, "C04-S05": 1, "C04-S08": 0 });
+    expect(allowances.filter((a) => a.groupId === byPass[s.pass(3)]?.groupId && a.type === "C06-S04-T01")).toEqual([
       expect.objectContaining({ granted: 1, used: 1 }),
     ]);
 
@@ -116,7 +118,7 @@ describe.runIf(url)("pilot import", () => {
 
     // Imported members carry on in the platform: the pilot's history counts against the rules.
     const venue = (await db.select().from(schema.venues).where(eq(schema.venues.externalRef, s.venue(1))))[0];
-    const offer = (await db.select().from(schema.offers).where(and(eq(schema.offers.venueId, venue?.id ?? ""), eq(schema.offers.benefitType, "beach_club"))))[0];
+    const offer = (await db.select().from(schema.offers).where(and(eq(schema.offers.venueId, venue?.id ?? ""), eq(schema.offers.categoryId, await categoryIdOf(db, "C03-S01-T01")))))[0];
     const again = await redeem(db, { membershipId: byPass[s.pass(1)]?.id ?? "", venueId: venue?.id ?? "", offerId: offer?.id ?? "", method: "online", now: new Date("2026-12-28T12:00:00Z") });
     expect(again.decision).toMatchObject({ result: "approved", remaining: 1 });
   });
@@ -145,7 +147,7 @@ describe.runIf(url)("pilot import", () => {
       expect.arrayContaining([
         { file: "members", line: 6, message: expect.stringContaining("needs a country code") },
         { file: "members", line: 7, message: expect.stringContaining('No plan chosen for tier "Platinum"') },
-        { file: "allowances", line: 8, message: expect.stringContaining("more than one beach_club row") },
+        { file: "allowances", line: 8, message: expect.stringContaining("more than one Beach row") },
       ]),
     );
     expect(await membershipsFor([s.pass(1)])).toEqual([]);

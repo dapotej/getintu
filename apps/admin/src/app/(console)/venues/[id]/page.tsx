@@ -1,5 +1,7 @@
 "use client";
-import { Badge, BENEFIT_LABELS, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
+import { CategorySelect } from "@/components/category-select";
+import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -10,11 +12,12 @@ import { useStaff } from "@/lib/auth";
 import type { Offer, Venue } from "@/lib/types";
 import { CATEGORIES } from "@/lib/labels";
 
-const naira = (form: FormData, name: string) => {
+const naira = (form: FormData, name: string, label: string) => {
   const minor = parseMajorToMinor(text(form, name));
-  if (minor === null) throw new Error("Enter the rate in naira, e.g. 18000");
+  if (minor === null) throw new Error(`Enter the ${label} in naira, e.g. 18000`);
   return minor;
 };
+const nairaOrNull = (form: FormData, name: string, label: string) => (text(form, name) ? naira(form, name, label) : null);
 
 export default function VenuePage() {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +27,7 @@ export default function VenuePage() {
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { venue, offers } = data;
-  const missing = Object.keys(BENEFIT_LABELS).filter((t) => !offers.some((o) => o.benefitType === t));
+  const taken = offers.map((o) => o.categoryId);
 
   return (
     <>
@@ -38,7 +41,7 @@ export default function VenuePage() {
         subtitle={`${venue.area}, ${venue.city === "lagos" ? "Lagos" : "Abuja"}${venue.externalRef ? ` · pilot ID ${venue.externalRef}` : ""}${venue.isTest ? " · TEST" : ""}`}
         actions={<Badge tone={venue.tier === "top" ? "day" : "neutral"}>{venue.tier === "top" ? "Top tier" : "Standard tier"}</Badge>}
       />
-      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <div className="flex flex-col gap-6">
         <Card title="Venue">
           <ActionForm
             success="Saved."
@@ -108,37 +111,60 @@ export default function VenuePage() {
           {offers.length === 0 ? (
             <EmptyState title="No offers yet">Add one below so members can use this venue.</EmptyState>
           ) : (
-            <Table head={["Benefit", "Rate", "Daily cap", "Dates", ""]}>
+            <Table head={["Service", "Cost", "Retail", "Markup", "How it's offered", "Daily cap", ""]}>
               {offers.map((o) => (
                 <OfferRow key={o.id} offer={o} writable={writable} onChange={reload} />
               ))}
             </Table>
           )}
-          {writable && missing.length ? (
+          {writable ? (
             <ActionForm
-              className="grid gap-4 border-t border-line bg-subtle/60 px-5 py-4 sm:grid-cols-2"
+              className="grid gap-4 border-t border-line bg-subtle/60 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3"
               action={async (form) => {
-                await api("/admin/offers", { method: "POST", body: { venueId: id, benefitType: text(form, "benefitType"), rateMinor: naira(form, "rate"), dailyCap: intOrNull(form, "dailyCap") } });
+                if (!text(form, "categoryId")) throw new Error("Choose the service this offer delivers");
+                await api("/admin/offers", {
+                  method: "POST",
+                  body: {
+                    venueId: id,
+                    categoryId: text(form, "categoryId"),
+                    rateMinor: naira(form, "rate", "cost"),
+                    retailMinor: nairaOrNull(form, "retail", "retail price"),
+                    offerModel: text(form, "offerModel"),
+                    pricesArePlaceholders: checked(form, "placeholder"),
+                    dailyCap: intOrNull(form, "dailyCap"),
+                  },
+                });
                 reload();
               }}
             >
               {(busy) => (
                 <>
-                  <Field label="Add offer">
-                    <Select name="benefitType">
-                      {missing.map((t) => (
-                        <option key={t} value={t}>
-                          {BENEFIT_LABELS[t]}
+                  <div className="sm:col-span-2 lg:col-span-3">
+                    <Field label="Add offer" hint="The single service type this venue delivers">
+                      <CategorySelect name="categoryId" servicesOnly exclude={taken} />
+                    </Field>
+                  </div>
+                  <Field label="Rate (₦ per visit)" hint="Cost price: what intu pays">
+                    <Input name="rate" inputMode="decimal" required />
+                  </Field>
+                  <Field label="Retail (₦)" hint="What a member pays as an add-on">
+                    <Input name="retail" inputMode="decimal" />
+                  </Field>
+                  <Field label="How it's offered">
+                    <Select name="offerModel" defaultValue="included">
+                      {Object.entries(OFFER_MODELS).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v}
                         </option>
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Rate (₦ per visit)">
-                    <Input name="rate" inputMode="decimal" required />
-                  </Field>
                   <Field label="Daily cap">
                     <Input name="dailyCap" type="number" min={1} placeholder="No cap" />
                   </Field>
+                  <div className="flex items-end pb-2">
+                    <Checkbox name="placeholder" label="Prices are placeholders" />
+                  </div>
                   <div className="flex items-end">
                     <Button type="submit" disabled={busy}>
                       Add offer
@@ -156,13 +182,26 @@ export default function VenuePage() {
 
 function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: boolean; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
+  const { path } = useCatalogue();
   if (!editing)
     return (
       <tr>
-        <Td className="font-semibold">{BENEFIT_LABELS[o.benefitType] ?? o.benefitType}</Td>
-        <Td className="whitespace-nowrap font-medium tabular-nums">{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
+        <Td>
+          <p className="font-semibold">{o.category.name}</p>
+          <p className="text-xs text-muted">{path(o.category.code).split(" › ").slice(0, -1).join(" › ")}</p>
+        </Td>
+        <Td className="whitespace-nowrap tabular-nums">{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
+        <Td className="whitespace-nowrap tabular-nums">{o.retailMinor === null ? <span className="text-faint">–</span> : formatMoney(o.retailMinor, o.rateCurrency)}</Td>
+        <Td className="whitespace-nowrap tabular-nums">
+          {markup(o.rateMinor, o.retailMinor) ?? <span className="text-faint">–</span>}
+          {o.pricesArePlaceholders ? (
+            <span className="ml-2">
+              <Badge tone="day">Placeholder</Badge>
+            </span>
+          ) : null}
+        </Td>
+        <Td className="text-muted">{OFFER_MODELS[o.offerModel]}</Td>
         <Td className="tabular-nums">{o.dailyCap ?? <span className="text-faint">No cap</span>}</Td>
-        <Td className="whitespace-nowrap text-muted">{o.validFrom || o.validTo ? `${o.validFrom ?? "…"} → ${o.validTo ?? "…"}` : "Always"}</Td>
         <Td className="text-right">
           <div className="flex items-center justify-end gap-2">
             {!o.active ? (
@@ -181,13 +220,22 @@ function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: bo
     );
   return (
     <tr>
-      <Td colSpan={5} className="bg-subtle/60">
+      <Td colSpan={7} className="bg-subtle/60">
         <ActionForm
-          className="grid gap-4 py-2 sm:grid-cols-2"
+          className="grid gap-4 py-2 sm:grid-cols-2 lg:grid-cols-3"
           action={async (form) => {
             await api(`/admin/offers/${o.id}`, {
               method: "PATCH",
-              body: { rateMinor: naira(form, "rate"), dailyCap: intOrNull(form, "dailyCap"), validFrom: textOrNull(form, "validFrom"), validTo: textOrNull(form, "validTo"), active: checked(form, "active") },
+              body: {
+                rateMinor: naira(form, "rate", "cost"),
+                retailMinor: nairaOrNull(form, "retail", "retail price"),
+                offerModel: text(form, "offerModel"),
+                pricesArePlaceholders: checked(form, "placeholder"),
+                dailyCap: intOrNull(form, "dailyCap"),
+                validFrom: textOrNull(form, "validFrom"),
+                validTo: textOrNull(form, "validTo"),
+                active: checked(form, "active"),
+              },
             });
             setEditing(false);
             onChange();
@@ -195,12 +243,24 @@ function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: bo
         >
           {(busy) => (
             <>
-              <p className="font-semibold sm:col-span-2">{BENEFIT_LABELS[o.benefitType] ?? o.benefitType}</p>
-              <Field label="Rate (₦ per visit)">
+              <p className="font-semibold sm:col-span-2 lg:col-span-3">{path(o.category.code) || o.category.name}</p>
+              <Field label="Rate (₦ per visit)" hint="Cost price">
                 <Input name="rate" inputMode="decimal" defaultValue={minorToMajorInput(o.rateMinor)} required />
               </Field>
+              <Field label="Retail (₦)">
+                <Input name="retail" inputMode="decimal" defaultValue={o.retailMinor === null ? "" : minorToMajorInput(o.retailMinor)} />
+              </Field>
+              <Field label="How it's offered">
+                <Select name="offerModel" defaultValue={o.offerModel}>
+                  {Object.entries(OFFER_MODELS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="Daily cap">
-                <Input name="dailyCap" type="number" min={1} defaultValue={o.dailyCap ?? ""} />
+                <Input name="dailyCap" type="number" min={1} placeholder="No cap" defaultValue={o.dailyCap ?? ""} />
               </Field>
               <Field label="Valid from">
                 <Input name="validFrom" type="date" defaultValue={o.validFrom ?? ""} />
@@ -208,8 +268,9 @@ function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: bo
               <Field label="Valid to">
                 <Input name="validTo" type="date" defaultValue={o.validTo ?? ""} />
               </Field>
+              <Checkbox name="placeholder" defaultChecked={o.pricesArePlaceholders} label="Prices are placeholders" />
               <Checkbox name="active" defaultChecked={o.active} label="Active" />
-              <div className="flex gap-2">
+              <div className="flex gap-2 sm:col-span-2 lg:col-span-3">
                 <Button type="submit" disabled={busy}>
                   Save
                 </Button>

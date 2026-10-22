@@ -1,7 +1,8 @@
 import { boolean, date, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import type { WeeklyHours } from "@intu/rules";
 import { deletedAt, id, timestamps } from "./columns.ts";
-import { benefitTypeEnum, cityEnum, currencyEnum, venueCategoryEnum, venueTierEnum } from "./enums.ts";
+import { categories } from "./categories.ts";
+import { cityEnum, currencyEnum, offerModelEnum, partnerPriorityEnum, partnerStatusEnum, venueCategoryEnum, venueTierEnum } from "./enums.ts";
 
 // A business intu pays. Bank details are encrypted at field level before they reach this table.
 export const partners = pgTable("partners", {
@@ -14,6 +15,18 @@ export const partners = pgTable("partners", {
   bankDetailsEncrypted: text(),
   settlementTerms: text(),
   active: boolean().notNull().default(true),
+  // Pipeline: where the deal is, and what's being proposed.
+  status: partnerStatusEnum().notNull().default("prospect"),
+  priority: partnerPriorityEnum(),
+  categoryId: uuid().references(() => categories.id),
+  proposedOffer: text(),
+  offerModel: offerModelEnum(),
+  // Per use, in kobo. Markup is worked out from these, never stored.
+  proposedCostMinor: integer(),
+  proposedRetailMinor: integer(),
+  pricesArePlaceholders: boolean().notNull().default(false),
+  nextAction: text(),
+  notes: text(),
   isTest: boolean().notNull().default(false),
   ...timestamps,
   deletedAt: deletedAt(),
@@ -50,9 +63,17 @@ export const offers = pgTable("offers", {
   venueId: uuid()
     .notNull()
     .references(() => venues.id),
-  benefitType: benefitTypeEnum().notNull(),
+  // The service type delivered.
+  categoryId: uuid()
+    .notNull()
+    .references(() => categories.id),
   description: text(),
+  // What intu pays the partner per use (cost price).
   rateMinor: integer().notNull(),
+  // What a member pays when it's sold as an add-on. Markup is worked out, never stored.
+  retailMinor: integer(),
+  offerModel: offerModelEnum().notNull().default("included"),
+  pricesArePlaceholders: boolean().notNull().default(false),
   rateCurrency: currencyEnum().notNull().default("NGN"),
   // Narrower hours than the venue's; null means whenever the venue is open.
   validHours: jsonb().$type<WeeklyHours>(),

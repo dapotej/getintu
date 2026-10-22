@@ -1,3 +1,4 @@
+import { covers } from "./categories.ts";
 import { openWindowDate, serviceDate as serviceDateFor } from "./service-day.ts";
 import type { Decision, DeclineReason, RedemptionContext } from "./types.ts";
 
@@ -31,7 +32,7 @@ export function evaluate(ctx: RedemptionContext): Decision {
   }
 
   // 3. Plan includes the benefit, and the venue's tier is allowed.
-  if (benefit === null || benefit.type !== offer.benefitType) return decline("BENEFIT_NOT_IN_PLAN");
+  if (benefit === null || !covers(benefit.categoryCode, offer.categoryCode)) return decline("BENEFIT_NOT_IN_PLAN");
   if (!benefit.allowedVenueTiers.includes(venue.tier)) return decline("VENUE_TIER_NOT_ALLOWED");
 
   // Already claimed: the same offer approved for this member in the last 10 minutes.
@@ -48,7 +49,7 @@ export function evaluate(ctx: RedemptionContext): Decision {
   }
 
   // 5. Caps.
-  const sameVenueBenefit = ctx.memberHistory.filter((r) => r.venueId === venue.id && r.benefitType === offer.benefitType);
+  const sameVenueBenefit = ctx.memberHistory.filter((r) => r.venueId === venue.id && r.benefitId === benefit.id);
   const month = day.slice(0, 7);
   if (benefit.caps.oncePerVenuePerMonth && sameVenueBenefit.some((r) => r.serviceDate.slice(0, 7) === month)) {
     return decline("VENUE_MONTHLY_CAP");

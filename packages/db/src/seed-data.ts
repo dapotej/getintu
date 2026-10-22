@@ -28,7 +28,7 @@ export const testPartners = [
   { id: "00000000-0000-4000-8000-000000000102", legalName: "TEST Island Hotels Ltd", tradingName: "TEST Island Hotels" },
   { id: "00000000-0000-4000-8000-000000000103", legalName: "TEST Lagoon Golf Ltd", tradingName: "TEST Lagoon Golf" },
   { id: "00000000-0000-4000-8000-000000000104", legalName: "TEST Afterdark Ltd", tradingName: "TEST Afterdark" },
-].map((p) => ({ ...p, contactEmail: `ops+${p.id.slice(-3)}@example.com`, settlementTerms: "TEST: monthly in arrears", isTest: true }));
+].map((p) => ({ ...p, contactEmail: `ops+${p.id.slice(-3)}@example.com`, settlementTerms: "TEST: monthly in arrears", status: "live" as const, isTest: true }));
 
 const [coastline, island, golf, afterdark] = testPartners.map((p) => p.id) as [string, string, string, string];
 
@@ -74,56 +74,58 @@ export const testPlanPrices: (typeof planPrices.$inferInsert)[] = [
   { planId: crew, currency: "USD", amountMinor: 113_900 },
 ];
 
-type BenefitRow = typeof benefits.$inferInsert;
-const perPass = (planId: string, type: BenefitRow["type"], quantity: number | null, extra: Partial<BenefitRow> = {}): BenefitRow => ({
+/** A seed benefit names its category by code; seed() looks up the id. */
+export type SeedBenefit = Omit<typeof benefits.$inferInsert, "categoryId"> & { categoryCode: string };
+const perPass = (planId: string, categoryCode: string, quantity: number | null, extra: Partial<SeedBenefit> = {}): SeedBenefit => ({
   planId,
-  type,
+  categoryCode,
   quantity,
   period: "per_pass",
   allowedVenueTiers: ["standard", "top"],
   ...extra,
 });
 
-export const testBenefits: BenefitRow[] = [
-  perPass(essential, "meet_assist", 1),
-  perPass(essential, "beach_club", 2),
-  perPass(essential, "pool_gym", 2),
-  perPass(essential, "guest_list", null),
-  perPass(essential, "priority_dining", null),
-  perPass(plus, "meet_assist", 1),
-  perPass(plus, "beach_club", 4),
-  perPass(plus, "pool_gym", 4),
-  perPass(plus, "golf", 1),
-  perPass(plus, "spa", 1),
-  perPass(plus, "hosted_night", 1),
-  perPass(plus, "lounge", 1),
-  perPass(plus, "guest_list", null),
-  perPass(plus, "priority_dining", null),
-  perPass(crew, "meet_assist", 1, { sharedByGroup: true }),
-  perPass(crew, "beach_club", 4),
-  perPass(crew, "pool_gym", 4),
-  perPass(crew, "golf", 1),
-  perPass(crew, "spa", 1),
-  perPass(crew, "hosted_night", 1, { sharedByGroup: true }),
-  perPass(crew, "lounge", 1),
-  perPass(crew, "guest_list", null),
-  perPass(crew, "priority_dining", null),
+export const testBenefits: SeedBenefit[] = [
+  perPass(essential, "C01-S01-T01", 1),
+  perPass(essential, "C03-S01", 2),
+  perPass(essential, "C04-S01-T02", 2),
+  perPass(essential, "C06-S01-T03", null),
+  perPass(essential, "C02-S01-T01", null),
+  perPass(plus, "C01-S01-T01", 1),
+  perPass(plus, "C03-S01", 4),
+  perPass(plus, "C04-S01-T02", 4),
+  perPass(plus, "C04-S08", 1),
+  perPass(plus, "C04-S05", 1),
+  perPass(plus, "C06-S04-T01", 1),
+  perPass(plus, "C01-S01-T03", 1),
+  perPass(plus, "C06-S01-T03", null),
+  perPass(plus, "C02-S01-T01", null),
+  perPass(crew, "C01-S01-T01", 1, { sharedByGroup: true }),
+  perPass(crew, "C03-S01", 4),
+  perPass(crew, "C04-S01-T02", 4),
+  perPass(crew, "C04-S08", 1),
+  perPass(crew, "C04-S05", 1),
+  perPass(crew, "C06-S04-T01", 1, { sharedByGroup: true }),
+  perPass(crew, "C01-S01-T03", 1),
+  perPass(crew, "C06-S01-T03", null),
+  perPass(crew, "C02-S01-T01", null),
 ];
 
 // Rates are TEST placeholders in kobo until partners quote.
 const venueId = (n: number) => `00000000-0000-4000-8000-00000000020${n}`;
-type OfferRow = typeof offers.$inferInsert;
-export const testOffers: OfferRow[] = (
+/** A seed offer names its service type by code; seed() looks up the id. Rates are placeholders. */
+export type SeedOffer = Omit<typeof offers.$inferInsert, "categoryId"> & { categoryCode: string };
+export const testOffers: SeedOffer[] = (
   [
-  { id: "00000000-0000-4000-8000-000000000501", venueId: venueId(1), benefitType: "beach_club", rateMinor: 1_800_000, dailyCap: 30 },
-  { id: "00000000-0000-4000-8000-000000000502", venueId: venueId(2), benefitType: "beach_club", rateMinor: 1_800_000, dailyCap: 30 },
-  { id: "00000000-0000-4000-8000-000000000503", venueId: venueId(3), benefitType: "pool_gym", rateMinor: 2_500_000, dailyCap: 15 },
-  { id: "00000000-0000-4000-8000-000000000504", venueId: venueId(4), benefitType: "spa", rateMinor: 6_000_000, dailyCap: 5 },
-  { id: "00000000-0000-4000-8000-000000000505", venueId: venueId(5), benefitType: "golf", rateMinor: 4_000_000, dailyCap: 8 },
-  { id: "00000000-0000-4000-8000-000000000506", venueId: venueId(6), benefitType: "guest_list", rateMinor: 0, dailyCap: 40 },
-  { id: "00000000-0000-4000-8000-000000000507", venueId: venueId(7), benefitType: "hosted_night", rateMinor: 2_500_000, dailyCap: 10 },
-  ] satisfies Omit<OfferRow, "rateCurrency" | "isTest">[]
-).map((o) => ({ ...o, rateCurrency: "NGN" as const, isTest: true }));
+  { id: "00000000-0000-4000-8000-000000000501", venueId: venueId(1), categoryCode: "C03-S01-T01", rateMinor: 1_800_000, dailyCap: 30 },
+  { id: "00000000-0000-4000-8000-000000000502", venueId: venueId(2), categoryCode: "C03-S01-T01", rateMinor: 1_800_000, dailyCap: 30 },
+  { id: "00000000-0000-4000-8000-000000000503", venueId: venueId(3), categoryCode: "C04-S01-T02", rateMinor: 2_500_000, dailyCap: 15 },
+  { id: "00000000-0000-4000-8000-000000000504", venueId: venueId(4), categoryCode: "C04-S05-T01", rateMinor: 6_000_000, dailyCap: 5 },
+  { id: "00000000-0000-4000-8000-000000000505", venueId: venueId(5), categoryCode: "C04-S08-T01", rateMinor: 4_000_000, dailyCap: 8 },
+  { id: "00000000-0000-4000-8000-000000000506", venueId: venueId(6), categoryCode: "C06-S01-T03", rateMinor: 0, dailyCap: 40 },
+  { id: "00000000-0000-4000-8000-000000000507", venueId: venueId(7), categoryCode: "C06-S04-T01", rateMinor: 2_500_000, dailyCap: 10 },
+  ] satisfies Omit<SeedOffer, "rateCurrency" | "isTest">[]
+).map((o) => ({ ...o, retailMinor: Math.round((o.rateMinor * 3) / 2), rateCurrency: "NGN" as const, pricesArePlaceholders: true, isTest: true }));
 
 const crewGroup = "00000000-0000-4000-8000-000000000600";
 const membershipFor = (n: number, memberId: string, planId: string, groupId: string | null = null): typeof memberships.$inferInsert => ({

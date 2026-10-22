@@ -57,6 +57,27 @@
       "when": 1792620554629,
       "tag": "0007_venue_external_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792669023335,
+      "tag": "0008_categories_step1_add",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792669040732,
+      "tag": "0009_categories_step2_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792669051296,
+      "tag": "0010_categories_step3_finish",
+      "breakpoints": true
     }
   ]
 }

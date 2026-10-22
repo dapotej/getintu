@@ -5,9 +5,9 @@ import { one, schema, type Db } from "@intu/db";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
-import { benefitType, currency, idParam, isoDate, minorUnits, uuid, venueTier, WeeklyHours } from "./validation.ts";
+import { currency, idParam, isoDate, minorUnits, offerModel, partnerPriority, partnerStatus, uuid, venueTier, WeeklyHours } from "./validation.ts";
 
-const { partners, venues, offers } = schema;
+const { partners, venues, offers, categories } = schema;
 
 const PartnerFields = z.object({
   legalName: z.string().min(2).max(200),
@@ -17,6 +17,16 @@ const PartnerFields = z.object({
   contactPhone: z.string().max(40).nullable(),
   settlementTerms: z.string().max(2000).nullable(),
   active: z.boolean(),
+  status: partnerStatus,
+  priority: partnerPriority.nullable(),
+  categoryId: uuid.nullable(),
+  proposedOffer: z.string().max(500).nullable(),
+  offerModel: offerModel.nullable(),
+  proposedCostMinor: minorUnits.nullable(),
+  proposedRetailMinor: minorUnits.nullable(),
+  pricesArePlaceholders: z.boolean(),
+  nextAction: z.string().max(500).nullable(),
+  notes: z.string().max(4000).nullable(),
 });
 
 const VenueFields = z.object({
@@ -34,9 +44,12 @@ const VenueFields = z.object({
 
 const OfferFields = z.object({
   venueId: uuid,
-  benefitType,
+  categoryId: uuid,
   description: z.string().max(2000).nullable(),
   rateMinor: minorUnits,
+  retailMinor: minorUnits.nullable(),
+  offerModel,
+  pricesArePlaceholders: z.boolean(),
   rateCurrency: currency,
   validHours: WeeklyHours.nullable(),
   validFrom: isoDate.nullable(),
@@ -54,6 +67,14 @@ export function partnerRoutes(db: Db) {
   app.get("/partners", requirePermission("partners.read"), async (c) => {
     const rows = await db.select().from(partners).orderBy(asc(partners.tradingName));
     return c.json({ partners: rows.map(publicPartner) });
+  });
+
+  app.get("/partners/:id", requirePermission("partners.read"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const [partner] = await db.select().from(partners).where(eq(partners.id, id));
+    if (!partner) fail(404, "not_found", "Partner not found");
+    const partnerVenues = await db.select().from(venues).where(eq(venues.partnerId, id)).orderBy(asc(venues.name));
+    return c.json({ partner: publicPartner(partner), venues: partnerVenues });
   });
 
   app.post("/partners", requirePermission("partners.write"), async (c) => {
@@ -96,8 +117,13 @@ export function partnerRoutes(db: Db) {
     const { id } = idParam.parse(c.req.param());
     const [venue] = await db.select().from(venues).where(eq(venues.id, id));
     if (!venue) fail(404, "not_found", "Venue not found");
-    const venueOffers = await db.select().from(offers).where(eq(offers.venueId, id)).orderBy(asc(offers.benefitType));
-    return c.json({ venue, offers: venueOffers });
+    const venueOffers = await db
+      .select({ offer: offers, category: { id: categories.id, code: categories.code, name: categories.name } })
+      .from(offers)
+      .innerJoin(categories, eq(categories.id, offers.categoryId))
+      .where(eq(offers.venueId, id))
+      .orderBy(asc(categories.code));
+    return c.json({ venue, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })) });
   });
 
   app.post("/venues", requirePermission("partners.write"), async (c) => {
@@ -129,12 +155,15 @@ export function partnerRoutes(db: Db) {
 
   // Offers: what a venue gives for a benefit and what intu pays per use.
   app.post("/offers", requirePermission("partners.write"), async (c) => {
-    const input = await body(c, OfferFields.partial().required({ venueId: true, benefitType: true, rateMinor: true }));
+    const input = await body(c, OfferFields.partial().required({ venueId: true, categoryId: true, rateMinor: true }));
     if (input.validFrom && input.validTo && input.validTo < input.validFrom) fail(400, "invalid_dates", "validTo is before validFrom");
     const staff = c.get("staff");
     const row = await db.transaction(async (tx) => {
       const [venue] = await tx.select({ id: venues.id }).from(venues).where(eq(venues.id, input.venueId));
       if (!venue) fail(422, "unknown_venue", "Venue not found");
+      const [category] = await tx.select().from(categories).where(eq(categories.id, input.categoryId));
+      if (!category) fail(422, "unknown_category", "Category not found");
+      if (category.level !== "service") fail(400, "not_a_service", "An offer delivers one service type, not a whole category");
       const created = one(await tx.insert(offers).values(input).returning());
       await staffAudit(tx, staff, "offer.created", "offer", created.id, null, created);
       return created;
@@ -144,7 +173,7 @@ export function partnerRoutes(db: Db) {
 
   app.patch("/offers/:id", requirePermission("partners.write"), async (c) => {
     const { id } = idParam.parse(c.req.param());
-    const input = await body(c, OfferFields.omit({ venueId: true, benefitType: true }).partial());
+    const input = await body(c, OfferFields.omit({ venueId: true, categoryId: true }).partial());
     const staff = c.get("staff");
     const row = await db.transaction(async (tx) => {
       const [before] = await tx.select().from(offers).where(eq(offers.id, id)).for("update");

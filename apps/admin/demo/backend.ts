@@ -1,9 +1,14 @@
 // The admin API, imitated in the browser for the demo build. It starts from the same TEST seed
-// data as the real database and answers the same routes with the same shapes. Nothing is saved:
-// reloading the page starts again.
-import { allowancePeriods, type BenefitType } from "@intu/rules";
+// data and catalogue as the real database and answers the same routes with the same shapes.
+// Nothing is saved: reloading the page starts again.
+import { allowancePeriods, benefitFor } from "@intu/rules";
 import { testBenefits, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
+import { flattenTaxonomy } from "../../../packages/db/src/taxonomy";
 import { readTable } from "../../api/src/import/csv";
+import { parsePipeline } from "../../api/src/import/pipeline";
+
+/** The partner sheet's pipeline tab, if a local copy was found at build time (never committed). */
+declare const DEMO_PIPELINE_CSV: string;
 
 type Row = Record<string, unknown> & { id: string };
 const now = () => new Date().toISOString();
@@ -13,14 +18,24 @@ const stamp = { createdAt: "2026-10-21T09:00:00.000Z", updatedAt: "2026-10-21T09
 const ME = { id: "demo-founder", role: "founder", fullName: "Dapo Tejuoso", email: "founder@example.com" };
 const PERMISSIONS = ["members.read", "members.write", "plans.read", "plans.write", "partners.read", "partners.write", "staff.manage", "import.pilot", "audit.read"];
 
+// The catalogue, with ids, as migration 0009 loads it.
+const categories: Row[] = [];
+for (const r of flattenTaxonomy()) {
+  categories.push({ id: uid(), code: r.code, parentId: categories.find((c) => c.code === r.parentCode)?.id ?? null, level: r.level, name: r.name, sortOrder: r.sortOrder, customerVisible: true, active: true });
+}
+const cat = (code: string) => categories.find((c) => c.code === code)!;
+const catRef = (id: unknown) => {
+  const c = categories.find((x) => x.id === id)!;
+  return { id: c.id, code: c.code, name: c.name, level: c.level };
+};
+
 const plans: Row[] = testPlans.map((p) => ({ description: null, durationDays: null, groupSize: 1, active: true, ...stamp, ...p }) as Row);
 const prices: Row[] = testPlanPrices.map((p) => ({ id: uid(), ...p }) as Row);
-const benefits: Row[] = testBenefits.map(
-  (b) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b }) as Row,
-);
-const partners: Row[] = testPartners.map((p) => ({ contactName: null, contactPhone: null, active: true, hasBankDetails: p.id.endsWith("102"), ...stamp, ...p }) as Row);
+const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b, categoryId: cat(categoryCode).id }) as Row);
+const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, status: "prospect", priority: null, categoryId: null, proposedOffer: null, offerModel: null, proposedCostMinor: null, proposedRetailMinor: null, pricesArePlaceholders: false, nextAction: null, notes: null, isTest: false, settlementTerms: null, contactEmail: null };
+const partners: Row[] = testPartners.map((p) => ({ ...partnerDefaults, ...stamp, ...p, hasBankDetails: p.id.endsWith("102") }) as Row);
 const venues: Row[] = testVenues.map((v) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v }) as Row);
-const offers: Row[] = testOffers.map((o) => ({ description: null, validHours: null, validFrom: null, validTo: null, active: true, ...o }) as Row);
+const offers: Row[] = testOffers.map(({ categoryCode, ...o }) => ({ description: null, validHours: null, validFrom: null, validTo: null, active: true, retailMinor: null, offerModel: "included", pricesArePlaceholders: false, ...o, categoryId: cat(categoryCode).id }) as Row);
 const members: Row[] = testMembers.map((m) => ({ consentMarketing: false, ...stamp, ...m, consentTermsAt: String(m.consentTermsAt) }) as Row);
 const memberships: Row[] = testMemberships.map((m) => ({ arrivesOn: null, departsOn: null, paymentSource: "direct", ...m }) as Row);
 memberships.find((m) => m.passNumber === "TEST-0001")!.arrivesOn = "2026-12-14";
@@ -32,6 +47,25 @@ const staff: Row[] = [
   { id: uid(), role: "ops_lead", fullName: "TEST Amaka Ops Lead", email: "amaka@example.com", active: true, createdAt: "2026-10-22T09:00:00.000Z" },
   { id: uid(), role: "concierge", fullName: "TEST Bisi Concierge", email: "bisi@example.com", active: true, createdAt: "2026-10-23T09:00:00.000Z" },
 ];
+
+// Your real pipeline, if the build found one; otherwise the TEST partners alone.
+function applyPipeline(csv: string) {
+  const { rows, warnings, errors } = parsePipeline(csv, categories as { id: string; level: string; name: string; parentId: string | null }[]);
+  const counts = { created: 0, updated: 0, unchanged: 0 };
+  for (const r of rows) {
+    const existing = partners.find((p) => String(p.tradingName).toLowerCase() === r.name.toLowerCase());
+    if (existing) {
+      const changed = Object.entries(r.values).some(([k, v]) => existing[k] !== v);
+      if (changed) Object.assign(existing, r.values);
+      counts[changed ? "updated" : "unchanged"]++;
+    } else {
+      partners.push({ ...partnerDefaults, ...stamp, id: uid(), legalName: r.name, tradingName: r.name, ...r.values } as Row);
+      counts.created++;
+    }
+  }
+  return { counts, warnings, errors };
+}
+if (typeof DEMO_PIPELINE_CSV === "string" && DEMO_PIPELINE_CSV) applyPipeline(DEMO_PIPELINE_CSV);
 
 function grant(membership: Row) {
   for (const b of benefits.filter((x) => x.planId === membership.planId)) {
@@ -45,22 +79,22 @@ function grant(membership: Row) {
 memberships.forEach(grant);
 
 // A few sample visits so profiles aren't empty.
-function sampleVisit(pass: string, venueId: string, at: string, type: BenefitType, result: "approved" | "declined", reason: string | null = null, partySize = 1) {
+function sampleVisit(pass: string, venueId: string, at: string, serviceCode: string, result: "approved" | "declined", reason: string | null = null, partySize = 1) {
   const ms = memberships.find((m) => m.passNumber === pass)!;
-  visits.push({ id: uid(), memberId: ms.memberId, membershipId: ms.id, venueId, occurredAt: at, serviceDate: at.slice(0, 10), benefitType: type, result, reason, method: "online", partySize });
-  if (result === "approved") {
-    const b = benefits.find((x) => x.planId === ms.planId && x.type === type);
-    const a = allowances.find((x) => x.benefitId === b?.id && (x.membershipId === ms.id || (x.groupId && x.groupId === ms.groupId)));
-    if (a) a.used = Number(a.used) + 1;
-  }
+  visits.push({ id: uid(), memberId: ms.memberId, membershipId: ms.id, venueId, occurredAt: at, serviceDate: at.slice(0, 10), categoryId: cat(serviceCode).id, result, reason, method: "online", partySize });
+  if (result !== "approved") return;
+  const planBenefits = benefits.filter((b) => b.planId === ms.planId).map((b) => ({ b, categoryCode: String(categories.find((c) => c.id === b.categoryId)?.code) }));
+  const b = benefitFor(planBenefits, serviceCode)?.b;
+  const a = allowances.find((x) => x.benefitId === b?.id && (x.membershipId === ms.id || (x.groupId && x.groupId === ms.groupId)));
+  if (a) a.used = Number(a.used) + 1;
 }
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:05:00.000Z", "beach_club", "approved");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000204", "2026-12-16T15:30:00.000Z", "spa", "approved");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:07:00.000Z", "beach_club", "declined", "DUPLICATE_SCAN");
-sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000206", "2026-12-19T23:40:00.000Z", "guest_list", "approved");
-sampleVisit("TEST-0002", "00000000-0000-4000-8000-000000000204", "2026-12-20T11:00:00.000Z", "spa", "declined", "BENEFIT_NOT_IN_PLAN");
-sampleVisit("TEST-0005", "00000000-0000-4000-8000-000000000207", "2026-12-26T22:30:00.000Z", "hosted_night", "approved", null, 4);
-sampleVisit("TEST-0006", "00000000-0000-4000-8000-000000000207", "2026-12-27T22:10:00.000Z", "hosted_night", "declined", "ALLOWANCE_USED_UP");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:05:00.000Z", "C03-S01-T01", "approved");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000204", "2026-12-16T15:30:00.000Z", "C04-S05-T01", "approved");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000201", "2026-12-15T13:07:00.000Z", "C03-S01-T01", "declined", "DUPLICATE_SCAN");
+sampleVisit("TEST-0001", "00000000-0000-4000-8000-000000000206", "2026-12-19T23:40:00.000Z", "C06-S01-T03", "approved");
+sampleVisit("TEST-0002", "00000000-0000-4000-8000-000000000204", "2026-12-20T11:00:00.000Z", "C04-S05-T01", "declined", "BENEFIT_NOT_IN_PLAN");
+sampleVisit("TEST-0005", "00000000-0000-4000-8000-000000000207", "2026-12-26T22:30:00.000Z", "C06-S04-T01", "approved", null, 4);
+sampleVisit("TEST-0006", "00000000-0000-4000-8000-000000000207", "2026-12-27T22:10:00.000Z", "C06-S04-T01", "declined", "ALLOWANCE_USED_UP");
 
 class HttpError extends Error {
   constructor(
@@ -79,7 +113,8 @@ const need = <T>(v: T | undefined, what: string): T => {
 const planOut = (p: Row) => ({ ...p, prices: prices.filter((x) => x.planId === p.id).sort((a, b) => String(a.currency).localeCompare(String(b.currency))) });
 const planDetail = (id: string) => {
   const p = need(plans.find((x) => x.id === id), "Plan");
-  return { plan: { ...planOut(p), benefits: benefits.filter((b) => b.planId === id).sort((a, b) => String(a.type).localeCompare(String(b.type))) } };
+  const bs = benefits.filter((b) => b.planId === id).map((b) => ({ ...b, category: catRef(b.categoryId) }));
+  return { plan: { ...planOut(p), benefits: bs.sort((a, b) => a.category.code.localeCompare(b.category.code)) } };
 };
 const memberDetail = (id: string) => {
   const member = need(members.find((m) => m.id === id), "Member");
@@ -94,20 +129,40 @@ const memberDetail = (id: string) => {
           plan: { id: plan.id, name: plan.name, code: plan.code },
           allowances: allowances
             .filter((a) => a.membershipId === ms.id || (a.groupId !== null && a.groupId === ms.groupId))
-            .map((a) => ({ ...a, benefitType: benefits.find((b) => b.id === a.benefitId)?.type, shared: a.groupId !== null }))
-            .sort((a, b) => String(a.benefitType).localeCompare(String(b.benefitType))),
+            .map((a) => ({ ...a, category: catRef(benefits.find((b) => b.id === a.benefitId)?.categoryId), shared: a.groupId !== null }))
+            .sort((a, b) => a.category.code.localeCompare(b.category.code)),
         };
       }),
     visits: visits
       .filter((v) => v.memberId === id)
       .sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt)))
-      .map((v) => ({ ...v, venueName: venues.find((x) => x.id === v.venueId)?.name })),
+      .map((v) => ({ ...v, venueName: venues.find((x) => x.id === v.venueId)?.name, category: catRef(v.categoryId) })),
   };
 };
+const offerOut = (o: Row) => ({ ...o, category: catRef(o.categoryId) });
 
 type Handler = (m: RegExpMatchArray, body: Record<string, unknown>, query: URLSearchParams) => unknown;
 const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/admin\/me$/, () => ({ staff: ME, permissions: PERMISSIONS })],
+
+  ["GET", /^\/admin\/categories$/, () => ({ categories: [...categories].sort((a, b) => String(a.code).localeCompare(String(b.code))) })],
+  ["POST", /^\/admin\/categories$/, (_m, b) => {
+    const parent = b.parentId ? need(categories.find((c) => c.id === b.parentId), "Category") : null;
+    if (parent?.level === "service") throw new HttpError(400, "too_deep", "Service types can't have children");
+    const siblings = categories.filter((c) => c.parentId === (parent?.id ?? null));
+    const n = Math.max(0, ...siblings.map((s) => Number(String(s.code).split("-").at(-1)?.slice(1)))) + 1;
+    const pad = String(n).padStart(2, "0");
+    const code = parent ? `${String(parent.code)}-${parent.level === "category" ? "S" : "T"}${pad}` : `C${pad}`;
+    const level = parent ? (parent.level === "category" ? "subcategory" : "service") : "category";
+    const row = { id: uid(), code, parentId: parent?.id ?? null, level, name: b.name, sortOrder: siblings.length + 1, customerVisible: true, active: true } as Row;
+    categories.push(row);
+    return { category: row };
+  }],
+  ["PATCH", /^\/admin\/categories\/([^/]+)$/, (m, b) => {
+    const row = need(categories.find((c) => c.id === m[1]), "Category");
+    if (b.active === false && categories.some((c) => c.parentId === row.id && c.active)) throw new HttpError(409, "has_active_children", "Turn off the entries under it first");
+    return { category: Object.assign(row, b) };
+  }],
 
   ["GET", /^\/admin\/members$/, (_m, _b, q) => {
     const term = (q.get("q") ?? "").toLowerCase();
@@ -168,6 +223,7 @@ const routes: [string, RegExp, Handler][] = [
     return planDetail(m[1]!);
   }],
   ["POST", /^\/admin\/plans\/([^/]+)\/benefits$/, (m, b) => {
+    if (benefits.some((x) => x.planId === m[1] && x.categoryId === b.categoryId)) throw new HttpError(409, "duplicate_benefit", "This plan already has that benefit");
     benefits.push({ id: uid(), planId: m[1], quantity: null, sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], ...b } as Row);
     return planDetail(m[1]!);
   }],
@@ -178,13 +234,15 @@ const routes: [string, RegExp, Handler][] = [
   }],
 
   ["GET", /^\/admin\/partners$/, () => ({ partners: [...partners].sort((a, b) => String(a.tradingName).localeCompare(String(b.tradingName))) })],
+  ["GET", /^\/admin\/partners\/([^/]+)$/, (m) => ({ partner: need(partners.find((p) => p.id === m[1]), "Partner"), venues: venues.filter((v) => v.partnerId === m[1]) })],
   ["POST", /^\/admin\/partners$/, (_m, b) => {
-    const row = { id: uid(), contactName: null, contactEmail: null, contactPhone: null, settlementTerms: null, active: true, isTest: true, hasBankDetails: false, ...stamp, ...b } as Row;
+    const row = { ...partnerDefaults, id: uid(), isTest: true, ...stamp, ...b } as Row;
     partners.push(row);
     return { partner: row };
   }],
+  ["PATCH", /^\/admin\/partners\/([^/]+)$/, (m, b) => ({ partner: Object.assign(need(partners.find((p) => p.id === m[1]), "Partner"), b) })],
   ["GET", /^\/admin\/venues$/, (_m, _b, q) => ({ venues: venues.filter((v) => !q.get("partnerId") || v.partnerId === q.get("partnerId")).sort((a, b) => String(a.name).localeCompare(String(b.name))) })],
-  ["GET", /^\/admin\/venues\/([^/]+)$/, (m) => ({ venue: need(venues.find((v) => v.id === m[1]), "Venue"), offers: offers.filter((o) => o.venueId === m[1]) })],
+  ["GET", /^\/admin\/venues\/([^/]+)$/, (m) => ({ venue: need(venues.find((v) => v.id === m[1]), "Venue"), offers: offers.filter((o) => o.venueId === m[1]).map(offerOut) })],
   ["POST", /^\/admin\/venues$/, (_m, b) => {
     const row = { id: uid(), tier: "standard", description: null, capacityNotes: null, externalRef: null, active: true, isTest: true, ...stamp, ...b } as Row;
     venues.push(row);
@@ -192,11 +250,13 @@ const routes: [string, RegExp, Handler][] = [
   }],
   ["PATCH", /^\/admin\/venues\/([^/]+)$/, (m, b) => ({ venue: Object.assign(need(venues.find((v) => v.id === m[1]), "Venue"), b) })],
   ["POST", /^\/admin\/offers$/, (_m, b) => {
-    const row = { id: uid(), description: null, rateCurrency: "NGN", validHours: null, validFrom: null, validTo: null, dailyCap: null, active: true, ...b } as Row;
+    const c = need(categories.find((x) => x.id === b.categoryId), "Category");
+    if (c.level !== "service") throw new HttpError(400, "not_a_service", "An offer delivers one service type, not a whole category");
+    const row = { id: uid(), description: null, rateCurrency: "NGN", retailMinor: null, offerModel: "included", pricesArePlaceholders: false, validHours: null, validFrom: null, validTo: null, dailyCap: null, active: true, ...b } as Row;
     offers.push(row);
-    return { offer: row };
+    return { offer: offerOut(row) };
   }],
-  ["PATCH", /^\/admin\/offers\/([^/]+)$/, (m, b) => ({ offer: Object.assign(need(offers.find((o) => o.id === m[1]), "Offer"), b) })],
+  ["PATCH", /^\/admin\/offers\/([^/]+)$/, (m, b) => ({ offer: offerOut(Object.assign(need(offers.find((o) => o.id === m[1]), "Offer"), b)) })],
 
   ["GET", /^\/admin\/staff$/, () => ({ staff })],
   ["POST", /^\/admin\/staff$/, (_m, b) => {
@@ -209,6 +269,18 @@ const routes: [string, RegExp, Handler][] = [
   ["PATCH", /^\/admin\/staff\/([^/]+)$/, (m, b) => {
     if (m[1] === ME.id) throw new HttpError(409, "cannot_change_self", "Ask another team lead to change your own role or access");
     return { staff: Object.assign(need(staff.find((s) => s.id === m[1]), "Staff member"), b) };
+  }],
+
+  // The pipeline import runs the real sheet checks; a dry run changes nothing.
+  ["POST", /^\/admin\/import\/partners$/, (_m, b) => {
+    const dryRun = Boolean(b.dryRun);
+    if (dryRun) {
+      const { rows, warnings, errors } = parsePipeline(String(b.csv), categories as { id: string; level: string; name: string; parentId: string | null }[]);
+      const created = rows.filter((r) => !partners.some((p) => String(p.tradingName).toLowerCase() === r.name.toLowerCase())).length;
+      return { report: { dryRun, committed: false, counts: { created, updated: rows.length - created, unchanged: 0 }, warnings, errors } };
+    }
+    const result = applyPipeline(String(b.csv));
+    return { report: { dryRun, committed: result.errors.length === 0, ...result } };
   }],
 
   // The demo reads the uploaded CSVs and counts rows; the real import validates and writes them.

@@ -18,8 +18,8 @@ const base = (overrides: Partial<RedemptionContext> = {}): RedemptionContext => 
   now: SAT_2PM,
   membership: { status: "active", startsOn: "2026-12-01", endsOn: "2027-01-10" },
   venue: { id: "venue-beach", active: true, tier: "standard", openingHours: every("10:00", "19:00") },
-  offer: { id: "offer-beach", active: true, benefitType: "beach_club", validHours: null, validFrom: null, validTo: null, dailyCap: null },
-  benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false },
+  offer: { id: "offer-beach", active: true, categoryCode: "C03-S01-T01", validHours: null, validFrom: null, validTo: null, dailyCap: null },
+  benefit: { id: "benefit-beach", categoryCode: "C03-S01", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false },
   partySize: 1,
   allowance: { granted: 4, used: 0 },
   memberHistory: [],
@@ -35,7 +35,7 @@ const declinedWith = (ctx: RedemptionContext): DeclineReason | null => {
 const prior = (minutesAgo: number, serviceDate = "2026-12-12", venueId = "venue-beach") => ({
   venueId,
   offerId: "offer-beach",
-  benefitType: "beach_club" as const,
+  benefitId: "benefit-beach",
   serviceDate,
   occurredAt: new Date(SAT_2PM.getTime() - minutesAgo * 60_000),
 });
@@ -47,6 +47,13 @@ describe("evaluate: approvals", () => {
 
   it("approves an unlimited benefit and reports remaining as null", () => {
     expect(evaluate(base({ allowance: { granted: null, used: 57 } }))).toEqual({ result: "approved", serviceDate: "2026-12-12", units: 1, remaining: null });
+  });
+
+  it("approves an offer anywhere under the benefit's category", () => {
+    const offer = { ...base().offer, categoryCode: "C03-S01-T03" };
+    expect(evaluate(base({ offer })).result).toBe("approved");
+    const wholeCategory = { ...base().benefit!, categoryCode: "C03" };
+    expect(evaluate(base({ offer: { ...base().offer, categoryCode: "C03-S05-T01" }, benefit: wholeCategory })).result).toBe("approved");
   });
 
   it("allows the same benefit at a different venue on the same day (per-venue daily limit)", () => {
@@ -71,16 +78,16 @@ describe("evaluate: each decline reason", () => {
     OUTSIDE_MEMBERSHIP_DATES: base({ membership: { status: "active", startsOn: "2026-12-15", endsOn: "2027-01-10" } }),
     VENUE_INACTIVE: base({ venue: { id: "venue-beach", active: false, tier: "standard", openingHours: every("10:00", "19:00") } }),
     VENUE_CLOSED: base({ venue: { id: "venue-beach", active: true, tier: "standard", openingHours: every("16:00", "19:00") } }),
-    OFFER_NOT_VALID_NOW: base({ offer: { id: "offer-beach", active: true, benefitType: "beach_club", validHours: every("10:00", "12:00"), validFrom: null, validTo: null, dailyCap: null } }),
+    OFFER_NOT_VALID_NOW: base({ offer: { id: "offer-beach", active: true, categoryCode: "C03-S01-T01", validHours: every("10:00", "12:00"), validFrom: null, validTo: null, dailyCap: null } }),
     BENEFIT_NOT_IN_PLAN: base({ benefit: null }),
     VENUE_TIER_NOT_ALLOWED: base({ venue: { id: "venue-beach", active: true, tier: "top", openingHours: every("10:00", "19:00") } }),
     ALLOWANCE_USED_UP: base({ allowance: { granted: 4, used: 4 } }),
     VENUE_MONTHLY_CAP: base({
-      benefit: { type: "beach_club", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false },
+      benefit: { id: "benefit-beach", categoryCode: "C03-S01", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false },
       memberHistory: [prior(60 * 24 * 5, "2026-12-07")],
     }),
     VENUE_DAILY_LIMIT: base({ memberHistory: [prior(180)] }),
-    OFFER_DAILY_CAP: base({ offer: { id: "offer-beach", active: true, benefitType: "beach_club", validHours: null, validFrom: null, validTo: null, dailyCap: 20 }, offerApprovalsOnServiceDate: 20 }),
+    OFFER_DAILY_CAP: base({ offer: { id: "offer-beach", active: true, categoryCode: "C03-S01-T01", validHours: null, validFrom: null, validTo: null, dailyCap: 20 }, offerApprovalsOnServiceDate: 20 }),
     DUPLICATE_SCAN: base({ memberHistory: [prior(4)] }),
   };
 
@@ -113,8 +120,8 @@ describe("evaluate: details of each check", () => {
     expect(declinedWith(base({ offer: { ...offer, validTo: "2026-12-11" } }))).toBe("OFFER_NOT_VALID_NOW");
   });
 
-  it("declines when the plan's benefit doesn't match the offer's type", () => {
-    const benefit = { type: "spa" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
+  it("declines when the plan's benefit doesn't cover the offer's category", () => {
+    const benefit = { id: "benefit-spa", categoryCode: "C04-S05", allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
     expect(declinedWith(base({ benefit }))).toBe("BENEFIT_NOT_IN_PLAN");
   });
 
@@ -123,7 +130,7 @@ describe("evaluate: details of each check", () => {
   });
 
   it("lets the monthly cap pass in a new month", () => {
-    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false };
+    const benefit = { id: "benefit-beach", categoryCode: "C03-S01", allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: true, oncePerVenuePerDay: true }, drawPerPerson: false };
     const jan = new Date("2027-01-03T13:00:00Z");
     expect(evaluate(base({ now: jan, benefit, memberHistory: [prior(0, "2026-12-30")] })).result).toBe("approved");
   });
@@ -168,7 +175,7 @@ describe("evaluate: details of each check", () => {
   });
 
   it("does not flag a duplicate older than 10 minutes", () => {
-    const benefit = { type: "beach_club" as const, allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: false }, drawPerPerson: false };
+    const benefit = { id: "benefit-beach", categoryCode: "C03-S01", allowedVenueTiers: ["standard" as const], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: false }, drawPerPerson: false };
     expect(evaluate(base({ benefit, memberHistory: [prior(11)] })).result).toBe("approved");
   });
 });
@@ -180,8 +187,8 @@ describe("evaluate: nights that run past midnight", () => {
     tier: "standard",
     openingHours: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [{ open: "22:00", close: "04:00" }] },
   };
-  const offer: RedemptionContext["offer"] = { id: "offer-club", active: true, benefitType: "guest_list", validHours: null, validFrom: null, validTo: null, dailyCap: null };
-  const benefit: RedemptionContext["benefit"] = { type: "guest_list", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
+  const offer: RedemptionContext["offer"] = { id: "offer-club", active: true, categoryCode: "C06-S01-T03", validHours: null, validFrom: null, validTo: null, dailyCap: null };
+  const benefit: RedemptionContext["benefit"] = { id: "benefit-guest", categoryCode: "C06-S01", allowedVenueTiers: ["standard"], caps: { oncePerVenuePerMonth: false, oncePerVenuePerDay: true }, drawPerPerson: false };
   // Sunday 13 December 2026, 01:30 in Lagos.
   const sunday0130 = new Date("2026-12-13T00:30:00Z");
 
@@ -190,7 +197,7 @@ describe("evaluate: nights that run past midnight", () => {
   });
 
   it("blocks a second entry the same night after midnight", () => {
-    const history = [{ venueId: "venue-club", offerId: "offer-club", benefitType: "guest_list" as const, serviceDate: "2026-12-12", occurredAt: new Date("2026-12-12T22:00:00Z") }];
+    const history = [{ venueId: "venue-club", offerId: "offer-club", benefitId: "benefit-guest", serviceDate: "2026-12-12", occurredAt: new Date("2026-12-12T22:00:00Z") }];
     expect(declinedWith(base({ now: sunday0130, venue: club, offer, benefit, allowance: { granted: null, used: 1 }, memberHistory: history }))).toBe("VENUE_DAILY_LIMIT");
   });
 

@@ -1,22 +1,6 @@
 // Inputs to the rules engine. Plain data, no database types, so the engine stays pure and
 // can run in the API and (cached) in the partner app's offline mode.
 
-export const BENEFIT_TYPES = [
-  "beach_club",
-  "pool_gym",
-  "golf",
-  "spa",
-  "hosted_night",
-  "lounge",
-  "meet_assist",
-  "guest_list",
-  "priority_dining",
-  "partner_meal",
-  "club_visit",
-  "esim_data",
-] as const;
-export type BenefitType = (typeof BENEFIT_TYPES)[number];
-
 export const VENUE_TIERS = ["standard", "top"] as const;
 export type VenueTier = (typeof VENUE_TIERS)[number];
 
@@ -49,7 +33,8 @@ export interface VenueInput {
 export interface OfferInput {
   id: string;
   active: boolean;
-  benefitType: BenefitType;
+  /** The service type this offer delivers, e.g. "C03-S01-T02". */
+  categoryCode: string;
   /** Narrower hours than the venue's, if the offer has them. */
   validHours: WeeklyHours | null;
   /** Lagos dates, inclusive. */
@@ -60,7 +45,9 @@ export interface OfferInput {
 }
 
 export interface BenefitInput {
-  type: BenefitType;
+  id: string;
+  /** Any level of the catalogue: a whole category, a subcategory or one service type. */
+  categoryCode: string;
   allowedVenueTiers: readonly VenueTier[];
   caps: {
     oncePerVenuePerMonth: boolean;
@@ -80,7 +67,8 @@ export interface AllowanceInput {
 export interface PriorRedemption {
   venueId: string;
   offerId: string;
-  benefitType: BenefitType;
+  /** The plan benefit it drew on. */
+  benefitId: string;
   serviceDate: string;
   occurredAt: Date;
 }
@@ -90,7 +78,7 @@ export interface RedemptionContext {
   membership: MembershipInput;
   venue: VenueInput;
   offer: OfferInput;
-  /** The plan's benefit for the offer's type, or null if the plan doesn't include it. */
+  /** The plan's benefit covering the offer (see benefitFor), or null if the plan doesn't include it. */
   benefit: BenefitInput | null;
   /** People covered by this scan, 1 or more. */
   partySize: number;

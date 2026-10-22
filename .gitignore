@@ -13,3 +13,4 @@ next-env.d.ts
 playwright-report/
 test-results/
 demo/dist/
+apps/admin/demo/pipeline.local.csv

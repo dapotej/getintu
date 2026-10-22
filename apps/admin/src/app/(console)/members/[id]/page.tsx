@@ -1,11 +1,12 @@
 "use client";
-import { Badge, BENEFIT_LABELS, Button, Card, Checkbox, cx, DECLINE_LABELS, EmptyState, Field, formatDate, formatLagosDateTime, Icon, Input, NIGHT_BENEFITS, PageHeader, Select, Table, Td, Textarea } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, cx, DECLINE_LABELS, EmptyState, Field, formatDate, formatLagosDateTime, Icon, Input, PageHeader, Select, Table, Td, Textarea } from "@intu/ui";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ActionForm, checked, text, textOrNull } from "@/components/forms";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
+import { isNight } from "@/lib/catalogue";
 import { PAID_BY, STATUS_LABELS, statusTone } from "@/lib/labels";
 import type { Allowance, MemberDetail, Membership, Plan } from "@/lib/types";
 
@@ -102,7 +103,7 @@ export default function MemberPage() {
                   <Td className="whitespace-nowrap tabular-nums">{formatLagosDateTime(v.occurredAt)}</Td>
                   <Td>{v.venueName}</Td>
                   <Td>
-                    {BENEFIT_LABELS[v.benefitType] ?? v.benefitType}
+                    {v.category.name}
                     {v.partySize > 1 ? <span className="text-muted"> · party of {v.partySize}</span> : null}
                   </Td>
                   <Td>
@@ -128,7 +129,7 @@ export default function MemberPage() {
 }
 
 function AllowanceBar({ a }: { a: Allowance }) {
-  const night = NIGHT_BENEFITS.has(a.benefitType);
+  const night = isNight(a.category.code);
   const left = a.granted === null ? null : a.granted - a.used;
   const pct = a.granted ? Math.min(100, Math.round((a.used / a.granted) * 100)) : 0;
   return (
@@ -136,7 +137,9 @@ function AllowanceBar({ a }: { a: Allowance }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span aria-hidden className={cx("size-2 shrink-0 rounded-full", night ? "bg-brand-night" : "bg-brand-day")} />
-          <span className="truncate text-sm font-semibold text-fg">{BENEFIT_LABELS[a.benefitType] ?? a.benefitType}</span>
+          <span className="truncate text-sm font-semibold text-fg" title={a.category.name}>
+            {a.category.name}
+          </span>
         </div>
         {a.shared ? <Badge tone="accent">Shared by Crew</Badge> : null}
       </div>

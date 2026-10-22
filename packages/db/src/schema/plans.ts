@@ -1,6 +1,7 @@
 import { boolean, date, integer, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
+import { categories } from "./categories.ts";
 import { id, timestamps } from "./columns.ts";
-import { allowancePeriodEnum, benefitTypeEnum, currencyEnum, venueTierEnum } from "./enums.ts";
+import { allowancePeriodEnum, currencyEnum, venueTierEnum } from "./enums.ts";
 
 // A product sold: December Pass Plus, Gold…
 export const plans = pgTable("plans", {
@@ -45,7 +46,10 @@ export const benefits = pgTable(
     planId: uuid()
       .notNull()
       .references(() => plans.id),
-    type: benefitTypeEnum().notNull(),
+    // Any level of the catalogue: a category, subcategory or single service type.
+    categoryId: uuid()
+      .notNull()
+      .references(() => categories.id),
     // null = unlimited. Every benefit is still scanned and logged at the door.
     quantity: integer(),
     period: allowancePeriodEnum().notNull(),
@@ -58,5 +62,5 @@ export const benefits = pgTable(
     allowedVenueTiers: venueTierEnum().array().notNull().default(["standard"]),
     ...timestamps,
   },
-  (t) => [unique().on(t.planId, t.type)],
+  (t) => [unique().on(t.planId, t.categoryId)],
 );

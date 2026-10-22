@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import type { Db } from "@intu/db";
+import { categoryRoutes } from "./admin/categories.ts";
 import { importRoutes } from "./admin/import.ts";
 import { memberRoutes } from "./admin/members.ts";
 import { partnerRoutes } from "./admin/partners.ts";
@@ -49,6 +50,7 @@ export function createApp(deps: AppDeps) {
   const admin = new Hono<AdminEnv>();
   admin.use("*", requireStaff(deps));
   admin.route("/", staffRoutes(deps));
+  admin.route("/", categoryRoutes(deps.db));
   admin.route("/", planRoutes(deps.db));
   admin.route("/", partnerRoutes(deps.db));
   admin.route("/", memberRoutes(deps.db));

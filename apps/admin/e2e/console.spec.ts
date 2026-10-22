@@ -1,6 +1,12 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { signIn } from "./support/session";
+
+/** Picks a catalogue entry in a category dropdown by its name (options are indented by depth). */
+async function pickCategory(select: Locator, name: string) {
+  const value = await select.locator("option", { hasText: name }).first().getAttribute("value");
+  await select.selectOption(value ?? "");
+}
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, "founder");
@@ -15,8 +21,8 @@ test("find a member, see their allowances, suspend and reinstate with a reason",
   await expect(page.getByRole("heading", { name: "TEST Kemi Crew" })).toBeVisible();
   const card = page.locator("section", { hasText: "TEST December Pass Crew" });
   await expect(card.getByText("Shared by Crew")).toHaveCount(2);
-  await expect(card.getByText("Hosted night")).toBeVisible();
-  await expect(card).toContainText("Beach club");
+  await expect(card.getByText("Hosted member access")).toBeVisible();
+  await expect(card).toContainText("Beach Clubs");
 
   await card.getByRole("button", { name: "Suspend" }).click();
   await card.getByLabel("Reason").fill("TEST e2e: phone reported lost");
@@ -63,18 +69,18 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await expect(page.getByText("Prices saved.")).toBeVisible();
   await expect(page.getByLabel("GBP")).toHaveValue("849.99");
 
-  await page.getByLabel("Add benefit").selectOption({ label: "Spa" });
+  await pickCategory(page.getByLabel("Add benefit"), "Spa & Massage");
   await page.getByLabel("Quantity").fill("3");
   await page.getByLabel("Period").selectOption({ label: "Per membership year" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  const row = page.getByRole("row", { name: /Spa/ });
+  const row = page.getByRole("row", { name: /Spa & Massage/ });
   await expect(row).toContainText("per membership year");
 
   await row.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Top tier").check();
   await page.getByLabel("Uses one per person in the party").check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  const saved = page.getByRole("row", { name: /Spa/ });
+  const saved = page.getByRole("row", { name: /Spa & Massage/ });
   await expect(saved).toContainText("one per person");
   await expect(saved).toContainText("top");
 
@@ -90,7 +96,7 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await page.getByLabel("Legal name").fill(`TEST Nights ${tag} Ltd`);
   await page.getByLabel("Trading name").fill(`TEST Nights ${tag}`);
   await page.getByRole("button", { name: "Add partner" }).last().click();
-  await expect(page.getByRole("heading", { name: `TEST Nights ${tag}` })).toBeVisible();
+  await expect(page.getByRole("link", { name: `TEST Nights ${tag}` })).toBeVisible();
 
   await page.getByRole("button", { name: "Add venue" }).first().click();
   await page.getByLabel("Partner").selectOption({ label: `TEST Nights ${tag}` });
@@ -106,11 +112,15 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await expect(page.getByLabel("Sat closes")).toHaveValue("04:00");
   await expect(page.getByLabel("Sun opens")).toHaveValue("");
 
-  await page.getByLabel("Add offer").selectOption({ label: "Hosted night" });
+  await pickCategory(page.getByLabel("Add offer"), "Hosted member access");
   await page.getByLabel("Rate (₦ per visit)").fill("25,000");
+  await page.getByLabel("Retail (₦)").fill("37,500");
   await page.getByLabel("Daily cap").fill("10");
   await page.getByRole("button", { name: "Add offer" }).click();
-  await expect(page.getByRole("row", { name: /Hosted night/ })).toContainText("₦25,000");
+  const offer = page.getByRole("row", { name: /Hosted member access/ });
+  await expect(offer).toContainText("₦25,000");
+  await expect(offer).toContainText("₦37,500");
+  await expect(offer).toContainText("50%");
 });
 
 test("import the pilot sheet: dry run first, then commit", async ({ page }) => {
@@ -149,4 +159,60 @@ test("an import with errors shows the line and can't be committed", async ({ pag
   await expect(page.getByText("1 errors")).toBeVisible();
   await expect(page.getByRole("row", { name: /members 2 .*needs a country code/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import" })).toBeDisabled();
+});
+
+test("grow the catalogue: add a service type, rename it, and use it in a plan", async ({ page }) => {
+  const tag = randomUUID().slice(0, 4);
+  await page.getByRole("link", { name: "Catalogue" }).click();
+  await expect(page.getByRole("heading", { name: "Catalogue" })).toBeVisible();
+  await page.getByRole("button", { name: "Expand Wellness & Fitness" }).click();
+  await page.getByRole("button", { name: "Expand Golf" }).click();
+  await page.getByRole("button", { name: "Add a service type to Golf" }).click();
+  await page.getByLabel("Add a service type to Golf").fill(`TEST Driving range ${tag}`);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText(`TEST Driving range ${tag}`)).toBeVisible();
+  await expect(page.getByText(/C04-S08-T\d\d/).last()).toBeVisible();
+
+  const row = page.locator("div", { hasText: `TEST Driving range ${tag}` }).last();
+  await row.getByRole("button", { name: "Rename" }).click();
+  await page.getByLabel(`New name for TEST Driving range ${tag}`).fill(`TEST Range session ${tag}`);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(`TEST Range session ${tag}`)).toBeVisible();
+
+  await page.getByRole("link", { name: "Plans and benefits" }).click();
+  await page.getByRole("link", { name: "TEST December Pass Plus" }).click();
+  await expect(page.getByLabel("Add benefit").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
+});
+
+test("import the partner pipeline, then move a deal forward", async ({ page }) => {
+  const tag = randomUUID().slice(0, 4);
+  const csv = [
+    "Partner / Lead,Main Category,Subcategory,Proposed Offer,Priority,Status,Offer Model,Net Cost (NGN),Margin,Retail Price (NGN),Contact / Owner,Next Action,Notes",
+    `TEST Pipeline Beach ${tag},Beach & Water,Beach Clubs,Entry + F&B credit,P1,Prospect,Credits,,,0,,Call the GM,`,
+    `TEST Pipeline Transfers ${tag},Arrival & Travel,Airport Transfers,SUV pickup,P1,Prospect,Included / Add-on,55000.0,0.5,82500,,,`,
+  ].join("\n");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Partners and venues" }).click();
+  await page.getByRole("button", { name: "Import pipeline" }).click();
+  await page.getByLabel("Pipeline CSV").setInputFiles({ name: "pipeline.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.getByRole("button", { name: "Dry run" }).click();
+  await expect(page.getByText("Dry run: nothing was changed")).toBeVisible();
+  await expect(page.getByText("2 new")).toBeVisible();
+  await expect(page.getByText(/uses credits, which intu doesn't offer/)).toBeVisible();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByText("Imported", { exact: true })).toBeVisible();
+
+  const transfers = page.getByRole("row", { name: new RegExp(`TEST Pipeline Transfers ${tag}`) });
+  await expect(transfers).toContainText("₦55,000 → ₦82,500");
+  await expect(transfers).toContainText("50% markup");
+  await expect(page.getByRole("row", { name: new RegExp(`TEST Pipeline Beach ${tag}`) })).toContainText("placeholder");
+
+  await page.getByRole("link", { name: `TEST Pipeline Beach ${tag}` }).click();
+  await page.getByLabel("Status").selectOption({ label: "Negotiating" });
+  await page.getByLabel("Cost (₦ per use)").fill("18,000");
+  await page.getByLabel("Retail (₦)").fill("27,000");
+  await page.getByLabel("Prices are placeholders").uncheck();
+  await page.getByRole("button", { name: "Save deal" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(page.getByText("Negotiating", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("50% markup")).toBeVisible();
 });

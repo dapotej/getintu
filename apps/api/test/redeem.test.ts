@@ -87,7 +87,7 @@ describe.runIf(url)("redeem()", () => {
   });
 
   it("shares a Crew allowance across the group", async () => {
-    const w = await createWorld(db, { benefitType: "hosted_night", quantity: 1, sharedByGroup: true, members: 4 });
+    const w = await createWorld(db, { benefitCode: "C06-S04-T01", quantity: 1, sharedByGroup: true, members: 4 });
     const [a, b] = w.people;
     const first = await redeem(db, { membershipId: a!.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", partySize: 4, now });
     const second = await redeem(db, { membershipId: b!.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", now: new Date(now.getTime() + 86_400_000) });
@@ -114,7 +114,7 @@ describe.runIf(url)("redeem()", () => {
   });
 
   it("counts uses of an unlimited benefit without ever running out", async () => {
-    const w = await createWorld(db, { benefitType: "guest_list", quantity: null });
+    const w = await createWorld(db, { benefitCode: "C06-S01-T03", quantity: null });
     for (let day = 0; day < 3; day++) {
       const r = await redeem(db, { membershipId: w.first.membership.id, venueId: w.venue.id, offerId: w.offer.id, method: "online", now: new Date(now.getTime() + day * 86_400_000) });
       expect(r.decision).toMatchObject({ result: "approved", remaining: null });

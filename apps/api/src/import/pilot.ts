@@ -4,11 +4,14 @@
 import { createHash } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { audit, grantAllowances, one, schema, type Db, type Tx } from "@intu/db";
-import { serviceDate, type BenefitType, type DeclineReason, type WeeklyHours } from "@intu/rules";
+import { benefitFor, serviceDate, type DeclineReason, type WeeklyHours } from "@intu/rules";
 import { readTable } from "./csv.ts";
 import { parseDate, parseLagosTimestamp, type DateOrder } from "./dates.ts";
+import { nairaToKobo } from "./values.ts";
 
-const { partners, venues, offers, members, memberships, plans, benefits, allowances, redemptions, bookings } = schema;
+export { nairaToKobo } from "./values.ts";
+
+const { partners, venues, offers, members, memberships, plans, benefits, allowances, categories, redemptions, bookings } = schema;
 
 export interface PilotFiles {
   partners?: string | undefined;
@@ -82,52 +85,47 @@ const VISIT_COLUMNS = {
 } as const;
 const BOOKING_COLUMNS = { passNumber: ["pass number", "pass"], venue: ["venue or event", "event", "venue / event"], date: [], benefit: ["benefit used", "benefit used (if any)"], status: [] } as const;
 
-const BENEFIT_NAMES: Record<string, BenefitType> = {
-  beach: "beach_club",
-  beachclub: "beach_club",
-  beachclubdaypass: "beach_club",
-  poolandgym: "pool_gym",
-  poolgym: "pool_gym",
-  pool: "pool_gym",
-  gym: "pool_gym",
-  golf: "golf",
-  golfroundorlesson: "golf",
-  spa: "spa",
-  spatreatment: "spa",
-  hostednight: "hosted_night",
-  lounge: "lounge",
-  departurelounge: "lounge",
-  meetandassist: "meet_assist",
-  meetassist: "meet_assist",
-  airport: "meet_assist",
-  guestlist: "guest_list",
-  nightlife: "guest_list",
-  prioritydining: "priority_dining",
-  restaurant: "priority_dining",
+// The pilot sheet's benefit names, mapped to service types in the catalogue (packages/db/src/taxonomy.ts).
+const BENEFIT_NAMES: Record<string, string> = {
+  beach: "C03-S01-T01",
+  beachclub: "C03-S01-T01",
+  beachclubdaypass: "C03-S01-T01",
+  poolandgym: "C04-S01-T02",
+  poolgym: "C04-S01-T02",
+  pool: "C04-S01-T02",
+  gym: "C04-S01-T02",
+  golf: "C04-S08-T01",
+  golfroundorlesson: "C04-S08-T01",
+  spa: "C04-S05-T01",
+  spatreatment: "C04-S05-T01",
+  hostednight: "C06-S04-T01",
+  lounge: "C01-S01-T03",
+  departurelounge: "C01-S01-T03",
+  meetandassist: "C01-S01-T01",
+  meetassist: "C01-S01-T01",
+  airport: "C01-S01-T01",
+  guestlist: "C06-S01-T03",
+  nightlife: "C06-S01-T03",
+  prioritydining: "C02-S01-T01",
+  restaurant: "C02-S01-T01",
 };
 const key = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]/g, "");
-export const benefitFromSheet = (s: string): BenefitType | null => BENEFIT_NAMES[key(s)] ?? null;
+/** The service type code for a benefit name in the sheet, or null if it isn't one we know. */
+export const benefitFromSheet = (s: string): string | null => BENEFIT_NAMES[key(s)] ?? null;
 
-const CATEGORY_FOR: Partial<Record<BenefitType, (typeof venues.$inferInsert)["category"]>> = {
-  beach_club: "beach_club",
-  pool_gym: "hotel",
-  golf: "golf",
-  spa: "spa",
-  hosted_night: "members_club",
-  lounge: "lounge",
-  guest_list: "nightclub",
-  priority_dining: "restaurant",
+/** A pilot venue's category, from the first benefit it offers. */
+const VENUE_CATEGORY_FOR: Record<string, (typeof venues.$inferInsert)["category"]> = {
+  "C03-S01-T01": "beach_club",
+  "C04-S01-T02": "hotel",
+  "C04-S08-T01": "golf",
+  "C04-S05-T01": "spa",
+  "C06-S04-T01": "members_club",
+  "C01-S01-T03": "lounge",
+  "C06-S01-T03": "nightclub",
+  "C02-S01-T01": "restaurant",
 };
 
 const ALL_DAY: WeeklyHours = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]])) as WeeklyHours;
-
-/** "₦18,000", "18000", "18,000.50" → kobo, without ever going through a float. */
-export function nairaToKobo(raw: string): number | null {
-  const s = raw.replace(/[₦,\s]|NGN/gi, "");
-  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(s);
-  if (!m) return null;
-  return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
-}
 
 export function normalisePhone(raw: string): string | null {
   let s = raw.replace(/[\s\-().]/g, "");
@@ -180,6 +178,7 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
     const c = (report.counts[name] ??= { created: 0, existing: 0 });
     c[kind] = (c[kind] ?? 0) + 1;
   };
+  const categoryIds = new Map<string, string>();
   const warn = (file: FileName, line: number | null, message: string) => report.warnings.push({ file, line, message });
   const error = (file: FileName, line: number | null, message: string) => report.errors.push({ file, line, message });
 
@@ -244,19 +243,20 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
         count("partners", "created");
         venue = one(await tx
           .insert(venues)
-          .values({ partnerId: partner.id, name, area: r.get("area") || "Lagos", city: "lagos", category: CATEGORY_FOR[known[0] as BenefitType] ?? "hotel", openingHours: ALL_DAY, externalRef: ref, active: partner.active })
+          .values({ partnerId: partner.id, name, area: r.get("area") || "Lagos", city: "lagos", category: VENUE_CATEGORY_FOR[known[0] ?? ""] ?? "hotel", openingHours: ALL_DAY, externalRef: ref, active: partner.active })
           .returning());
         await audit(tx, input.actor, { action: "venue.imported", entity: "venue", entityId: venue.id, after: venue });
         count("venues", "created");
         warn("partners", r.line, `${name}: set the legal name, category and opening hours in the admin console (imported as open all day)`);
       }
-      for (const benefitType of known) {
-        const [existing] = await tx.select({ id: offers.id }).from(offers).where(and(eq(offers.venueId, venue.id), eq(offers.benefitType, benefitType)));
+      for (const code of known) {
+        const categoryId = await categoryIdFor(tx, code);
+        const [existing] = await tx.select({ id: offers.id }).from(offers).where(and(eq(offers.venueId, venue.id), eq(offers.categoryId, categoryId)));
         if (existing) {
           count("offers", "existing");
           continue;
         }
-        const offer = one(await tx.insert(offers).values({ venueId: venue.id, benefitType, rateMinor: rate, rateCurrency: "NGN" }).returning());
+        const offer = one(await tx.insert(offers).values({ venueId: venue.id, categoryId, rateMinor: rate, rateCurrency: "NGN" }).returning());
         await audit(tx, input.actor, { action: "offer.imported", entity: "offer", entityId: offer.id, after: offer });
         count("offers", "created");
       }
@@ -355,8 +355,23 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
 
   type Passes = Awaited<ReturnType<typeof importMembers>>;
 
-  async function allowanceFor(tx: Tx, membership: typeof memberships.$inferSelect, type: BenefitType, onDate?: string) {
-    const [benefit] = await tx.select().from(benefits).where(and(eq(benefits.planId, membership.planId), eq(benefits.type, type)));
+  async function categoryIdFor(tx: Tx, code: string) {
+    const cached = categoryIds.get(code);
+    if (cached) return cached;
+    const [row] = await tx.select({ id: categories.id }).from(categories).where(eq(categories.code, code));
+    if (!row) throw new Error(`Category ${code} is missing from the catalogue`);
+    categoryIds.set(code, row.id);
+    return row.id;
+  }
+
+  /** The member's allowance for a service type: from the plan's most specific benefit covering it. */
+  async function allowanceFor(tx: Tx, membership: typeof memberships.$inferSelect, code: string, onDate?: string) {
+    const planBenefits = await tx
+      .select({ benefit: benefits, categoryCode: categories.code })
+      .from(benefits)
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .where(eq(benefits.planId, membership.planId));
+    const benefit = benefitFor(planBenefits, code)?.benefit;
     if (!benefit) return { benefit: null, allowance: null };
     const shared = benefit.sharedByGroup && membership.groupId !== null;
     const [allowance] = await tx
@@ -403,13 +418,13 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
       if (r.get("remaining") && Number(r.get("remaining")) !== total - used) warn("allowances", r.line, `Remaining (${r.get("remaining")}) doesn't equal total − used (${total - used}); used total and used`);
       const { benefit, allowance } = await allowanceFor(tx, membership, type);
       if (!benefit || !allowance) {
-        error("allowances", r.line, `${membership.passNumber}'s plan has no ${type} benefit`);
+        error("allowances", r.line, `${membership.passNumber}'s plan has no ${r.get("benefit")} benefit`);
         continue;
       }
       const shared = allowance.groupId !== null;
       const entry = pending.get(allowance.id);
       if (entry && !shared) {
-        error("allowances", r.line, `${membership.passNumber} has more than one ${type} row`);
+        error("allowances", r.line, `${membership.passNumber} has more than one ${r.get("benefit")} row`);
         continue;
       }
       if (entry) {
@@ -467,13 +482,16 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
         count("visits", "existing");
         continue;
       }
-      const [offer] = await tx.select().from(offers).where(and(eq(offers.venueId, venue.id), eq(offers.benefitType, type), isNull(offers.deletedAt)));
+      const [offer] = await tx
+        .select()
+        .from(offers)
+        .where(and(eq(offers.venueId, venue.id), eq(offers.categoryId, await categoryIdFor(tx, type)), isNull(offers.deletedAt)));
       if (!offer) {
-        error("visits", r.line, `${venue.name} has no ${type} offer`);
+        error("visits", r.line, `${venue.name} has no ${r.get("benefit")} offer`);
         continue;
       }
       const day = serviceDate(venue.openingHours, at);
-      const { allowance } = approved ? await allowanceFor(tx, membership, type, day) : { allowance: null };
+      const { benefit, allowance } = await allowanceFor(tx, membership, type, day);
       if (approved && allowance) approvedPerAllowance.set(allowance.id, (approvedPerAllowance.get(allowance.id) ?? 0) + 1);
       const reasonText = declined ? resultText.replace(/^declined\s*[-:–(]?\s*/i, "").replace(/\)$/, "") : "";
       const reason = declined ? declineFromSheet(reasonText) : null;
@@ -489,8 +507,9 @@ export async function importPilot(db: Db, input: PilotImportInput): Promise<Pilo
           membershipId: membership.id,
           venueId: venue.id,
           offerId: offer.id,
-          benefitType: type,
-          allowanceId: allowance?.id ?? null,
+          categoryId: offer.categoryId,
+          benefitId: benefit?.id ?? null,
+          allowanceId: approved ? (allowance?.id ?? null) : null,
           result: approved ? "approved" : "declined",
           reason,
           method,
