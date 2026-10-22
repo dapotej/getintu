@@ -17,6 +17,7 @@ declare global {
 
 /** How long a scan waits for the server before checking offline instead. */
 const ONLINE_SCAN_TIMEOUT_MS = 4000;
+const CAMERA_REST_MS = 60_000;
 
 const PROBLEMS: Record<CodeProblem, string> = {
   malformed: "Not an intu pass",
@@ -121,7 +122,8 @@ function SignIn({ onSignedIn }: { onSignedIn: (s: Session, b: VenueBundle) => vo
 }
 
 function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bundle: VenueBundle; setBundle: (b: VenueBundle) => void; onSignOut: () => void }) {
-  const [tab, setTab] = useState<"scan" | "today">("scan");
+  // Visiting services (drivers, home beauty) start from their bookings; doors start on the camera.
+  const [tab, setTab] = useState<"scan" | "today">(bundle.venue.kind === "visiting" ? "today" : "scan");
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
   const latest = useRef({ bundle, online });
@@ -238,6 +240,19 @@ function ScanTab({
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // The camera rests after a quiet minute, and whenever the app isn't on screen, to save the
+  // battery and keep a shared venue phone cool. Any tap or scan wakes or keeps it awake.
+  const [asleep, setAsleep] = useState(false);
+  useEffect(() => {
+    if (asleep || result) return;
+    const t = setTimeout(() => setAsleep(true), CAMERA_REST_MS);
+    return () => clearTimeout(t);
+  }, [asleep, result, busy, typing, partySize, offerId]);
+  useEffect(() => {
+    const onHide = () => document.hidden && setAsleep(true);
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, []);
   const state = useRef({ offerId, partySize, online, busy });
   state.current = { offerId, partySize, online, busy };
 
@@ -334,7 +349,18 @@ function ScanTab({
         />
       ) : (
         <>
-          <Camera onCode={(text) => submit({ code: text })} paused={busy || typing} />
+          {asleep ? (
+            <button
+              type="button"
+              onClick={() => setAsleep(false)}
+              className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-2xl bg-black text-white"
+            >
+              <span className="text-2xl font-bold">Tap to scan</span>
+              <span className="text-sm text-white/70">The camera rests when no one is scanning</span>
+            </button>
+          ) : (
+            <Camera onCode={(text) => submit({ code: text })} paused={busy || typing} />
+          )}
           {busy ? <p className="text-center text-sm text-muted">Checking…</p> : null}
           {notice ? <Notice>{notice}</Notice> : null}
           {typing ? (

@@ -71,6 +71,27 @@ test("shows the result in under 2 seconds on a throttled 3G phone", async ({ pag
   expect(elapsed).toBeLessThan(2000);
 });
 
+test("the camera rests after a quiet minute and when the app is hidden, and wakes with a tap", async ({ page }) => {
+  await page.clock.install();
+  const world = await createWorld();
+  await signIn(page, world);
+  // A door scanner opens on the camera.
+  await expect(page.getByLabel("Camera")).toBeVisible();
+  await page.clock.fastForward(61_000);
+  await expect(page.getByLabel("Camera")).toHaveCount(0);
+  await page.getByRole("button", { name: /Tap to scan/ }).click();
+  await expect(page.getByLabel("Camera")).toBeVisible();
+  // Scans still work the moment it wakes.
+  await scan(page, world.code());
+  await expect(page.getByText("Approved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Next scan" }).click();
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.getByRole("button", { name: /Tap to scan/ })).toBeVisible();
+});
+
 test("accepts the 6-digit backup code when the camera can't read the pass", async ({ page }) => {
   const world = await createWorld();
   const code = String(100000 + Math.floor(Math.random() * 900000));
@@ -160,6 +181,9 @@ test("lists today's visits and reports a problem with one to intu", async ({ pag
 test("a visiting service only scans against today's booking, offline too", async ({ page, context }) => {
   const world = await createWorld({ visiting: true });
   await signIn(page, world);
+  // Drivers and home services start from their bookings for the day.
+  await expect(page.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Scan" }).click();
   await scan(page, world.code());
   await expect(page.getByText("No booking for today")).toBeVisible();
   await page.getByRole("button", { name: "Next scan" }).click();
@@ -176,7 +200,6 @@ test("a visiting service only scans against today's booking, offline too", async
   await page.getByRole("button", { name: "End shift" }).click();
   await expect(page.getByRole("button", { name: "Start shift" })).toBeVisible();
   await signIn(page, world, { reload: false });
-  await page.getByRole("button", { name: "Today" }).click();
   await expect(page.getByText("Expected")).toBeVisible();
   await page.getByRole("button", { name: "Scan" }).click();
 
