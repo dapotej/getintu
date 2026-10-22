@@ -70,7 +70,7 @@ export function ScannerApp() {
 
 function Splash() {
   return (
-    <main className="flex min-h-dvh items-center justify-center">
+    <main className="flex min-h-safe items-center justify-center">
       <Wordmark className="h-8 text-fg" />
     </main>
   );
@@ -80,7 +80,7 @@ function SignIn({ onSignedIn }: { onSignedIn: (s: Session, b: VenueBundle) => vo
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 px-5 py-10">
+    <main className="mx-auto flex min-h-safe max-w-sm flex-col justify-center gap-8 px-5 py-10">
       <div>
         <Wordmark className="h-8 text-fg" />
         <h1 className="mt-6 text-2xl font-bold">intu scanner</h1>
@@ -166,7 +166,7 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
   }, [catchUp, countPending]);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
+    <div className="mx-auto flex min-h-safe max-w-lg flex-col">
       <header className="flex items-center justify-between gap-3 px-4 pb-2 pt-4">
         <div className="min-w-0">
           <p className="truncate text-lg font-bold">{bundle.venue.name}</p>

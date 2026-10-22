@@ -9,3 +9,13 @@ body {
   /* Big taps at a busy door: no double-tap zoom, no text selection on buttons. */
   touch-action: manipulation;
 }
+
+/* Saved to an iPhone home screen, the scanner draws under the status bar and the home bar
+   (viewport-fit=cover), so keep everything inside the safe area. */
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+@utility min-h-safe {
+  min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
