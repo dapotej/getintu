@@ -1,6 +1,5 @@
 "use client";
-import { Badge, Button, Card, EmptyState, Field, Input, Table, Td } from "@intu/ui";
-import { useState } from "react";
+import { Badge, Button, Card, EmptyState, Field, Icon, Input, SidePanel, Table, Td } from "@intu/ui";
 import { ActionForm, text } from "@/components/forms";
 import { api, useApi } from "@/lib/api";
 
@@ -15,7 +14,6 @@ interface PartnerStaff {
 /** Who can sign in to this venue's intu scanner: its sign-in code plus each person's own PIN. */
 export function PartnerStaffCard({ venueId, writable }: { venueId: string; writable: boolean }) {
   const { data, reload } = useApi<{ loginCode: string | null; staff: PartnerStaff[] }>(`/admin/venues/${venueId}/door-staff`);
-  const [resetting, setResetting] = useState<string | null>(null);
   if (!data) return null;
   return (
     <Card
@@ -24,17 +22,52 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
       flush
       actions={
         writable ? (
-          <Button
-            size="sm"
-            tone="secondary"
-            onClick={async () => {
-              if (data.loginCode && !window.confirm("A new code signs nobody out, but staff will need it to sign in next time. Make a new code?")) return;
-              await api(`/admin/venues/${venueId}/login-code`, { method: "POST" });
-              reload();
-            }}
-          >
-            {data.loginCode ? "New sign-in code" : "Make sign-in code"}
-          </Button>
+          <>
+            <SidePanel
+              title="Add partner staff"
+              description="Someone who scans members here. They sign in with the sign-in code and their own PIN."
+              trigger={(open) => (
+                <Button size="sm" tone="secondary" onClick={open}>
+                  <Icon name="plus" className="size-4" /> Add partner staff
+                </Button>
+              )}
+            >
+              {(close) => (
+                <ActionForm
+                  action={async (form) => {
+                    await api(`/admin/venues/${venueId}/door-staff`, { method: "POST", body: { fullName: text(form, "fullName"), pin: text(form, "pin") } });
+                    reload();
+                    close();
+                  }}
+                >
+                  {(busy) => (
+                    <>
+                      <Field label="Full name" hint="Their name as colleagues know it">
+                        <Input name="fullName" required />
+                      </Field>
+                      <Field label="PIN" hint="6 digits, different from colleagues'. Tell them in person.">
+                        <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
+                      </Field>
+                      <Button type="submit" disabled={busy}>
+                        Add partner staff
+                      </Button>
+                    </>
+                  )}
+                </ActionForm>
+              )}
+            </SidePanel>
+            <Button
+              size="sm"
+              tone="ghost"
+              onClick={async () => {
+                if (data.loginCode && !window.confirm("A new code signs nobody out, but staff will need it to sign in next time. Make a new code?")) return;
+                await api(`/admin/venues/${venueId}/login-code`, { method: "POST" });
+                reload();
+              }}
+            >
+              {data.loginCode ? "New sign-in code" : "Make sign-in code"}
+            </Button>
+          </>
         ) : null
       }
     >
@@ -50,27 +83,6 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
             <tr key={s.id}>
               <Td>
                 <span className="font-semibold">{s.fullName}</span>
-                {resetting === s.id ? (
-                  <ActionForm
-                    className="mt-3 flex flex-wrap items-end gap-2"
-                    success="PIN changed."
-                    action={async (form) => {
-                      await api(`/admin/door-staff/${s.id}`, { method: "PATCH", body: { pin: text(form, "pin") } });
-                      setResetting(null);
-                    }}
-                  >
-                    {(busy) => (
-                      <>
-                        <Field label="New PIN" hint="6 digits. Tell them in person.">
-                          <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
-                        </Field>
-                        <Button type="submit" size="sm" disabled={busy}>
-                          Save PIN
-                        </Button>
-                      </>
-                    )}
-                  </ActionForm>
-                ) : null}
               </Td>
               <Td>
                 <Badge dot tone={s.active ? "night" : "neutral"}>
@@ -80,9 +92,34 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
               <Td className="whitespace-nowrap text-right">
                 {writable ? (
                   <>
-                    <Button size="sm" tone="ghost" onClick={() => setResetting(resetting === s.id ? null : s.id)}>
-                      {resetting === s.id ? "Cancel" : "Reset PIN"}
-                    </Button>
+                    <SidePanel
+                      title={`New PIN for ${s.fullName}`}
+                      trigger={(open) => (
+                        <Button size="sm" tone="ghost" onClick={open}>
+                          Reset PIN
+                        </Button>
+                      )}
+                    >
+                      {(close) => (
+                        <ActionForm
+                          action={async (form) => {
+                            await api(`/admin/door-staff/${s.id}`, { method: "PATCH", body: { pin: text(form, "pin") } });
+                            close();
+                          }}
+                        >
+                          {(busy) => (
+                            <>
+                              <Field label="New PIN" hint="6 digits. Tell them in person.">
+                                <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
+                              </Field>
+                              <Button type="submit" disabled={busy}>
+                                Save PIN
+                              </Button>
+                            </>
+                          )}
+                        </ActionForm>
+                      )}
+                    </SidePanel>
                     <Button
                       size="sm"
                       tone="ghost"
@@ -100,31 +137,6 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
           ))}
         </Table>
       )}
-      {writable ? (
-        <ActionForm
-          className="flex flex-wrap items-end gap-3 border-t border-line bg-subtle/60 px-5 py-4"
-          action={async (form) => {
-            await api(`/admin/venues/${venueId}/door-staff`, { method: "POST", body: { fullName: text(form, "fullName"), pin: text(form, "pin") } });
-            reload();
-          }}
-        >
-          {(busy) => (
-            <>
-              <div className="min-w-56 flex-1">
-                <Field label="Add partner staff" hint="Their name as colleagues know it">
-                  <Input name="fullName" required placeholder="Full name" />
-                </Field>
-              </div>
-              <Field label="PIN" hint="6 digits, different from colleagues'">
-                <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
-              </Field>
-              <Button type="submit" disabled={busy}>
-                Add
-              </Button>
-            </>
-          )}
-        </ActionForm>
-      ) : null}
     </Card>
   );
 }

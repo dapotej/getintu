@@ -36,6 +36,23 @@ export function HoursEditor({ name, value }: { name: string; value?: WeeklyHours
   );
 }
 
+/** The week's hours as text, e.g. "Mon 10:00–02:00"; "Closed" or "Open all day" where they apply. */
+export function HoursSummary({ value }: { value: WeeklyHours }) {
+  return (
+    <ul className="grid gap-0.5 tabular-nums">
+      {DAYS.map(([d, label]) => {
+        const w = value[d]?.[0];
+        return (
+          <li key={d} className="flex gap-3">
+            <span className="w-9 text-muted">{label}</span>
+            <span>{!w ? <span className="text-faint">Closed</span> : w.open === "00:00" && w.close === "24:00" ? "Open all day" : `${w.open}–${w.close}`}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function readHours(form: FormData, name: string): WeeklyHours {
   const hours = {} as WeeklyHours;
   for (const [d] of DAYS) {

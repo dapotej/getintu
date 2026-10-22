@@ -164,6 +164,22 @@ const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/admin\/me$/, () => ({ staff: ME, permissions: PERMISSIONS })],
 
   ["GET", /^\/admin\/categories$/, () => ({ categories: [...categories].sort((a, b) => String(a.code).localeCompare(String(b.code))) })],
+  ["GET", /^\/admin\/categories\/([^/]+)$/, (m) => {
+    const c = need(categories.find((x) => x.id === m[1]), "Category");
+    const code = String(c.code);
+    const under = (x: string, y: string) => y === x || y.startsWith(`${x}-`);
+    return {
+      category: c,
+      offers: offers
+        .map((o) => ({ o, s: categories.find((x) => x.id === o.categoryId)!, v: venues.find((x) => x.id === o.venueId)! }))
+        .filter(({ s }) => under(code, String(s.code)))
+        .map(({ o, s, v }) => ({ ...o, rateCurrency: "NGN", service: { id: s.id, code: s.code, name: s.name }, venue: v, partner: partners.find((p) => p.id === v.partnerId) })),
+      benefits: benefits
+        .map((b) => ({ b, s: categories.find((x) => x.id === b.categoryId)!, plan: plans.find((p) => p.id === b.planId)! }))
+        .filter(({ s }) => under(String(s.code), code) || under(code, String(s.code)))
+        .map(({ b, s, plan }) => ({ id: b.id, quantity: b.quantity, period: b.period, name: s.name, covers: under(String(s.code), code) ? "all" : "part", plan: { id: plan.id, name: plan.name, active: plan.active } })),
+    };
+  }],
   ["POST", /^\/admin\/categories$/, (_m, b) => {
     const parent = b.parentId ? need(categories.find((c) => c.id === b.parentId), "Category") : null;
     if (parent?.level === "service") throw new HttpError(400, "too_deep", "Service types can't have children");

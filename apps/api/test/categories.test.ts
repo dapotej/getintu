@@ -23,6 +23,33 @@ describe.runIf(url)("catalogue API", () => {
     expect(res.json.categories.find((c: { code: string }) => c.code === "C08-S03-T01").name).toBe("Doctor home visit");
   });
 
+  it("shows an entry's page: the venues offering it or anything under it, and the plans including it", async () => {
+    const api = as(await createStaff(db, "ops_lead"));
+    const tag = randomUUID().slice(0, 6);
+    const allDay = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]]));
+    const partner = (await api.post("/admin/partners", { legalName: `TEST Spa ${tag} Ltd`, tradingName: `TEST Spa ${tag}` })).json.partner;
+    const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: `TEST Spa ${tag} Ikoyi`, area: "Ikoyi", city: "lagos", categoryId: await categoryIdOf(db, "C04-S05"), tier: "standard", openingHours: allDay })).json.venue;
+    const massage = await categoryIdOf(db, "C04-S05-T01");
+    await api.post("/admin/offers", { venueId: venue.id, categoryId: massage, rateMinor: 2_500_000 });
+    const plan = (await api.post("/admin/plans", { name: `TEST Spa plan ${tag}` })).json.plan;
+    await api.post(`/admin/plans/${plan.id}/benefits`, { categoryId: await categoryIdOf(db, "C04"), period: "per_pass", quantity: 2 });
+
+    const sub = (await api.get(`/admin/categories/${await categoryIdOf(db, "C04-S05")}`)).json;
+    const mine = sub.offers.filter((o: { partner: { id: string } }) => o.partner.id === partner.id);
+    expect(mine).toEqual([expect.objectContaining({ rateMinor: 2_500_000, service: expect.objectContaining({ code: "C04-S05-T01" }), venue: expect.objectContaining({ id: venue.id }) })]);
+    expect(sub.benefits.find((b: { plan: { id: string } }) => b.plan.id === plan.id)).toMatchObject({ covers: "all", quantity: 2 });
+    // The category above lists it too; a benefit on a single service type would cover it in part.
+    const top = (await api.get(`/admin/categories/${await categoryIdOf(db, "C04")}`)).json;
+    expect(top.offers.some((o: { venue: { id: string } }) => o.venue.id === venue.id)).toBe(true);
+    await api.post(`/admin/plans/${plan.id}/benefits`, { categoryId: massage, period: "per_pass", quantity: 1 });
+    const again = (await api.get(`/admin/categories/${await categoryIdOf(db, "C04")}`)).json;
+    expect(again.benefits.filter((b: { plan: { id: string } }) => b.plan.id === plan.id).map((b: { covers: string }) => b.covers).sort()).toEqual(["all", "part"]);
+    // Another subcategory isn't offered by this venue.
+    const other = (await api.get(`/admin/categories/${await categoryIdOf(db, "C04-S01")}`)).json;
+    expect(other.offers.some((o: { venue: { id: string } }) => o.venue.id === venue.id)).toBe(false);
+    expect((await api.get(`/admin/categories/${randomUUID()}`)).status).toBe(404);
+  });
+
   it("adds entries with the next free code at the right level, and audits them", async () => {
     const lead = await createStaff(db, "ops_lead");
     const api = as(lead);

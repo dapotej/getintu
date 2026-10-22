@@ -154,6 +154,20 @@ export function Td({ children, className, colSpan }: { children: ReactNode; clas
   );
 }
 
+/** A record's details as label and value pairs, read-only; editing happens in a side panel. */
+export function DetailList({ items }: { items: [label: string, value: ReactNode][] }) {
+  return (
+    <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+      {items.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-muted">{label}</dt>
+          <dd className="min-w-0 break-words text-fg">{value === null || value === undefined || value === "" ? <span className="text-faint">–</span> : value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function Notice({ tone = "danger", children }: { tone?: "danger" | "success" | "warning"; children: ReactNode }) {
   const styles = { danger: "bg-danger-soft text-danger", success: "bg-night-soft text-night", warning: "bg-day-soft text-day" };
   return (
@@ -214,6 +228,8 @@ const ICONS = {
   check: "M20 6 9 17l-5-5",
   calendar: "M3 6h18v15H3zM16 3v6M8 3v6M3 10h18",
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  close: "M18 6 6 18M6 6l12 12",
+  edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
   sliders: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4",
   eyeOff: "M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-3 4.2M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.4-1.6M3 3l18 18M9.9 9.9a3 3 0 0 0 4.2 4.2",
 } as const;

@@ -1,13 +1,12 @@
 "use client";
-import { Badge, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, SidePanel, Table, Td, Textarea } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
 import { PartnerStaffCard } from "@/components/partner-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
 import { ActionForm, checked, intOrNull, text, textOrNull } from "@/components/forms";
-import { HoursEditor, readHours } from "@/components/hours";
+import { HoursEditor, HoursSummary, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import type { Offer, Venue } from "@/lib/types";
@@ -23,6 +22,7 @@ export default function VenuePage() {
   const { id: partnerId, venueId: id } = useParams<{ id: string; venueId: string }>();
   const { can } = useStaff();
   const writable = can("partners.write");
+  const { byId } = useCatalogue();
   const { data, error, reload } = useApi<{ venue: Venue; partner: { id: string; tradingName: string }; offers: Offer[] }>(`/admin/venues/${id}`);
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
@@ -47,75 +47,58 @@ export default function VenuePage() {
         }
       />
       <div className="flex flex-col gap-6">
-        <Card title="Venue">
-          <ActionForm
-            success="Saved."
-            action={async (form) => {
-              await api(`/admin/venues/${id}`, {
-                method: "PATCH",
-                body: {
-                  name: text(form, "name"),
-                  area: text(form, "area"),
-                  kind: text(form, "kind"),
-                  categoryId: text(form, "categoryId"),
-                  tier: text(form, "tier"),
-                  description: textOrNull(form, "description"),
-                  capacityNotes: textOrNull(form, "capacityNotes"),
-                  openingHours: readHours(form, "hours"),
-                  active: checked(form, "active"),
-                },
-              });
-              reload();
-            }}
-          >
-            {(busy) => (
-              <fieldset disabled={!writable} className="flex flex-col gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Name">
-                    <Input name="name" defaultValue={venue.name} required />
-                  </Field>
-                  <Field label="Area">
-                    <Input name="area" defaultValue={venue.area} required />
-                  </Field>
-                  <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
-                    <Select name="kind" defaultValue={venue.kind}>
-                      <option value="place">A place members visit</option>
-                      <option value="visiting">A service that comes to them (booked)</option>
-                    </Select>
-                  </Field>
-                  <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers below.">
-                    <CategorySelect name="categoryId" placesOnly required defaultValue={venue.categoryId} />
-                  </Field>
-                  <Field label="Tier" hint="Which plans can use it is set on each plan's benefits.">
-                    <Select name="tier" defaultValue={venue.tier}>
-                      <option value="standard">Standard</option>
-                      <option value="top">Top tier</option>
-                    </Select>
-                  </Field>
-                </div>
-                <Field label="Description">
-                  <Textarea name="description" defaultValue={venue.description ?? ""} />
-                </Field>
-                <Field label="Capacity notes">
-                  <Input name="capacityNotes" defaultValue={venue.capacityNotes ?? ""} />
-                </Field>
-                <HoursEditor name="hours" value={venue.openingHours} />
-                <Checkbox name="active" defaultChecked={venue.active} label="Active" hint="Inactive venues decline every scan." />
-                {writable ? (
-                  <div>
-                    <Button type="submit" disabled={busy}>
-                      Save venue
-                    </Button>
-                  </div>
-                ) : null}
-              </fieldset>
-            )}
-          </ActionForm>
+        <Card
+          title="Venue"
+          actions={
+            writable ? (
+              <SidePanel
+                title="Edit venue"
+                trigger={(open) => (
+                  <Button size="sm" tone="secondary" onClick={open}>
+                    <Icon name="edit" className="size-4" /> Edit
+                  </Button>
+                )}
+              >
+                {(close) => <VenueForm venue={venue} onSaved={() => (reload(), close())} />}
+              </SidePanel>
+            ) : null
+          }
+        >
+          <DetailList
+            items={[
+              ["How members use it", venue.kind === "visiting" ? "A service that comes to them (booked)" : "A place members visit"],
+              ["Kind of place", byId.get(venue.categoryId)?.name],
+              ["Tier", venue.tier === "top" ? "Top tier" : "Standard"],
+              ["Status", venue.active ? "Active" : "Inactive: declines every scan"],
+              ["Description", venue.description],
+              ["Capacity notes", venue.capacityNotes],
+              ["Opening hours", <HoursSummary key="hours" value={venue.openingHours} />],
+            ]}
+          />
         </Card>
 
-        <Card title="Offers" description="What the venue gives for each benefit, and what intu pays per approved visit." flush>
+        <Card
+          title="Offers"
+          description="What the venue gives for each benefit, and what intu pays per approved visit."
+          flush
+          actions={
+            writable ? (
+              <SidePanel
+                title="Add an offer"
+                description="The single service type this venue delivers, and what intu pays for it."
+                trigger={(open) => (
+                  <Button size="sm" tone="secondary" onClick={open}>
+                    <Icon name="plus" className="size-4" /> Add offer
+                  </Button>
+                )}
+              >
+                {(close) => <OfferForm venueId={id} exclude={taken} onSaved={() => (reload(), close())} />}
+              </SidePanel>
+            ) : null
+          }
+        >
           {offers.length === 0 ? (
-            <EmptyState title="No offers yet">Add one below so members can use this venue.</EmptyState>
+            <EmptyState title="No offers yet">{writable ? "Add one so members can use this venue." : null}</EmptyState>
           ) : (
             <Table head={["Service", "Cost", "Retail", "Markup", "How it's offered", "Daily cap", ""]}>
               {offers.map((o) => (
@@ -123,63 +106,6 @@ export default function VenuePage() {
               ))}
             </Table>
           )}
-          {writable ? (
-            <ActionForm
-              className="grid gap-4 border-t border-line bg-subtle/60 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3"
-              action={async (form) => {
-                if (!text(form, "categoryId")) throw new Error("Choose the service this offer delivers");
-                await api("/admin/offers", {
-                  method: "POST",
-                  body: {
-                    venueId: id,
-                    categoryId: text(form, "categoryId"),
-                    rateMinor: naira(form, "rate", "cost"),
-                    retailMinor: nairaOrNull(form, "retail", "retail price"),
-                    offerModel: text(form, "offerModel"),
-                    pricesArePlaceholders: checked(form, "placeholder"),
-                    dailyCap: intOrNull(form, "dailyCap"),
-                  },
-                });
-                reload();
-              }}
-            >
-              {(busy) => (
-                <>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <Field label="Add offer" hint="The single service type this venue delivers">
-                      <CategorySelect name="categoryId" servicesOnly exclude={taken} />
-                    </Field>
-                  </div>
-                  <Field label="Rate (₦ per visit)" hint="Cost price: what intu pays">
-                    <Input name="rate" inputMode="decimal" required />
-                  </Field>
-                  <Field label="Retail (₦)" hint="What a member pays as an add-on">
-                    <Input name="retail" inputMode="decimal" />
-                  </Field>
-                  <Field label="How it's offered">
-                    <Select name="offerModel" defaultValue="included">
-                      {Object.entries(OFFER_MODELS).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Daily cap">
-                    <Input name="dailyCap" type="number" min={1} placeholder="No cap" />
-                  </Field>
-                  <div className="flex items-end pb-2">
-                    <Checkbox name="placeholder" label="Prices are placeholders" />
-                  </div>
-                  <div className="flex items-end">
-                    <Button type="submit" disabled={busy}>
-                      Add offer
-                    </Button>
-                  </div>
-                </>
-              )}
-            </ActionForm>
-          ) : null}
         </Card>
 
         <PartnerStaffCard venueId={id} writable={writable} />
@@ -188,107 +114,175 @@ export default function VenuePage() {
   );
 }
 
-function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: boolean; onChange: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const { path } = useCatalogue();
-  if (!editing)
-    return (
-      <tr>
-        <Td>
-          <p className="font-semibold">{o.category.name}</p>
-          <p className="text-xs text-muted">{path(o.category.code).split(" › ").slice(0, -1).join(" › ")}</p>
-        </Td>
-        <Td className="whitespace-nowrap tabular-nums">{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
-        <Td className="whitespace-nowrap tabular-nums">{o.retailMinor === null ? <span className="text-faint">–</span> : formatMoney(o.retailMinor, o.rateCurrency)}</Td>
-        <Td className="whitespace-nowrap tabular-nums">
-          {markup(o.rateMinor, o.retailMinor) ?? <span className="text-faint">–</span>}
-          {o.pricesArePlaceholders ? (
-            <span className="ml-2">
-              <Badge tone="day">Placeholder</Badge>
-            </span>
-          ) : null}
-        </Td>
-        <Td className="text-muted">{OFFER_MODELS[o.offerModel]}</Td>
-        <Td className="tabular-nums">{o.dailyCap ?? <span className="text-faint">No cap</span>}</Td>
-        <Td className="text-right">
-          <div className="flex items-center justify-end gap-2">
-            {!o.active ? (
-              <Badge dot tone="danger">
-                Inactive
-              </Badge>
-            ) : null}
-            {writable ? (
-              <Button size="sm" tone="ghost" onClick={() => setEditing(true)}>
-                Edit
-              </Button>
-            ) : null}
-          </div>
-        </Td>
-      </tr>
-    );
+function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
   return (
-    <tr>
-      <Td colSpan={7} className="bg-subtle/60">
-        <ActionForm
-          className="grid gap-4 py-2 sm:grid-cols-2 lg:grid-cols-3"
-          action={async (form) => {
-            await api(`/admin/offers/${o.id}`, {
-              method: "PATCH",
-              body: {
-                rateMinor: naira(form, "rate", "cost"),
-                retailMinor: nairaOrNull(form, "retail", "retail price"),
-                offerModel: text(form, "offerModel"),
-                pricesArePlaceholders: checked(form, "placeholder"),
-                dailyCap: intOrNull(form, "dailyCap"),
-                validFrom: textOrNull(form, "validFrom"),
-                validTo: textOrNull(form, "validTo"),
-                active: checked(form, "active"),
-              },
-            });
-            setEditing(false);
-            onChange();
-          }}
-        >
-          {(busy) => (
+    <ActionForm
+      action={async (form) => {
+        await api(`/admin/venues/${venue.id}`, {
+          method: "PATCH",
+          body: {
+            name: text(form, "name"),
+            area: text(form, "area"),
+            kind: text(form, "kind"),
+            categoryId: text(form, "categoryId"),
+            tier: text(form, "tier"),
+            description: textOrNull(form, "description"),
+            capacityNotes: textOrNull(form, "capacityNotes"),
+            openingHours: readHours(form, "hours"),
+            active: checked(form, "active"),
+          },
+        });
+        onSaved();
+      }}
+    >
+      {(busy) => (
+        <>
+          <Field label="Name">
+            <Input name="name" defaultValue={venue.name} required />
+          </Field>
+          <Field label="Area">
+            <Input name="area" defaultValue={venue.area} required />
+          </Field>
+          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
+            <Select name="kind" defaultValue={venue.kind}>
+              <option value="place">A place members visit</option>
+              <option value="visiting">A service that comes to them (booked)</option>
+            </Select>
+          </Field>
+          <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers.">
+            <CategorySelect name="categoryId" placesOnly required defaultValue={venue.categoryId} />
+          </Field>
+          <Field label="Tier" hint="Which plans can use it is set on each plan's benefits.">
+            <Select name="tier" defaultValue={venue.tier}>
+              <option value="standard">Standard</option>
+              <option value="top">Top tier</option>
+            </Select>
+          </Field>
+          <Field label="Description">
+            <Textarea name="description" defaultValue={venue.description ?? ""} />
+          </Field>
+          <Field label="Capacity notes">
+            <Input name="capacityNotes" defaultValue={venue.capacityNotes ?? ""} />
+          </Field>
+          <HoursEditor name="hours" value={venue.openingHours} />
+          <Checkbox name="active" defaultChecked={venue.active} label="Active" hint="Inactive venues decline every scan." />
+          <Button type="submit" disabled={busy}>
+            Save venue
+          </Button>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+/** Adds an offer, or edits one when given it. */
+function OfferForm({ venueId, offer: o, exclude, onSaved }: { venueId?: string; offer?: Offer; exclude?: string[]; onSaved: () => void }) {
+  return (
+    <ActionForm
+      action={async (form) => {
+        const prices = {
+          rateMinor: naira(form, "rate", "cost"),
+          retailMinor: nairaOrNull(form, "retail", "retail price"),
+          offerModel: text(form, "offerModel"),
+          pricesArePlaceholders: checked(form, "placeholder"),
+          dailyCap: intOrNull(form, "dailyCap"),
+        };
+        if (o) {
+          await api(`/admin/offers/${o.id}`, { method: "PATCH", body: { ...prices, validFrom: textOrNull(form, "validFrom"), validTo: textOrNull(form, "validTo"), active: checked(form, "active") } });
+        } else {
+          if (!text(form, "categoryId")) throw new Error("Choose the service this offer delivers");
+          await api("/admin/offers", { method: "POST", body: { venueId, categoryId: text(form, "categoryId"), ...prices } });
+        }
+        onSaved();
+      }}
+    >
+      {(busy) => (
+        <>
+          {o ? null : (
+            <Field label="Service" hint="The single service type this venue delivers">
+              <CategorySelect name="categoryId" servicesOnly exclude={exclude ?? []} />
+            </Field>
+          )}
+          <Field label="Rate (₦ per visit)" hint="Cost price: what intu pays">
+            <Input name="rate" inputMode="decimal" defaultValue={o ? minorToMajorInput(o.rateMinor) : ""} required />
+          </Field>
+          <Field label="Retail (₦)" hint="What a member pays as an add-on">
+            <Input name="retail" inputMode="decimal" defaultValue={o?.retailMinor == null ? "" : minorToMajorInput(o.retailMinor)} />
+          </Field>
+          <Field label="How it's offered">
+            <Select name="offerModel" defaultValue={o?.offerModel ?? "included"}>
+              {Object.entries(OFFER_MODELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Daily cap">
+            <Input name="dailyCap" type="number" min={1} placeholder="No cap" defaultValue={o?.dailyCap ?? ""} />
+          </Field>
+          {o ? (
             <>
-              <p className="font-semibold sm:col-span-2 lg:col-span-3">{path(o.category.code) || o.category.name}</p>
-              <Field label="Rate (₦ per visit)" hint="Cost price">
-                <Input name="rate" inputMode="decimal" defaultValue={minorToMajorInput(o.rateMinor)} required />
-              </Field>
-              <Field label="Retail (₦)">
-                <Input name="retail" inputMode="decimal" defaultValue={o.retailMinor === null ? "" : minorToMajorInput(o.retailMinor)} />
-              </Field>
-              <Field label="How it's offered">
-                <Select name="offerModel" defaultValue={o.offerModel}>
-                  {Object.entries(OFFER_MODELS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Daily cap">
-                <Input name="dailyCap" type="number" min={1} placeholder="No cap" defaultValue={o.dailyCap ?? ""} />
-              </Field>
               <Field label="Valid from">
                 <Input name="validFrom" type="date" defaultValue={o.validFrom ?? ""} />
               </Field>
               <Field label="Valid to">
                 <Input name="validTo" type="date" defaultValue={o.validTo ?? ""} />
               </Field>
-              <Checkbox name="placeholder" defaultChecked={o.pricesArePlaceholders} label="Prices are placeholders" />
-              <Checkbox name="active" defaultChecked={o.active} label="Active" />
-              <div className="flex gap-2 sm:col-span-2 lg:col-span-3">
-                <Button type="submit" disabled={busy}>
-                  Save
-                </Button>
-                <Button type="button" tone="ghost" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </div>
             </>
-          )}
-        </ActionForm>
+          ) : null}
+          <Checkbox name="placeholder" defaultChecked={o?.pricesArePlaceholders ?? false} label="Prices are placeholders" />
+          {o ? <Checkbox name="active" defaultChecked={o.active} label="Active" /> : null}
+          <Button type="submit" disabled={busy}>
+            {o ? "Save offer" : "Add offer"}
+          </Button>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: boolean; onChange: () => void }) {
+  const { path } = useCatalogue();
+  return (
+    <tr>
+      <Td>
+        <p className="font-semibold">{o.category.name}</p>
+        <p className="text-xs text-muted">{path(o.category.code).split(" › ").slice(0, -1).join(" › ")}</p>
+      </Td>
+      <Td className="whitespace-nowrap tabular-nums">{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
+      <Td className="whitespace-nowrap tabular-nums">{o.retailMinor === null ? <span className="text-faint">–</span> : formatMoney(o.retailMinor, o.rateCurrency)}</Td>
+      <Td className="whitespace-nowrap tabular-nums">
+        {markup(o.rateMinor, o.retailMinor) ?? <span className="text-faint">–</span>}
+        {o.pricesArePlaceholders ? (
+          <span className="ml-2">
+            <Badge tone="day">Placeholder</Badge>
+          </span>
+        ) : null}
+      </Td>
+      <Td className="text-muted">{OFFER_MODELS[o.offerModel]}</Td>
+      <Td className="tabular-nums">{o.dailyCap ?? <span className="text-faint">No cap</span>}</Td>
+      <Td className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          {!o.active ? (
+            <Badge dot tone="danger">
+              Inactive
+            </Badge>
+          ) : null}
+          {writable ? (
+            <SidePanel
+              title={`Edit ${o.category.name}`}
+              description={path(o.category.code) || undefined}
+              trigger={(open) => (
+                <Button size="sm" tone="ghost" onClick={open}>
+                  Edit
+                </Button>
+              )}
+            >
+              {(close) => <OfferForm offer={o} onSaved={() => (onChange(), close())} />}
+            </SidePanel>
+          ) : null}
+        </div>
       </Td>
     </tr>
   );

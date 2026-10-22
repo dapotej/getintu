@@ -1,13 +1,14 @@
 import { Hono } from "hono";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { one, schema, type Db, type Tx } from "@intu/db";
+import { covers } from "@intu/rules";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail } from "../http.ts";
 import { staffAudit } from "./audited.ts";
 import { idParam, uuid } from "./validation.ts";
 
-const { categories } = schema;
+const { categories, offers, venues, partners, benefits, plans } = schema;
 const LEVELS = ["category", "subcategory", "service"] as const;
 
 const Create = z.object({ parentId: uuid.nullable(), name: z.string().trim().min(2).max(120), customerVisible: z.boolean().optional() });
@@ -31,6 +32,43 @@ export function categoryRoutes(db: Db) {
   app.get("/categories", requirePermission("plans.read"), async (c) => {
     const rows = await db.select().from(categories).orderBy(asc(categories.code));
     return c.json({ categories: rows });
+  });
+
+  // One entry's page: the offers that deliver it or anything under it, and the plans whose
+  // benefits include it (a benefit on it or above covers it all; one below covers part of it).
+  app.get("/categories/:id", requirePermission("plans.read"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
+    if (!category) fail(404, "not_found", "Category not found");
+    const offerRows = await db
+      .select({
+        id: offers.id,
+        rateMinor: offers.rateMinor,
+        rateCurrency: offers.rateCurrency,
+        retailMinor: offers.retailMinor,
+        offerModel: offers.offerModel,
+        pricesArePlaceholders: offers.pricesArePlaceholders,
+        active: offers.active,
+        service: { id: categories.id, code: categories.code, name: categories.name },
+        venue: { id: venues.id, name: venues.name, area: venues.area, tier: venues.tier, kind: venues.kind, active: venues.active },
+        partner: { id: partners.id, tradingName: partners.tradingName },
+      })
+      .from(offers)
+      .innerJoin(categories, eq(categories.id, offers.categoryId))
+      .innerJoin(venues, eq(venues.id, offers.venueId))
+      .innerJoin(partners, eq(partners.id, venues.partnerId))
+      .where(and(or(eq(categories.code, category.code), like(categories.code, `${category.code}-%`)), isNull(offers.deletedAt), isNull(venues.deletedAt), isNull(partners.deletedAt)))
+      .orderBy(asc(partners.tradingName), asc(venues.name), asc(categories.code));
+    const benefitRows = await db
+      .select({ id: benefits.id, quantity: benefits.quantity, period: benefits.period, code: categories.code, name: categories.name, plan: { id: plans.id, name: plans.name, active: plans.active } })
+      .from(benefits)
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .innerJoin(plans, eq(plans.id, benefits.planId))
+      .orderBy(asc(plans.name));
+    const inPlans = benefitRows
+      .filter((b) => covers(b.code, category.code) || covers(category.code, b.code))
+      .map(({ code, ...b }) => ({ ...b, covers: covers(code, category.code) ? ("all" as const) : ("part" as const) }));
+    return c.json({ category, offers: offerRows, benefits: inPlans });
   });
 
   app.post("/categories", requirePermission("plans.write"), async (c) => {

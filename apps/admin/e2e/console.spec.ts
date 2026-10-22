@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { signIn } from "./support/session";
 
 /** Picks a catalogue entry in a category dropdown by its name (options are indented by depth). */
@@ -7,6 +7,10 @@ async function pickCategory(select: Locator, name: string) {
   const value = await select.locator("option", { hasText: name }).first().getAttribute("value");
   await select.selectOption(value ?? "");
 }
+
+/** The card with this heading, and the side panel that's open. */
+const cardOf = (page: Page, name: string) => page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) });
+const panelOf = (page: Page) => page.getByRole("dialog");
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, "founder");
@@ -55,33 +59,36 @@ test("add a member and give them a gifted pass", async ({ page }) => {
 
 test("create a plan, price it, and open a benefit to top-tier venues", async ({ page }) => {
   const code = `E2E-${randomUUID().slice(0, 6).toUpperCase()}`;
+  const panel = panelOf(page);
   await page.goto("/plans");
   await page.getByRole("button", { name: "New plan" }).click();
-  await page.getByLabel("Name").fill(`TEST Gold ${code}`);
-  await page.getByLabel("Duration (days)").fill("365");
-  await page.getByRole("button", { name: "Create plan" }).click();
+  await panel.getByLabel("Name").fill(`TEST Gold ${code}`);
+  await panel.getByLabel("Duration (days)").fill("365");
+  await panel.getByRole("button", { name: "Create plan" }).click();
   await expect(page.getByRole("heading", { name: `TEST Gold ${code}` })).toBeVisible();
   // The code comes from the name.
   await expect(page.getByText(/^TEST-GOLD-E2E-[A-Z0-9]+/)).toBeVisible();
 
-  await page.getByLabel("NGN").fill("1,500,000");
-  await page.getByLabel("GBP").fill("849.99");
-  await page.getByRole("button", { name: "Save prices" }).click();
-  await expect(page.getByText("Prices saved.")).toBeVisible();
-  await expect(page.getByLabel("GBP")).toHaveValue("849.99");
+  await cardOf(page, "Prices").getByRole("button", { name: "Edit" }).click();
+  await panel.getByLabel("NGN").fill("1,500,000");
+  await panel.getByLabel("GBP").fill("849.99");
+  await panel.getByRole("button", { name: "Save prices" }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(cardOf(page, "Prices")).toContainText("£849.99");
 
-  await pickCategory(page.getByLabel("Add benefit"), "Spa & Massage");
-  await page.getByLabel("Quantity").fill("3");
-  await page.getByLabel("Period").selectOption({ label: "Per membership year" });
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await cardOf(page, "Benefits").getByRole("button", { name: "Add benefit" }).click();
+  await pickCategory(panel.getByLabel("Covers"), "Spa & Massage");
+  await panel.getByLabel("Quantity").fill("3");
+  await panel.getByLabel("Period").selectOption({ label: "Per membership year" });
+  await panel.getByRole("button", { name: "Add benefit" }).click();
   // The benefits table comes first; the cost and margin table lists the benefit again.
   const row = page.getByRole("row", { name: /Spa & Massage/ }).first();
   await expect(row).toContainText("per membership year");
 
   await row.getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Top tier").check();
-  await page.getByLabel("Uses one per person in the party").check();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await panel.getByLabel("Top tier").check();
+  await panel.getByLabel("Uses one per person in the party").check();
+  await panel.getByRole("button", { name: "Save benefit" }).click();
   const saved = page.getByRole("row", { name: /Spa & Massage/ }).first();
   await expect(saved).toContainText("one per person");
   await expect(saved).toContainText("top");
@@ -95,43 +102,53 @@ test("Settings holds the team and the exchange rates for margins", async ({ page
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/settings\/team$/);
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Team" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Send invitation" })).toBeVisible();
+  await page.getByRole("button", { name: "Invite someone" }).click();
+  await expect(panelOf(page).getByRole("button", { name: "Send invitation" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panelOf(page)).toHaveCount(0);
+
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Exchange rates" }).click();
-  await page.getByLabel("Naira per £1").fill("1,770");
-  await page.getByRole("button", { name: "Save rates" }).click();
-  await expect(page.getByText("Rates saved.")).toBeVisible();
+  const rates = cardOf(page, "Exchange rates for margins");
+  await rates.getByRole("button", { name: "Edit" }).click();
+  await panelOf(page).getByLabel("Naira per £1").fill("1,770");
+  await panelOf(page).getByRole("button", { name: "Save rates" }).click();
+  await expect(rates).toContainText("₦1,770");
   await page.goto("/plans");
-  await expect(page.getByLabel("Naira per £1")).toHaveCount(0);
+  await expect(page.getByText("Exchange rates for margins")).toHaveCount(0);
 });
 
 test("see a plan's cost and margin, and price a benefit no venue offers yet", async ({ page }) => {
   const code = `E2E-${randomUUID().slice(0, 6).toUpperCase()}`;
+  const panel = panelOf(page);
   await page.goto("/plans");
   await page.getByRole("button", { name: "New plan" }).click();
-  await page.getByLabel("Name").fill(`TEST Costed ${code}`);
-  await page.getByLabel("Season starts").fill("2026-12-01");
-  await page.getByLabel("Season ends").fill("2027-01-10");
-  await page.getByRole("button", { name: "Create plan" }).click();
+  await panel.getByLabel("Name").fill(`TEST Costed ${code}`);
+  await panel.getByLabel("Season starts").fill("2026-12-01");
+  await panel.getByLabel("Season ends").fill("2027-01-10");
+  await panel.getByRole("button", { name: "Create plan" }).click();
   await expect(page.getByRole("heading", { name: `TEST Costed ${code}` })).toBeVisible();
 
-  await page.getByLabel("NGN").fill("100,000");
-  await page.getByRole("button", { name: "Save prices" }).click();
-  await page.getByLabel("Fixed costs per member (₦)").fill("10,000");
-  await page.getByRole("button", { name: "Save details" }).click();
-  await expect(page.getByText("Saved.")).toBeVisible();
+  await cardOf(page, "Prices").getByRole("button", { name: "Edit" }).click();
+  await panel.getByLabel("NGN").fill("100,000");
+  await panel.getByRole("button", { name: "Save prices" }).click();
+  await cardOf(page, "Details").getByRole("button", { name: "Edit" }).click();
+  await panel.getByLabel("Fixed costs per member (₦)").fill("10,000");
+  await panel.getByRole("button", { name: "Save details" }).click();
+  await expect(cardOf(page, "Details")).toContainText("₦10,000");
 
   // No venue offers theatre tickets yet, so it has nothing to be costed from.
-  await pickCategory(page.getByLabel("Add benefit"), "Theatre ticket");
-  await page.getByLabel("Quantity").fill("2");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await cardOf(page, "Benefits").getByRole("button", { name: "Add benefit" }).click();
+  await pickCategory(panel.getByLabel("Covers"), "Theatre ticket");
+  await panel.getByLabel("Quantity").fill("2");
+  await panel.getByRole("button", { name: "Add benefit" }).click();
   const cost = page.getByRole("row", { name: /Theatre ticket/ }).last();
   await expect(cost).toContainText("No venue offers it yet: set a planning cost");
   await expect(page.getByText("Leaves out 1 unpriced benefit")).toBeVisible();
 
   await page.getByRole("row", { name: /Theatre ticket/ }).first().getByRole("button", { name: "Edit" }).click();
-  await page.getByLabel("Planning cost (₦)").fill("20,000");
-  await page.getByLabel("Expected use (%)").fill("50");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await panel.getByLabel("Planning cost (₦)").fill("20,000");
+  await panel.getByLabel("Expected use (%)").fill("50");
+  await panel.getByRole("button", { name: "Save benefit" }).click();
   await expect(cost).toContainText("Planning cost");
   await expect(cost).toContainText("₦40,000");
   await expect(cost).toContainText("₦20,000");
@@ -142,37 +159,48 @@ test("see a plan's cost and margin, and price a benefit no venue offers yet", as
 
 test("add a partner and a late-night top-tier venue with a naira offer", async ({ page }) => {
   const tag = randomUUID().slice(0, 6);
+  const panel = panelOf(page);
   await page.goto("/partners");
   await page.getByRole("button", { name: "Add partner" }).click();
-  await page.getByLabel("Legal name").fill(`TEST Nights ${tag} Ltd`);
-  await page.getByLabel("Trading name").fill(`TEST Nights ${tag}`);
-  await page.getByRole("button", { name: "Add partner" }).last().click();
+  await panel.getByLabel("Legal name").fill(`TEST Nights ${tag} Ltd`);
+  await panel.getByLabel("Trading name").fill(`TEST Nights ${tag}`);
+  await panel.getByRole("button", { name: "Add partner" }).click();
   await expect(page.getByRole("heading", { name: `TEST Nights ${tag}` })).toBeVisible();
 
   await page.getByRole("button", { name: "Add venue" }).click();
-  await page.getByLabel("Venue or service name").fill(`TEST Rooftop ${tag}`);
-  await page.getByLabel("Area").fill("Ikoyi");
-  await pickCategory(page.getByLabel("Kind of place"), "Members' Clubs");
-  await page.getByLabel("Tier").selectOption({ label: "Top tier" });
-  await page.getByLabel("Sat opens").fill("22:00");
-  await page.getByLabel("Sat closes").fill("04:00");
-  await page.getByRole("button", { name: "Add venue" }).last().click();
+  await panel.getByLabel("Venue or service name").fill(`TEST Rooftop ${tag}`);
+  await panel.getByLabel("Area").fill("Ikoyi");
+  await pickCategory(panel.getByLabel("Kind of place"), "Members' Clubs");
+  await panel.getByLabel("Tier").selectOption({ label: "Top tier" });
+  await panel.getByLabel("Sat opens").fill("22:00");
+  await panel.getByLabel("Sat closes").fill("04:00");
+  await panel.getByRole("button", { name: "Add venue" }).click();
 
   await expect(page.getByRole("heading", { name: `TEST Rooftop ${tag}` })).toBeVisible();
-  await expect(page.getByLabel("Sat closes")).toHaveValue("04:00");
-  await expect(page.getByLabel("Sun opens")).toHaveValue("");
+  const details = cardOf(page, "Venue");
+  await expect(details.getByRole("listitem").filter({ hasText: "Sat" })).toContainText("22:00–04:00");
+  await expect(details.getByRole("listitem").filter({ hasText: "Sun" })).toContainText("Closed");
 
-  await pickCategory(page.getByLabel("Add offer"), "Hosted member access");
-  await page.getByLabel("Rate (₦ per visit)").fill("25,000");
-  await page.getByLabel("Retail (₦)").fill("37,500");
-  await page.getByLabel("Daily cap").fill("10");
-  await page.getByRole("button", { name: "Add offer" }).click();
+  await cardOf(page, "Offers").getByRole("button", { name: "Add offer" }).click();
+  await pickCategory(panel.getByLabel("Service"), "Hosted member access");
+  await panel.getByLabel("Rate (₦ per visit)").fill("25,000");
+  await panel.getByLabel("Retail (₦)").fill("37,500");
+  await panel.getByLabel("Daily cap").fill("10");
+  await panel.getByRole("button", { name: "Add offer" }).click();
   const offer = page.getByRole("row", { name: /Hosted member access/ });
   await expect(offer).toContainText("₦25,000");
   await expect(offer).toContainText("₦37,500");
   await expect(offer).toContainText("50%");
 
+  // The catalogue entry lists this venue among those offering it.
+  await page.goto("/catalogue");
+  await page.getByRole("button", { name: "Expand Nightlife & Social" }).click();
+  await page.getByRole("button", { name: "Expand Members' Clubs" }).click();
+  await page.getByRole("link", { name: "Hosted member access" }).click();
+  await expect(cardOf(page, "Offered by").getByRole("row", { name: new RegExp(`TEST Rooftop ${tag}`) })).toContainText("₦25,000");
+
   // Back up to the partner: the venue is listed under it, and on the partners list.
+  await cardOf(page, "Offered by").getByRole("link", { name: `TEST Rooftop ${tag}` }).click();
   await page.getByRole("link", { name: `TEST Nights ${tag}` }).click();
   await expect(page.getByRole("link", { name: `TEST Rooftop ${tag}` })).toBeVisible();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Partners" }).click();
@@ -219,25 +247,28 @@ test("an import with errors shows the line and can't be committed", async ({ pag
 
 test("grow the catalogue: add a service type, rename it, and use it in a plan", async ({ page }) => {
   const tag = randomUUID().slice(0, 4);
+  const panel = panelOf(page);
   await page.getByRole("link", { name: "Catalogue" }).click();
   await expect(page.getByRole("heading", { name: "Catalogue" })).toBeVisible();
   await page.getByRole("button", { name: "Expand Wellness & Fitness" }).click();
-  await page.getByRole("button", { name: "Expand Golf" }).click();
-  await page.getByRole("button", { name: "Add a service type to Golf" }).click();
-  await page.getByLabel("Add a service type to Golf").fill(`TEST Driving range ${tag}`);
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByText(`TEST Driving range ${tag}`)).toBeVisible();
-  await expect(page.getByText(/C04-S08-T\d\d/).last()).toBeVisible();
+  await page.getByRole("link", { name: "Golf", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Golf" })).toBeVisible();
+  await page.getByRole("button", { name: "Add a service type" }).click();
+  await panel.getByLabel("Name").fill(`TEST Driving range ${tag}`);
+  await panel.getByRole("button", { name: "Add service type" }).click();
+  await cardOf(page, "Service types").getByRole("link", { name: `TEST Driving range ${tag}` }).click();
+  await expect(page.getByText(/^Service type · C04-S08-T\d\d$/)).toBeVisible();
 
-  const row = page.locator("div", { hasText: `TEST Driving range ${tag}` }).last();
-  await row.getByRole("button", { name: "Rename" }).click();
-  await page.getByLabel(`New name for TEST Driving range ${tag}`).fill(`TEST Range session ${tag}`);
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText(`TEST Range session ${tag}`)).toBeVisible();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await panel.getByLabel("Name").fill(`TEST Range session ${tag}`);
+  await panel.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("heading", { name: `TEST Range session ${tag}` })).toBeVisible();
+  await expect(cardOf(page, "Offered by")).toContainText("No venue offers this yet");
 
   await page.getByRole("link", { name: "Plans and benefits" }).click();
   await page.getByRole("link", { name: "TEST December Pass Plus" }).click();
-  await expect(page.getByLabel("Add benefit").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
+  await cardOf(page, "Benefits").getByRole("button", { name: "Add benefit" }).click();
+  await expect(panel.getByLabel("Covers").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
 });
 
 test("set up a venue's intu scanner, show a TEST pass, and review a visit the venue reported", async ({ page, request }) => {
@@ -248,9 +279,10 @@ test("set up a venue's intu scanner, show a TEST pass, and review a visit the ve
   await page.getByRole("link", { name: "TEST Atlantic Shore Oniru" }).click();
   const scanner = page.locator("section", { hasText: "intu scanner" });
   await expect(scanner).toContainText("ATLONI");
-  await scanner.getByLabel("Add partner staff").fill(`TEST Door E2E ${pin}`);
-  await scanner.getByLabel("PIN", { exact: true }).fill(pin);
-  await scanner.getByRole("button", { name: "Add", exact: true }).click();
+  await scanner.getByRole("button", { name: "Add partner staff" }).click();
+  await panelOf(page).getByLabel("Full name").fill(`TEST Door E2E ${pin}`);
+  await panelOf(page).getByLabel("PIN", { exact: true }).fill(pin);
+  await panelOf(page).getByRole("button", { name: "Add partner staff" }).click();
   await expect(scanner.getByText(`TEST Door E2E ${pin}`)).toBeVisible();
 
   // The member's pass, shown on this browser as the member app will.
@@ -277,8 +309,8 @@ test("set up a venue's intu scanner, show a TEST pass, and review a visit the ve
   const flagged = page.locator("section", { hasText: `TEST e2e ${pin}` });
   await expect(flagged).toContainText("TEST Ada London");
   await flagged.getByRole("button", { name: "Review" }).click();
-  await flagged.getByLabel("What was decided").fill("TEST e2e: spoke to the venue");
-  await flagged.getByRole("button", { name: "Mark reviewed" }).click();
+  await panelOf(page).getByLabel("What was decided").fill("TEST e2e: spoke to the venue");
+  await panelOf(page).getByRole("button", { name: "Mark reviewed" }).click();
   await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toHaveCount(0);
   await page.getByRole("button", { name: "Reviewed" }).click();
   await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toContainText("spoke to the venue");
@@ -286,22 +318,24 @@ test("set up a venue's intu scanner, show a TEST pass, and review a visit the ve
 
 test("book a visiting service for a member, and cancel it", async ({ page }) => {
   const note = `TEST e2e flight lands 16:00 ${randomUUID().slice(0, 6)}`;
-  page.on("dialog", (d) => d.accept("TEST e2e: member changed flights"));
+  const panel = panelOf(page);
   await page.goto("/members");
   await page.getByLabel("Search members").fill("TEST Chioma");
   await page.getByLabel("Search members").press("Enter");
   await page.getByRole("link", { name: "TEST Chioma Houston" }).click();
-  const card = page.locator("section").filter({ has: page.getByRole("heading", { name: "Bookings", exact: true }) });
+  const card = cardOf(page, "Bookings");
   await card.getByRole("button", { name: "Book a service" }).click();
-  await card.getByLabel("Service or venue").selectOption({ label: "TEST Coastal Rides chauffeurs (visiting)" });
-  await expect(card.getByLabel("What's booked").locator("option", { hasText: "Airport pickup" })).toHaveCount(1);
-  await card.getByLabel("What's booked").selectOption({ label: "Airport pickup" });
-  await card.getByLabel("Date (Lagos)").fill("2026-12-20");
-  await card.getByLabel("Notes for the partner").fill(note);
-  await card.getByRole("button", { name: "Confirm booking" }).click();
+  await panel.getByLabel("Service or venue").selectOption({ label: "TEST Coastal Rides chauffeurs (visiting)" });
+  await expect(panel.getByLabel("What's booked").locator("option", { hasText: "Airport pickup" })).toHaveCount(1);
+  await panel.getByLabel("What's booked").selectOption({ label: "Airport pickup" });
+  await panel.getByLabel("Date (Lagos)").fill("2026-12-20");
+  await panel.getByLabel("Notes for the partner").fill(note);
+  await panel.getByRole("button", { name: "Confirm booking" }).click();
   const row = card.getByRole("row", { name: new RegExp(note) });
   await expect(row).toContainText("Confirmed");
   await expect(row).toContainText("Airport pickup");
   await row.getByRole("button", { name: "Cancel" }).click();
+  await panel.getByLabel("Reason").fill("TEST e2e: member changed flights");
+  await panel.getByRole("button", { name: "Cancel booking" }).click();
   await expect(card.getByRole("row", { name: new RegExp(note) })).toContainText("Cancelled");
 });

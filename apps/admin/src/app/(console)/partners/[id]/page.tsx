@@ -1,8 +1,7 @@
 "use client";
-import { Badge, Button, Card, Checkbox, EmptyState, Field, Icon, Input, PageHeader, Select, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, Icon, Input, PageHeader, Select, SidePanel, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
 import { ActionForm, checked, text, textOrNull } from "@/components/forms";
 import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
@@ -17,7 +16,6 @@ export default function PartnerPage() {
   const writable = can("partners.write");
   const router = useRouter();
   const { data, error, setData } = useApi<{ partner: Partner; venues: Venue[] }>(`/admin/partners/${id}`);
-  const [adding, setAdding] = useState(false);
   const { byId } = useCatalogue();
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
@@ -48,70 +46,66 @@ export default function PartnerPage() {
             flush
             actions={
               writable ? (
-                <Button size="sm" tone={adding ? "ghost" : "secondary"} onClick={() => setAdding((a) => !a)}>
-                  {adding ? "Cancel" : (<><Icon name="plus" className="size-4" /> Add venue</>)}
-                </Button>
-              ) : null
-            }
-          >
-            {adding ? (
-              <div className="border-b border-line p-5">
-                <ActionForm
-                  className="grid gap-6 lg:grid-cols-2"
-                  action={async (form) => {
-                    const { venue } = await api<{ venue: Venue }>("/admin/venues", {
-                      method: "POST",
-                      body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
-                    });
-                    router.push(`/partners/${id}/venues/${venue.id}`);
-                  }}
+                <SidePanel
+                  title="Add a venue"
+                  description="A place members visit, or a service that comes to them."
+                  trigger={(open) => (
+                    <Button size="sm" tone="secondary" onClick={open}>
+                      <Icon name="plus" className="size-4" /> Add venue
+                    </Button>
+                  )}
                 >
-                  {(busy) => (
-                    <>
-                      <div className="grid content-start gap-4 sm:grid-cols-2">
-                        <div className="sm:col-span-2">
+                  {() => (
+                    <ActionForm
+                      action={async (form) => {
+                        const { venue } = await api<{ venue: Venue }>("/admin/venues", {
+                          method: "POST",
+                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
+                        });
+                        router.push(`/partners/${id}/venues/${venue.id}`);
+                      }}
+                    >
+                      {(busy) => (
+                        <>
                           <Field label="Venue or service name" hint="e.g. Atlantic Shore Oniru, or Coastal Rides chauffeurs">
                             <Input name="name" required />
                           </Field>
-                        </div>
-                        <div className="sm:col-span-2">
                           <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
-                          <Select name="kind" defaultValue={"place"}>
-                            <option value="place">A place members visit</option>
-                            <option value="visiting">A service that comes to them (booked)</option>
-                          </Select>
-                        </Field>
-                        </div>
-                        <Field label="Area" hint="Where it is, or where it serves">
-                          <Input name="area" placeholder="Oniru" required />
-                        </Field>
-                        <Field label="City">
-                          <Select name="city">
-                            <option value="lagos">Lagos</option>
-                            <option value="abuja">Abuja</option>
-                          </Select>
-                        </Field>
-                        <Field label="Kind of place" hint="From the catalogue, e.g. Beach Clubs">
-                          <CategorySelect name="categoryId" placesOnly required />
-                        </Field>
-                        <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
-                          <Select name="tier">
-                            <option value="standard">Standard</option>
-                            <option value="top">Top tier</option>
-                          </Select>
-                        </Field>
-                      </div>
-                      <HoursEditor name="hours" />
-                      <div className="lg:col-span-2">
-                        <Button type="submit" disabled={busy}>
-                          Add venue
-                        </Button>
-                      </div>
-                    </>
+                            <Select name="kind" defaultValue="place">
+                              <option value="place">A place members visit</option>
+                              <option value="visiting">A service that comes to them (booked)</option>
+                            </Select>
+                          </Field>
+                          <Field label="Area" hint="Where it is, or where it serves">
+                            <Input name="area" placeholder="Oniru" required />
+                          </Field>
+                          <Field label="City">
+                            <Select name="city">
+                              <option value="lagos">Lagos</option>
+                              <option value="abuja">Abuja</option>
+                            </Select>
+                          </Field>
+                          <Field label="Kind of place" hint="From the catalogue, e.g. Beach Clubs">
+                            <CategorySelect name="categoryId" placesOnly required />
+                          </Field>
+                          <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
+                            <Select name="tier">
+                              <option value="standard">Standard</option>
+                              <option value="top">Top tier</option>
+                            </Select>
+                          </Field>
+                          <HoursEditor name="hours" />
+                          <Button type="submit" disabled={busy}>
+                            Add venue
+                          </Button>
+                        </>
+                      )}
+                    </ActionForm>
                   )}
-                </ActionForm>
-              </div>
-            ) : null}
+                </SidePanel>
+              ) : null
+            }
+          >
             {venues.length === 0 ? (
               <EmptyState title="No venues yet">{writable ? "Add the first place members can visit." : null}</EmptyState>
             ) : (
@@ -143,56 +137,80 @@ export default function PartnerPage() {
           </Card>
         </div>
 
-        <Card title="Business details" description={p.hasBankDetails ? "Bank details on file." : "No bank details yet."}>
-          <ActionForm
-            success="Saved."
-            action={async (form) => {
-              const res = await api<{ partner: Partner }>(`/admin/partners/${id}`, {
-                method: "PATCH",
-                body: {
-                  legalName: text(form, "legalName"),
-                  tradingName: text(form, "tradingName"),
-                  contactName: textOrNull(form, "contactName"),
-                  contactEmail: textOrNull(form, "contactEmail"),
-                  contactPhone: textOrNull(form, "contactPhone"),
-                  settlementTerms: textOrNull(form, "settlementTerms"),
-                  active: checked(form, "active"),
-                },
-              });
-              setData({ partner: res.partner, venues });
-            }}
-          >
-            {(busy) => (
-              <fieldset disabled={!writable} className="flex flex-col gap-4">
-                <Field label="Legal name">
-                  <Input name="legalName" defaultValue={p.legalName} required />
-                </Field>
-                <Field label="Trading name">
-                  <Input name="tradingName" defaultValue={p.tradingName} required />
-                </Field>
-                <Field label="Contact name">
-                  <Input name="contactName" defaultValue={p.contactName ?? ""} />
-                </Field>
-                <Field label="Contact email">
-                  <Input name="contactEmail" type="email" defaultValue={p.contactEmail ?? ""} />
-                </Field>
-                <Field label="Contact phone">
-                  <Input name="contactPhone" type="tel" defaultValue={p.contactPhone ?? ""} />
-                </Field>
-                <Field label="Settlement terms">
-                  <Input name="settlementTerms" defaultValue={p.settlementTerms ?? ""} />
-                </Field>
-                <Checkbox name="active" defaultChecked={p.active} label="Active" />
-                {writable ? (
-                  <div>
-                    <Button type="submit" disabled={busy}>
-                      Save details
-                    </Button>
-                  </div>
-                ) : null}
-              </fieldset>
-            )}
-          </ActionForm>
+        <Card
+          title="Business details"
+          actions={
+            writable ? (
+              <SidePanel
+                title="Edit business details"
+                trigger={(open) => (
+                  <Button size="sm" tone="secondary" onClick={open}>
+                    <Icon name="edit" className="size-4" /> Edit
+                  </Button>
+                )}
+              >
+                {(close) => (
+                  <ActionForm
+                    action={async (form) => {
+                      const res = await api<{ partner: Partner }>(`/admin/partners/${id}`, {
+                        method: "PATCH",
+                        body: {
+                          legalName: text(form, "legalName"),
+                          tradingName: text(form, "tradingName"),
+                          contactName: textOrNull(form, "contactName"),
+                          contactEmail: textOrNull(form, "contactEmail"),
+                          contactPhone: textOrNull(form, "contactPhone"),
+                          settlementTerms: textOrNull(form, "settlementTerms"),
+                          active: checked(form, "active"),
+                        },
+                      });
+                      setData({ partner: res.partner, venues });
+                      close();
+                    }}
+                  >
+                    {(busy) => (
+                      <>
+                        <Field label="Legal name">
+                          <Input name="legalName" defaultValue={p.legalName} required />
+                        </Field>
+                        <Field label="Trading name">
+                          <Input name="tradingName" defaultValue={p.tradingName} required />
+                        </Field>
+                        <Field label="Contact name">
+                          <Input name="contactName" defaultValue={p.contactName ?? ""} />
+                        </Field>
+                        <Field label="Contact email">
+                          <Input name="contactEmail" type="email" defaultValue={p.contactEmail ?? ""} />
+                        </Field>
+                        <Field label="Contact phone">
+                          <Input name="contactPhone" type="tel" defaultValue={p.contactPhone ?? ""} />
+                        </Field>
+                        <Field label="Settlement terms">
+                          <Input name="settlementTerms" defaultValue={p.settlementTerms ?? ""} />
+                        </Field>
+                        <Checkbox name="active" defaultChecked={p.active} label="Active" />
+                        <Button type="submit" disabled={busy}>
+                          Save details
+                        </Button>
+                      </>
+                    )}
+                  </ActionForm>
+                )}
+              </SidePanel>
+            ) : null
+          }
+        >
+          <DetailList
+            items={[
+              ["Legal name", p.legalName],
+              ["Trading name", p.tradingName],
+              ["Contact", p.contactName],
+              ["Email", p.contactEmail],
+              ["Phone", p.contactPhone],
+              ["Settlement terms", p.settlementTerms],
+              ["Bank details", p.hasBankDetails ? "On file" : "Not yet"],
+            ]}
+          />
         </Card>
       </div>
     </>

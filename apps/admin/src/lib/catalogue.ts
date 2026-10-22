@@ -24,6 +24,8 @@ export function useCatalogue() {
   }, [data, error, reload]);
 }
 
+export const LEVEL_LABEL = { category: "Category", subcategory: "Subcategory", service: "Service type" } as const;
+
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => code === "C06" || code.startsWith("C06-");
 

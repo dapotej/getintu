@@ -27,6 +27,24 @@ export interface Category {
   active: boolean;
 }
 
+/** One catalogue entry's page: who offers it and which plans include it. */
+export interface CategoryDetail {
+  category: Category;
+  offers: {
+    id: string;
+    rateMinor: number;
+    rateCurrency: "GBP" | "USD" | "NGN";
+    retailMinor: number | null;
+    offerModel: OfferModel;
+    pricesArePlaceholders: boolean;
+    active: boolean;
+    service: { id: string; code: string; name: string };
+    venue: { id: string; name: string; area: string; tier: "standard" | "top"; kind: "place" | "visiting"; active: boolean };
+    partner: { id: string; tradingName: string };
+  }[];
+  benefits: { id: string; quantity: number | null; period: "per_pass" | "per_month" | "per_year"; name: string; covers: "all" | "part"; plan: { id: string; name: string; active: boolean } }[];
+}
+
 /** The short form of a category embedded in other records. */
 export interface CategoryRef {
   id?: string;

@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, Card, cx, DECLINE_LABELS, EmptyState, Field, formatLagosDateTime, Input, PageHeader } from "@intu/ui";
+import { Badge, Button, Card, cx, DECLINE_LABELS, EmptyState, Field, formatLagosDateTime, PageHeader, SidePanel, Textarea } from "@intu/ui";
 import Link from "next/link";
 import { useState } from "react";
 import { ActionForm, text } from "@/components/forms";
@@ -28,7 +28,6 @@ export default function VisitsToReviewPage() {
   const { can } = useStaff();
   const [status, setStatus] = useState<"open" | "reviewed">("open");
   const { data, error, reload } = useApi<{ redemptions: FlaggedVisit[] }>(`/admin/redemptions?status=${status}`);
-  const [reviewing, setReviewing] = useState<string | null>(null);
 
   return (
     <>
@@ -88,38 +87,38 @@ export default function VisitsToReviewPage() {
               )}
             </div>
             {status === "open" && can("members.write") ? (
-              reviewing === v.id ? (
-                <ActionForm
-                  className="mt-4 flex flex-wrap items-end gap-3"
-                  action={async (form) => {
-                    await api(`/admin/redemptions/${v.id}/review`, { method: "POST", body: { note: text(form, "note") } });
-                    setReviewing(null);
-                    reload();
-                  }}
-                >
-                  {(busy) => (
-                    <>
-                      <div className="min-w-64 flex-1">
-                        <Field label="What was decided" hint="Kept in the audit log">
-                          <Input name="note" required minLength={3} placeholder="e.g. Venue paid; member reminded of the daily limit" />
-                        </Field>
-                      </div>
-                      <Button type="submit" disabled={busy}>
-                        Mark reviewed
-                      </Button>
-                      <Button type="button" tone="ghost" onClick={() => setReviewing(null)}>
-                        Cancel
-                      </Button>
-                    </>
+              <div className="mt-4">
+                <SidePanel
+                  title="Review this visit"
+                  description={`${v.member.fullName} at ${v.venue.name}`}
+                  trigger={(open) => (
+                    <Button size="sm" tone="secondary" onClick={open}>
+                      Review
+                    </Button>
                   )}
-                </ActionForm>
-              ) : (
-                <div className="mt-4">
-                  <Button size="sm" tone="secondary" onClick={() => setReviewing(v.id)}>
-                    Review
-                  </Button>
-                </div>
-              )
+                >
+                  {(close) => (
+                    <ActionForm
+                      action={async (form) => {
+                        await api(`/admin/redemptions/${v.id}/review`, { method: "POST", body: { note: text(form, "note") } });
+                        close();
+                        reload();
+                      }}
+                    >
+                      {(busy) => (
+                        <>
+                          <Field label="What was decided" hint="Kept in the audit log">
+                            <Textarea name="note" required minLength={3} placeholder="e.g. Venue paid; member reminded of the daily limit" />
+                          </Field>
+                          <Button type="submit" disabled={busy}>
+                            Mark reviewed
+                          </Button>
+                        </>
+                      )}
+                    </ActionForm>
+                  )}
+                </SidePanel>
+              </div>
             ) : null}
           </Card>
         ))}

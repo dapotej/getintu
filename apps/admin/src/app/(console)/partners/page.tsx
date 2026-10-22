@@ -1,8 +1,7 @@
 "use client";
-import { Badge, Button, Card, EmptyState, Field, Icon, Input, PageHeader, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, EmptyState, Field, Icon, Input, PageHeader, SidePanel, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { ActionForm, text, textOrNull } from "@/components/forms";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
@@ -14,7 +13,6 @@ export default function PartnersPage() {
   const router = useRouter();
   const partners = useApi<{ partners: Partner[] }>("/admin/partners");
   const venues = useApi<{ venues: Venue[] }>("/admin/venues");
-  const [adding, setAdding] = useState(false);
 
   const all = partners.data?.partners ?? [];
   const venuesOf = (id: string) => venues.data?.venues.filter((v) => v.partnerId === id) ?? [];
@@ -26,55 +24,56 @@ export default function PartnersPage() {
         subtitle="The businesses intu works with. Open one to see and add its venues."
         actions={
           writable ? (
-            <Button onClick={() => setAdding((a) => !a)}>
-              <Icon name="plus" className="size-4" /> Add partner
-            </Button>
+            <SidePanel
+              title="New partner"
+              description="Add its venues on the partner's page next."
+              trigger={(open) => (
+                <Button onClick={open}>
+                  <Icon name="plus" className="size-4" /> Add partner
+                </Button>
+              )}
+            >
+              {() => (
+                <ActionForm
+                  action={async (form) => {
+                    const { partner } = await api<{ partner: Partner }>("/admin/partners", {
+                      method: "POST",
+                      body: { legalName: text(form, "legalName"), tradingName: text(form, "tradingName"), contactName: textOrNull(form, "contactName"), contactEmail: textOrNull(form, "contactEmail"), contactPhone: textOrNull(form, "contactPhone"), settlementTerms: textOrNull(form, "settlementTerms") },
+                    });
+                    router.push(`/partners/${partner.id}`);
+                  }}
+                >
+                  {(busy) => (
+                    <>
+                      <Field label="Legal name">
+                        <Input name="legalName" required />
+                      </Field>
+                      <Field label="Trading name">
+                        <Input name="tradingName" required />
+                      </Field>
+                      <Field label="Contact name">
+                        <Input name="contactName" />
+                      </Field>
+                      <Field label="Contact phone">
+                        <Input name="contactPhone" type="tel" />
+                      </Field>
+                      <Field label="Contact email">
+                        <Input name="contactEmail" type="email" />
+                      </Field>
+                      <Field label="Settlement terms">
+                        <Input name="settlementTerms" placeholder="Monthly in arrears, bank transfer in naira" />
+                      </Field>
+                      <Button type="submit" disabled={busy}>
+                        Add partner
+                      </Button>
+                    </>
+                  )}
+                </ActionForm>
+              )}
+            </SidePanel>
           ) : null
         }
       />
-
-      {adding ? (
-        <Card title="New partner" description="Add its venues on the partner's page next." className="mb-6">
-          <ActionForm
-            className="grid gap-4 sm:grid-cols-2"
-            action={async (form) => {
-              const { partner } = await api<{ partner: Partner }>("/admin/partners", {
-                method: "POST",
-                body: { legalName: text(form, "legalName"), tradingName: text(form, "tradingName"), contactName: textOrNull(form, "contactName"), contactEmail: textOrNull(form, "contactEmail"), contactPhone: textOrNull(form, "contactPhone"), settlementTerms: textOrNull(form, "settlementTerms") },
-              });
-              router.push(`/partners/${partner.id}`);
-            }}
-          >
-            {(busy) => (
-              <>
-                <Field label="Legal name">
-                  <Input name="legalName" required />
-                </Field>
-                <Field label="Trading name">
-                  <Input name="tradingName" required />
-                </Field>
-                <Field label="Contact name">
-                  <Input name="contactName" />
-                </Field>
-                <Field label="Contact phone">
-                  <Input name="contactPhone" type="tel" />
-                </Field>
-                <Field label="Contact email">
-                  <Input name="contactEmail" type="email" />
-                </Field>
-                <Field label="Settlement terms">
-                  <Input name="settlementTerms" placeholder="Monthly in arrears, bank transfer in naira" />
-                </Field>
-                <div className="sm:col-span-2">
-                  <Button type="submit" disabled={busy}>
-                    Add partner
-                  </Button>
-                </div>
-              </>
-            )}
-          </ActionForm>
-        </Card>
-      ) : null}
 
       <Card flush>
         {partners.error ? (

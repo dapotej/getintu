@@ -7,6 +7,7 @@ import LoginPage from "../src/app/(auth)/login/page";
 import SetPasswordPage from "../src/app/(auth)/set-password/page";
 import TwoStepPage from "../src/app/(auth)/two-step/page";
 import CataloguePage from "../src/app/(console)/catalogue/page";
+import CatalogueEntryPage from "../src/app/(console)/catalogue/[id]/page";
 import ImportPage from "../src/app/(console)/import/page";
 import ConsoleLayout from "../src/app/(console)/layout";
 import MemberPage from "../src/app/(console)/members/[id]/page";
@@ -54,6 +55,7 @@ const ROUTES: [RegExp, ComponentType, Layout][] = [
   [/^\/partners$/, PartnersPage, ConsoleLayout],
   [/^\/partners\/(?<id>[^/]+)$/, PartnerPage, ConsoleLayout],
   [/^\/catalogue$/, CataloguePage, ConsoleLayout],
+  [/^\/catalogue\/(?<id>[^/]+)$/, CatalogueEntryPage, ConsoleLayout],
   [/^\/partners\/(?<id>[^/]+)\/venues\/(?<venueId>[^/]+)$/, VenuePage, ConsoleLayout],
   [/^\/staff$/, StaffRedirect, ConsoleLayout],
   [/^\/settings$/, SettingsPage, ConsoleLayout],
