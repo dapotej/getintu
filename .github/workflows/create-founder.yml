@@ -1,0 +1,42 @@
+# Creates the first admin account on staging, since nobody exists yet to invite them from the
+# console. Run by hand from the Actions tab: Supabase emails an invitation; the founder sets a
+# password and enrols two-step verification on first sign-in.
+name: Create founder on staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Founder's email
+        required: true
+      name:
+        description: Founder's full name
+        required: true
+      admin_url:
+        description: The admin console's address, e.g. https://intu-admin-staging.vercel.app
+        required: true
+
+jobs:
+  create:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: staging
+    env:
+      NODE_ENV: development
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      SUPABASE_URL: https://xokexyqjlydjqquownvw.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ADMIN_INVITE_REDIRECT_URL: ${{ inputs.admin_url }}/set-password
+    steps:
+      - name: Check the secrets
+        run: |
+          test -n "$DATABASE_URL" || { echo "Add STAGING_DATABASE_URL to the staging environment's secrets"; exit 1; }
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "Add SUPABASE_SERVICE_ROLE_KEY to the staging environment's secrets"; exit 1; }
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @intu/api create:founder -- --email "${{ inputs.email }}" --name "${{ inputs.name }}"

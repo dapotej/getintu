@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "import:pilot": "tsx --env-file-if-exists=../../.env scripts/import-pilot.ts",
-    "create:founder": "tsx --env-file-if-exists=../../.env scripts/create-founder.ts"
+    "create:founder": "tsx --env-file-if-exists=../../.env scripts/create-founder.ts",
+    "build:vercel": "node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@intu/config": "workspace:*",
     "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
