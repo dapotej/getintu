@@ -2,8 +2,12 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema/index.ts";
 
+/**
+ * Statements aren't prepared: Supabase's transaction pooler can run each query on a different
+ * database connection, so a statement prepared on one isn't there on the next and the query waits.
+ */
 export function createDb(url: string, options: { max?: number; connectTimeoutSeconds?: number } = {}) {
-  const sql = postgres(url, { max: options.max ?? 10, connect_timeout: options.connectTimeoutSeconds ?? 30, onnotice: () => {} });
+  const sql = postgres(url, { max: options.max ?? 10, connect_timeout: options.connectTimeoutSeconds ?? 30, prepare: false, onnotice: () => {} });
   const db = drizzle(sql, { schema, casing: "snake_case" });
   return { db, sql };
 }

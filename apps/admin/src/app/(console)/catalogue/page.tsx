@@ -41,9 +41,9 @@ export default function CataloguePage() {
           </Button>
         }
       />
-      {error ? (
+      {error || cat.error ? (
         <div className="mb-4">
-          <Notice>{error}</Notice>
+          <Notice>{error ?? `Couldn't load the catalogue: ${cat.error}. Reload the page to try again.`}</Notice>
         </div>
       ) : null}
       <div className="flex flex-col gap-3">
