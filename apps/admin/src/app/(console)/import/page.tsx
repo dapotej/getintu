@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, Card, Field, Notice, PageHeader, Select, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, cx, Field, Icon, Notice, PageHeader, Select, Table, Td } from "@intu/ui";
 import { useState } from "react";
 import { api, errorMessage, useApi } from "@/lib/api";
 import type { ImportReport, Plan } from "@/lib/types";
@@ -46,60 +46,77 @@ export default function ImportPage() {
   return (
     <>
       <PageHeader title="Pilot import" subtitle="Brings the December pilot Google Sheet across. Download each tab as CSV (File → Download → Comma-separated values)." />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="1. Sheet tabs">
-          <div className="space-y-4">
-            {TABS.map((t) => (
-              <Field key={t.key} label={t.label} hint={files[t.key] ? `Loaded ${files[t.key]?.name}` : t.hint}>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  aria-label={`${t.label} CSV`}
-                  className="block w-full text-sm text-cream-muted file:mr-3 file:rounded-lg file:border-0 file:bg-ink-line file:px-3 file:py-2 file:text-cream"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return setFiles(({ [t.key]: _, ...rest }) => rest);
-                    const text = await file.text();
-                    setFiles((f) => ({ ...f, [t.key]: { name: file.name, text } }));
-                  }}
-                />
-              </Field>
-            ))}
+      <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <Card title="1. Upload the tabs" description="Any tab you leave out is skipped.">
+          <div className="flex flex-col gap-2">
+            {TABS.map((t) => {
+              const loaded = files[t.key];
+              return (
+                <div key={t.key} className={cx("rounded-lg border p-3", loaded ? "border-night/40 bg-night-soft/40" : "border-line")}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        {loaded ? <Icon name="check" className="size-4 text-night" /> : null}
+                        {t.label}
+                      </p>
+                      <p className="truncate text-xs text-muted">{loaded ? loaded.name : t.hint}</p>
+                    </div>
+                    <label className="cursor-pointer rounded-lg border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-fg shadow-xs hover:bg-subtle focus-within:ring-4 focus-within:ring-focus/15">
+                      {loaded ? "Replace" : "Choose CSV"}
+                      <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        aria-label={`${t.label} CSV`}
+                        className="sr-only"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return setFiles(({ [t.key]: _, ...rest }) => rest);
+                          const text = await file.text();
+                          setFiles((f) => ({ ...f, [t.key]: { name: file.name, text } }));
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
-        <Card title="2. Choices">
-          <div className="space-y-4">
-            <p className="text-sm text-cream-muted">Which plan does each pilot tier become?</p>
-            {TIERS.map((tier) => (
-              <Field key={tier} label={tier}>
-                <Select aria-label={`Plan for ${tier}`} value={tierPlans[tier] ?? ""} onChange={(e) => setTierPlans((m) => ({ ...m, [tier]: e.target.value }))}>
-                  <option value="">Not used</option>
-                  {plans?.plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
+        <div className="flex flex-col gap-6">
+          <Card title="2. Match the tiers" description="Which plan does each pilot tier become?">
+            <div className="flex flex-col gap-4">
+              {TIERS.map((tier) => (
+                <Field key={tier} label={tier}>
+                  <Select aria-label={`Plan for ${tier}`} value={tierPlans[tier] ?? ""} onChange={(e) => setTierPlans((m) => ({ ...m, [tier]: e.target.value }))}>
+                    <option value="">Not used</option>
+                    {plans?.plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ))}
+              <Field label="How the sheet writes dates" hint="Times without a timezone are read as Lagos time.">
+                <Select value={dateOrder} onChange={(e) => setDateOrder(e.target.value as typeof dateOrder)}>
+                  <option value="DMY">Day first (05/12/2026)</option>
+                  <option value="MDY">Month first (12/05/2026)</option>
+                  <option value="ISO">ISO (2026-12-05)</option>
                 </Select>
               </Field>
-            ))}
-            <Field label="How the sheet writes dates" hint="Times without a timezone are read as Lagos time.">
-              <Select value={dateOrder} onChange={(e) => setDateOrder(e.target.value as typeof dateOrder)}>
-                <option value="DMY">Day first (05/12/2026)</option>
-                <option value="MDY">Month first (12/05/2026)</option>
-                <option value="ISO">ISO (2026-12-05)</option>
-              </Select>
-            </Field>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button onClick={() => run(true)} disabled={busy || Object.keys(files).length === 0}>
+            </div>
+          </Card>
+          <Card title="3. Check, then import" description="Import unlocks after a dry run with no errors. Running it twice is safe: rows already imported are skipped.">
+            <div className="flex flex-wrap gap-2">
+              <Button tone="secondary" onClick={() => run(true)} disabled={busy || Object.keys(files).length === 0}>
                 {busy ? "Checking…" : "Dry run"}
               </Button>
-              <Button tone="danger" onClick={() => confirm("Import for real? This writes to the live database.") && run(false)} disabled={busy || !canCommit}>
+              <Button onClick={() => confirm("Import for real? This writes to the live database.") && run(false)} disabled={busy || !canCommit}>
                 Import
               </Button>
             </div>
-            <p className="text-xs text-cream-muted">Import unlocks after a dry run with no errors. Running it twice is safe: rows already imported are skipped.</p>
-          </div>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {error ? (
@@ -117,17 +134,17 @@ function Report({ report }: { report: ImportReport }) {
     <Card title={report.committed ? "Imported" : report.dryRun ? "Dry run: nothing was changed" : "Not imported: fix the errors and try again"} className="mt-6">
       <div className="mb-4 flex flex-wrap gap-2">
         {Object.entries(report.counts).map(([name, c]) => (
-          <Badge key={name} tone="night">
+          <Badge key={name} tone="accent">
             {name}: {c.created} new{c.updated ? `, ${c.updated} updated` : ""}
             {c.existing ? `, ${c.existing} already there` : ""}
           </Badge>
         ))}
       </div>
-      {report.errors.length ? <IssueTable title={`${report.errors.length} errors`} tone="pop" issues={report.errors} /> : <Notice tone="night">No errors.</Notice>}
+      {report.errors.length ? <IssueTable title={`${report.errors.length} errors`} tone="danger" issues={report.errors} /> : <Notice tone="success">No errors.</Notice>}
       {report.warnings.length ? <IssueTable title={`${report.warnings.length} warnings`} tone="day" issues={report.warnings} /> : null}
       {report.notImported.length ? (
-        <div className="mt-4 text-sm text-cream-muted">
-          <p className="font-semibold text-cream">Not imported</p>
+        <div className="mt-4 text-sm text-muted">
+          <p className="font-semibold text-fg">Not imported</p>
           <ul className="mt-1 list-disc pl-5">
             {report.notImported.map((n) => (
               <li key={n}>{n}</li>
@@ -139,10 +156,10 @@ function Report({ report }: { report: ImportReport }) {
   );
 }
 
-function IssueTable({ title, tone, issues }: { title: string; tone: "pop" | "day"; issues: ImportReport["errors"] }) {
+function IssueTable({ title, tone, issues }: { title: string; tone: "danger" | "day"; issues: ImportReport["errors"] }) {
   return (
-    <div className="mt-4">
-      <p className={`mb-2 text-sm font-semibold ${tone === "pop" ? "text-pop" : "text-day"}`}>{title}</p>
+    <div className="-mx-5 mt-4">
+      <p className={`mb-2 px-5 text-sm font-semibold ${tone === "danger" ? "text-danger" : "text-day"}`}>{title}</p>
       <Table head={["Tab", "Line", "Problem"]}>
         {issues.map((i, n) => (
           <tr key={n}>

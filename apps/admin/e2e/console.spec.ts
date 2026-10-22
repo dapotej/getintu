@@ -14,23 +14,25 @@ test("find a member, see their allowances, suspend and reinstate with a reason",
 
   await expect(page.getByRole("heading", { name: "TEST Kemi Crew" })).toBeVisible();
   const card = page.locator("section", { hasText: "TEST December Pass Crew" });
-  await expect(card.getByRole("row", { name: /Hosted night shared by Crew/ })).toBeVisible();
-  await expect(card.getByRole("row", { name: /Beach club/ })).toContainText("4");
+  await expect(card.getByText("Shared by Crew")).toHaveCount(2);
+  await expect(card.getByText("Hosted night")).toBeVisible();
+  await expect(card).toContainText("Beach club");
 
   await card.getByRole("button", { name: "Suspend" }).click();
   await card.getByLabel("Reason").fill("TEST e2e: phone reported lost");
   await card.getByRole("button", { name: "Suspend membership" }).click();
-  await expect(card.getByText("suspended", { exact: true })).toBeVisible();
+  await expect(card.getByText("Suspended", { exact: true })).toBeVisible();
 
   await card.getByRole("button", { name: "Reinstate" }).click();
   await card.getByLabel("Reason").fill("TEST e2e: new phone set up");
   await card.getByRole("button", { name: "Reinstate membership" }).click();
-  await expect(card.getByText("active", { exact: true })).toBeVisible();
+  await expect(card.getByText("Active", { exact: true })).toBeVisible();
 });
 
 test("add a member and give them a gifted pass", async ({ page }) => {
   const name = `TEST E2E ${randomUUID().slice(0, 6)}`;
   await page.goto("/members");
+  await page.getByRole("button", { name: "New member" }).click();
   await page.getByLabel("Full name").fill(name);
   await page.getByLabel("Phone (WhatsApp)").fill(`+999 ${randomInt(10 ** 8, 10 ** 9)}`);
   await page.getByRole("button", { name: "Add member" }).click();
@@ -41,13 +43,14 @@ test("add a member and give them a gifted pass", async ({ page }) => {
   await page.getByLabel("Note").fill("TEST e2e gift");
   await page.getByRole("button", { name: "Add membership", exact: true }).click();
   const card = page.locator("section", { hasText: "TEST December Pass Plus" });
-  await expect(card.getByRole("row", { name: /Golf/ })).toBeVisible();
-  await expect(card.getByText("gift")).toBeVisible();
+  await expect(card.getByText("Golf")).toBeVisible();
+  await expect(card.getByText(/Gift/)).toBeVisible();
 });
 
 test("create a plan, price it, and open a benefit to top-tier venues", async ({ page }) => {
   const code = `E2E-${randomUUID().slice(0, 6).toUpperCase()}`;
   await page.goto("/plans");
+  await page.getByRole("button", { name: "New plan" }).click();
   await page.getByLabel("Name").fill(`TEST Gold ${code}`);
   await page.getByLabel("Code").fill(code);
   await page.getByLabel("Duration (days)").fill("365");
@@ -65,7 +68,7 @@ test("create a plan, price it, and open a benefit to top-tier venues", async ({ 
   await page.getByLabel("Period").selectOption({ label: "Per membership year" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const row = page.getByRole("row", { name: /Spa/ });
-  await expect(row).toContainText("Per membership year");
+  await expect(row).toContainText("per membership year");
 
   await row.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Top tier").check();

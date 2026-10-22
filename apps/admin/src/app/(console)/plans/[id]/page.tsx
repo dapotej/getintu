@@ -1,5 +1,6 @@
 "use client";
-import { Badge, BENEFIT_LABELS, Button, Card, Field, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td } from "@intu/ui";
+import { Badge, BENEFIT_LABELS, Button, Card, Checkbox, EmptyState, Field, Icon, Input, minorToMajorInput, NIGHT_BENEFITS, PageHeader, parseMajorToMinor, Select, Table, Td } from "@intu/ui";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ActionForm, checked, intOrNull, text, textOrNull } from "@/components/forms";
@@ -15,16 +16,24 @@ export default function PlanPage() {
   const { can } = useStaff();
   const writable = can("plans.write");
   const { data, error, setData } = useApi<{ plan: Plan }>(`/admin/plans/${id}`);
-  if (error) return <p className="text-sm text-pop">{error}</p>;
-  if (!data) return <p className="text-sm text-cream-muted">Loading…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { plan } = data;
   const benefits = plan.benefits ?? [];
   const missing = Object.keys(BENEFIT_LABELS).filter((t) => !benefits.some((b) => b.type === t));
 
   return (
     <>
-      <PageHeader title={plan.name} subtitle={`${plan.code}${plan.isTest ? " · TEST" : ""}`} />
-      <div className="grid gap-6 xl:grid-cols-2">
+      <PageHeader
+        eyebrow={
+          <Link href="/plans" className="inline-flex items-center gap-1 hover:text-fg">
+            <Icon name="back" className="size-4" /> Plans
+          </Link>
+        }
+        title={plan.name}
+        subtitle={`${plan.code}${plan.groupSize > 1 ? ` · ${plan.groupSize} people per pass` : ""}${plan.isTest ? " · TEST" : ""}`}
+      />
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <Card title="Details">
           <ActionForm
             success="Saved."
@@ -48,14 +57,14 @@ export default function PlanPage() {
             }
           >
             {(busy) => (
-              <fieldset disabled={!writable} className="space-y-4">
+              <fieldset disabled={!writable} className="flex flex-col gap-4">
                 <Field label="Name">
                   <Input name="name" defaultValue={plan.name} required />
                 </Field>
                 <Field label="Description">
                   <Input name="description" defaultValue={plan.description ?? ""} />
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Season starts">
                     <Input name="seasonStartsOn" type="date" defaultValue={plan.seasonStartsOn ?? ""} />
                   </Field>
@@ -75,20 +84,20 @@ export default function PlanPage() {
                     <Input name="groupSize" type="number" min={1} defaultValue={plan.groupSize} />
                   </Field>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="active" defaultChecked={plan.active} /> Active
-                </label>
+                <Checkbox name="active" defaultChecked={plan.active} label="Active" hint="Inactive plans can't be given to new members." />
                 {writable ? (
-                  <Button type="submit" disabled={busy}>
-                    Save details
-                  </Button>
+                  <div>
+                    <Button type="submit" disabled={busy}>
+                      Save details
+                    </Button>
+                  </div>
                 ) : null}
               </fieldset>
             )}
           </ActionForm>
         </Card>
 
-        <Card title="Prices">
+        <Card title="Prices" description="In pounds, dollars or naira. Leave a currency blank if it isn't sold in it.">
           <ActionForm
             success="Prices saved."
             action={async (form) => {
@@ -103,19 +112,21 @@ export default function PlanPage() {
             }}
           >
             {(busy) => (
-              <fieldset disabled={!writable} className="space-y-4">
+              <fieldset disabled={!writable} className="flex flex-col gap-4">
                 {CURRENCIES.map((c) => {
                   const price = plan.prices.find((p) => p.currency === c);
                   return (
-                    <Field key={c} label={c} hint="Leave blank if not sold in this currency.">
-                      <Input name={c} inputMode="decimal" defaultValue={price ? minorToMajorInput(price.amountMinor) : ""} />
+                    <Field key={c} label={c}>
+                      <Input name={c} inputMode="decimal" placeholder={c === "NGN" ? "e.g. 1,500,000" : "e.g. 299"} className="tabular-nums" defaultValue={price ? minorToMajorInput(price.amountMinor) : ""} />
                     </Field>
                   );
                 })}
                 {writable ? (
-                  <Button type="submit" disabled={busy}>
-                    Save prices
-                  </Button>
+                  <div>
+                    <Button type="submit" disabled={busy}>
+                      Save prices
+                    </Button>
+                  </div>
                 ) : null}
               </fieldset>
             )}
@@ -123,14 +134,18 @@ export default function PlanPage() {
         </Card>
       </div>
 
-      <Card title="Benefits" className="mt-6">
-        <Table head={["Benefit", "Quantity", "Period", "Rules", "Venue tiers", ""]} empty={benefits.length === 0 && "No benefits yet."}>
-          {benefits.map((b) => (
-            <BenefitRow key={b.id} benefit={b} writable={writable} onChange={setData} />
-          ))}
-        </Table>
+      <Card title="Benefits" description="What each member gets, the rules at the door, and which venue tiers it opens." className="mt-6" flush>
+        {benefits.length === 0 ? (
+          <EmptyState title="No benefits yet" />
+        ) : (
+          <Table head={["Benefit", "Allowance", "Rules", "Venue tiers", ""]}>
+            {benefits.map((b) => (
+              <BenefitRow key={b.id} benefit={b} writable={writable} onChange={setData} />
+            ))}
+          </Table>
+        )}
         {writable && missing.length ? (
-          <ActionForm className="mt-6 flex flex-wrap items-end gap-3 border-t border-ink-line pt-4" action={async (form) => setData(await api(`/admin/plans/${id}/benefits`, { method: "POST", body: { type: text(form, "type"), quantity: intOrNull(form, "quantity"), period: text(form, "period") } }))}>
+          <ActionForm className="flex flex-wrap items-end gap-3 border-t border-line bg-subtle/60 px-5 py-4" action={async (form) => setData(await api(`/admin/plans/${id}/benefits`, { method: "POST", body: { type: text(form, "type"), quantity: intOrNull(form, "quantity"), period: text(form, "period") } }))}>
             {(busy) => (
               <>
                 <Field label="Add benefit">
@@ -142,8 +157,8 @@ export default function PlanPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Quantity" hint="Blank = unlimited">
-                  <Input name="quantity" type="number" min={0} className="w-28" />
+                <Field label="Quantity">
+                  <Input name="quantity" type="number" min={0} placeholder="Unlimited" className="w-32" />
                 </Field>
                 <Field label="Period">
                   <Select name="period">
@@ -174,29 +189,41 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
       b.capOncePerVenuePerMonth && "once per venue per month",
       b.sharedByGroup && "shared by the group",
       b.drawPerPerson && "one per person",
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
     return (
       <tr>
-        <Td className="font-semibold">{BENEFIT_LABELS[b.type] ?? b.type}</Td>
-        <Td>{b.quantity ?? "Unlimited"}</Td>
-        <Td className="text-cream-muted">{PERIODS[b.period]}</Td>
-        <Td className="text-cream-muted">{rules.join(", ") || "–"}</Td>
         <Td>
-          {b.allowedVenueTiers.map((t) => (
-            <Badge key={t} tone={t === "top" ? "day" : "muted"}>
-              {t}
-            </Badge>
-          ))}
+          <span className="flex items-center gap-2 font-semibold">
+            <span aria-hidden className={`size-2 rounded-full ${NIGHT_BENEFITS.has(b.type) ? "bg-brand-night" : "bg-brand-day"}`} />
+            {BENEFIT_LABELS[b.type] ?? b.type}
+          </span>
         </Td>
-        <Td>{writable ? <Button tone="ghost" onClick={() => setEditing(true)}>Edit</Button> : null}</Td>
+        <Td className="whitespace-nowrap">
+          <span className="font-medium tabular-nums">{b.quantity ?? "Unlimited"}</span> <span className="text-muted">{PERIODS[b.period].toLowerCase()}</span>
+        </Td>
+        <Td>
+          <div className="flex flex-wrap gap-1">
+            {rules.length ? rules.map((r) => <Badge key={r}>{r}</Badge>) : <span className="text-faint">–</span>}
+          </div>
+        </Td>
+        <Td>
+          <div className="flex gap-1">
+            {b.allowedVenueTiers.map((t) => (
+              <Badge key={t} tone={t === "top" ? "day" : "neutral"}>
+                {t}
+              </Badge>
+            ))}
+          </div>
+        </Td>
+        <Td className="text-right">{writable ? <Button size="sm" tone="ghost" onClick={() => setEditing(true)}>Edit</Button> : null}</Td>
       </tr>
     );
   }
   return (
     <tr>
-      <Td colSpan={6}>
+      <Td colSpan={5} className="bg-subtle/60">
         <ActionForm
-          className="grid gap-3 rounded-lg border border-ink-line p-4 md:grid-cols-3"
+          className="grid gap-5 py-2 md:grid-cols-3"
           action={async (form) => {
             const tiers = (["standard", "top"] as const).filter((t) => checked(form, `tier_${t}`));
             if (!tiers.length) throw new Error("Pick at least one venue tier");
@@ -220,43 +247,33 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
           {(busy) => (
             <>
               <p className="font-semibold md:col-span-3">{BENEFIT_LABELS[b.type] ?? b.type}</p>
-              <Field label="Quantity" hint="Blank = unlimited">
-                <Input name="quantity" type="number" min={0} defaultValue={b.quantity ?? ""} />
-              </Field>
-              <Field label="Period">
-                <Select name="period" defaultValue={b.period}>
-                  {Object.entries(PERIODS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <fieldset className="space-y-1 text-sm">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-cream-muted">Venue tiers</legend>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="tier_standard" defaultChecked={b.allowedVenueTiers.includes("standard")} /> Standard
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="tier_top" defaultChecked={b.allowedVenueTiers.includes("top")} /> Top tier
-                </label>
+              <div className="flex flex-col gap-4">
+                <Field label="Quantity">
+                  <Input name="quantity" type="number" min={0} placeholder="Unlimited" defaultValue={b.quantity ?? ""} />
+                </Field>
+                <Field label="Period">
+                  <Select name="period" defaultValue={b.period}>
+                    {Object.entries(PERIODS).map(([k, v]) => (
+                      <option key={k} value={k}>
+                        {v}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <fieldset className="flex flex-col gap-3">
+                <legend className="mb-2 text-sm font-medium">Rules at the door</legend>
+                <Checkbox name="perDay" defaultChecked={b.capOncePerVenuePerDay} label="Once per venue per day" />
+                <Checkbox name="perMonth" defaultChecked={b.capOncePerVenuePerMonth} label="Once per venue per month" />
+                <Checkbox name="shared" defaultChecked={b.sharedByGroup} label="Shared by the whole group (Crew)" />
+                <Checkbox name="perPerson" defaultChecked={b.drawPerPerson} label="Uses one per person in the party" />
               </fieldset>
-              <fieldset className="space-y-1 text-sm md:col-span-2">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-cream-muted">Rules</legend>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="perDay" defaultChecked={b.capOncePerVenuePerDay} /> Once per venue per day
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="perMonth" defaultChecked={b.capOncePerVenuePerMonth} /> Once per venue per month
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="shared" defaultChecked={b.sharedByGroup} /> Shared by the whole group (Crew)
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="perPerson" defaultChecked={b.drawPerPerson} /> Uses one per person in the party
-                </label>
+              <fieldset className="flex flex-col gap-3">
+                <legend className="mb-2 text-sm font-medium">Venue tiers</legend>
+                <Checkbox name="tier_standard" defaultChecked={b.allowedVenueTiers.includes("standard")} label="Standard" />
+                <Checkbox name="tier_top" defaultChecked={b.allowedVenueTiers.includes("top")} label="Top tier" hint="Only venues marked top tier" />
               </fieldset>
-              <div className="flex items-end gap-2">
+              <div className="flex gap-2 md:col-span-3">
                 <Button type="submit" disabled={busy}>
                   Save
                 </Button>

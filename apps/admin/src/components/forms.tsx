@@ -26,9 +26,9 @@ export function ActionForm({ action, children, className, success }: { action: (
   }
 
   return (
-    <form onSubmit={submit} className={className ?? "space-y-4"}>
+    <form onSubmit={submit} className={className ?? "flex flex-col gap-4"}>
       {error ? <Notice>{error}</Notice> : null}
-      {done && success ? <Notice tone="night">{success}</Notice> : null}
+      {done && success ? <Notice tone="success">{success}</Notice> : null}
       {children(busy)}
     </form>
   );

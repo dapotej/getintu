@@ -22,18 +22,20 @@ export default function StaffPage() {
   return (
     <>
       <PageHeader title="Team" subtitle="intu staff who can sign in to this console. Venue staff are managed from the partner app." />
-      <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
-        <Card>
-          {error ? <p className="text-sm text-pop">{error}</p> : null}
-          <Table head={["Name", "Email", "Role", "Since", ""]}>
+      <div className="grid items-start gap-6 xl:grid-cols-[1fr_20rem]">
+        <Card flush>
+          {error ? <div className="p-5"><p className="text-sm text-danger">{error}</p></div> : null}
+          <Table head={["Name", "Role", "Since", ""]}>
             {data?.staff.map((s) => (
               <tr key={s.id}>
-                <Td className="font-semibold">
-                  {s.fullName} {s.id === me.id ? <Badge>you</Badge> : null}
-                </Td>
-                <Td className="text-cream-muted">{s.email}</Td>
                 <Td>
-                  <Select aria-label={`Role for ${s.fullName}`} value={s.role} disabled={s.id === me.id || !s.active} onChange={(e) => update(s.id, { role: e.target.value as StaffRole })}>
+                  <p className="font-semibold">
+                    {s.fullName} {s.id === me.id ? <Badge tone="accent">You</Badge> : null}
+                  </p>
+                  <p className="text-xs text-muted">{s.email}</p>
+                </Td>
+                <Td>
+                  <Select className="min-w-36" aria-label={`Role for ${s.fullName}`} value={s.role} disabled={s.id === me.id || !s.active} onChange={(e) => update(s.id, { role: e.target.value as StaffRole })}>
                     {Object.entries(ROLE_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>
                         {v}
@@ -41,23 +43,25 @@ export default function StaffPage() {
                     ))}
                   </Select>
                 </Td>
-                <Td className="whitespace-nowrap text-cream-muted">{formatDate(s.createdAt.slice(0, 10))}</Td>
-                <Td>
+                <Td className="whitespace-nowrap text-muted">{formatDate(s.createdAt.slice(0, 10))}</Td>
+                <Td className="text-right">
                   {s.id === me.id ? null : s.active ? (
-                    <Button tone="ghost" onClick={() => confirm(`Remove ${s.fullName}'s access? They'll be signed out everywhere.`) && update(s.id, { active: false })}>
+                    <Button size="sm" tone="ghost" onClick={() => confirm(`Remove ${s.fullName}'s access? They'll be signed out everywhere.`) && update(s.id, { active: false })}>
                       Remove access
                     </Button>
                   ) : (
-                    <Badge tone="pop">no access</Badge>
+                    <Badge dot tone="danger">
+                      No access
+                    </Badge>
                   )}
                 </Td>
               </tr>
             ))}
           </Table>
         </Card>
-        <Card title="Invite someone">
+        <Card title="Invite someone" description="They get an email to choose a password, then set up two-step verification.">
           <ActionForm
-            success="Invitation sent. They'll set a password and two-step verification from the email."
+            success="Invitation sent."
             action={async (form) => {
               await api("/admin/staff", { method: "POST", body: { email: text(form, "email"), fullName: text(form, "fullName"), role: text(form, "role") } });
               reload();

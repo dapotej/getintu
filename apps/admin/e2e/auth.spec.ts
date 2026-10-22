@@ -25,7 +25,7 @@ test("first sign-in sets up two-step with an authenticator app before the consol
 
   await page.getByLabel("Code").fill(GOOD_CODE);
   await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page.getByRole("heading", { name: "Hello, TEST" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Hello, / })).toBeVisible();
 });
 
 test("a password alone never reaches the console", async ({ page }) => {

@@ -47,31 +47,33 @@ export default function TwoStepPage() {
     router.replace("/");
   }
 
-  if (step.kind === "loading") return error ? <Notice>{error}</Notice> : <p className="text-sm text-cream-muted">Loading…</p>;
+  if (step.kind === "loading") return error ? <Notice>{error}</Notice> : <p className="text-sm text-muted">Loading…</p>;
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <h1 className="text-lg font-bold">{step.kind === "enrol" ? "Set up two-step verification" : "Two-step verification"}</h1>
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{step.kind === "enrol" ? "Set up two-step verification" : "Two-step verification"}</h1>
+        <p className="mt-1 text-sm text-muted">
+          {step.kind === "enrol" ? "Scan this with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows." : "Enter the 6-digit code from your authenticator app."}
+        </p>
+      </div>
       {step.kind === "enrol" ? (
-        <div className="space-y-3 text-sm text-cream-muted">
-          <p>Scan this with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows.</p>
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface p-5 shadow-card">
           {/* Supabase returns the QR code as an SVG data URL. */}
-          <img src={step.qr} alt="QR code for your authenticator app" className="mx-auto size-44 rounded-lg bg-cream p-2" />
-          <p className="break-all text-center text-xs">
-            Or enter this key: <code className="text-cream">{step.secret}</code>
+          <img src={step.qr} alt="QR code for your authenticator app" className="size-44 rounded-lg bg-white p-2" />
+          <p className="break-all text-center text-xs text-muted">
+            Or enter this key: <code className="font-semibold text-fg">{step.secret}</code>
           </p>
         </div>
-      ) : (
-        <p className="text-sm text-cream-muted">Enter the 6-digit code from your authenticator app.</p>
-      )}
+      ) : null}
       {error ? <Notice>{error}</Notice> : null}
       <Field label="Code">
-        <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" required autoFocus />
+        <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" required autoFocus className="text-center text-lg tracking-[0.4em] tabular-nums" />
       </Field>
       <Button type="submit" disabled={busy} className="w-full">
         {busy ? "Checking…" : "Verify"}
       </Button>
-      <button type="button" className="w-full text-xs text-cream-muted underline" onClick={() => supabase().auth.signOut().then(() => router.replace("/login"))}>
+      <button type="button" className="text-sm font-medium text-muted hover:text-fg" onClick={() => supabase().auth.signOut().then(() => router.replace("/login"))}>
         Use a different account
       </button>
     </form>

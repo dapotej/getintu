@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, Card, Field, Input, PageHeader, Select, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, EmptyState, Field, Icon, Input, PageHeader, Select, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -23,21 +23,24 @@ export default function PartnersPage() {
     <>
       <PageHeader
         title="Partners and venues"
-        subtitle="A partner is the business intu pays; each of its venues has a tier, opening hours and offers."
+        subtitle="A partner is the business intu pays. Each of its venues has a tier, opening hours and offers."
         actions={
           writable ? (
             <>
               <Button tone="secondary" onClick={() => setAdding(adding === "partner" ? null : "partner")}>
                 Add partner
               </Button>
-              <Button onClick={() => setAdding(adding === "venue" ? null : "venue")}>Add venue</Button>
+              <Button onClick={() => setAdding(adding === "venue" ? null : "venue")}>
+                <Icon name="plus" className="size-4" /> Add venue
+              </Button>
             </>
           ) : null
         }
       />
       {adding === "partner" ? (
-        <Card title="New partner" className="mb-6 max-w-xl">
+        <Card title="New partner" description="The business intu pays for visits." className="mb-6">
           <ActionForm
+            className="grid gap-4 sm:grid-cols-2"
             action={async (form) => {
               await api("/admin/partners", {
                 method: "POST",
@@ -55,31 +58,32 @@ export default function PartnersPage() {
                 <Field label="Trading name">
                   <Input name="tradingName" required />
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Contact name">
-                    <Input name="contactName" />
-                  </Field>
-                  <Field label="Contact phone">
-                    <Input name="contactPhone" type="tel" />
-                  </Field>
-                </div>
+                <Field label="Contact name">
+                  <Input name="contactName" />
+                </Field>
+                <Field label="Contact phone">
+                  <Input name="contactPhone" type="tel" />
+                </Field>
                 <Field label="Contact email">
                   <Input name="contactEmail" type="email" />
                 </Field>
                 <Field label="Settlement terms">
                   <Input name="settlementTerms" placeholder="Monthly in arrears, bank transfer in naira" />
                 </Field>
-                <Button type="submit" disabled={busy}>
-                  Add partner
-                </Button>
+                <div className="sm:col-span-2">
+                  <Button type="submit" disabled={busy}>
+                    Add partner
+                  </Button>
+                </div>
               </>
             )}
           </ActionForm>
         </Card>
       ) : null}
       {adding === "venue" ? (
-        <Card title="New venue" className="mb-6 max-w-2xl">
+        <Card title="New venue" description="Offers and rates are added on the venue's page next." className="mb-6">
           <ActionForm
+            className="grid gap-6 lg:grid-cols-2"
             action={async (form) => {
               const { venue } = await api<{ venue: Venue }>("/admin/venues", {
                 method: "POST",
@@ -90,16 +94,18 @@ export default function PartnersPage() {
           >
             {(busy) => (
               <>
-                <Field label="Partner">
-                  <Select name="partnerId" required>
-                    {partners.data?.partners.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.tradingName}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid content-start gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Field label="Partner">
+                      <Select name="partnerId" required>
+                        {partners.data?.partners.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.tradingName}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
                   <Field label="Venue name">
                     <Input name="name" required />
                   </Field>
@@ -121,59 +127,74 @@ export default function PartnersPage() {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Tier" hint="Top-tier venues are only open to plans that include them.">
-                    <Select name="tier">
-                      <option value="standard">Standard</option>
-                      <option value="top">Top tier</option>
-                    </Select>
-                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
+                      <Select name="tier">
+                        <option value="standard">Standard</option>
+                        <option value="top">Top tier</option>
+                      </Select>
+                    </Field>
+                  </div>
                 </div>
                 <HoursEditor name="hours" />
-                <Button type="submit" disabled={busy}>
-                  Add venue
-                </Button>
+                <div className="lg:col-span-2">
+                  <Button type="submit" disabled={busy}>
+                    Add venue
+                  </Button>
+                </div>
               </>
             )}
           </ActionForm>
         </Card>
       ) : null}
 
-      {partners.error ? <p className="text-sm text-pop">{partners.error}</p> : null}
-      <div className="space-y-4">
+      {partners.error ? <p className="text-sm text-danger">{partners.error}</p> : null}
+      <div className="flex flex-col gap-5">
         {partners.data?.partners.map((p) => (
           <Card
             key={p.id}
             title={p.tradingName}
+            description={[p.legalName !== p.tradingName ? p.legalName : null, p.contactName, p.contactEmail].filter(Boolean).join("  ·  ") || undefined}
+            flush
             actions={
-              <div className="flex gap-2">
+              <>
                 {p.isTest ? <Badge>TEST</Badge> : null}
-                {!p.active ? <Badge tone="pop">inactive</Badge> : null}
-                {p.hasBankDetails ? <Badge tone="night">bank details on file</Badge> : null}
-              </div>
+                {!p.active ? (
+                  <Badge dot tone="danger">
+                    Inactive
+                  </Badge>
+                ) : null}
+                <Badge dot tone={p.hasBankDetails ? "night" : "neutral"}>
+                  {p.hasBankDetails ? "Bank details on file" : "No bank details"}
+                </Badge>
+              </>
             }
           >
-            <p className="mb-3 text-sm text-cream-muted">
-              {p.legalName}
-              {p.contactName ? ` · ${p.contactName}` : ""}
-              {p.contactEmail ? ` · ${p.contactEmail}` : ""}
-            </p>
-            <Table head={["Venue", "Area", "Category", "Tier", ""]} empty={byPartner(p.id).length === 0 && "No venues yet."}>
-              {byPartner(p.id).map((v) => (
-                <tr key={v.id}>
-                  <Td>
-                    <Link href={`/venues/${v.id}`} className="font-semibold text-night hover:underline">
-                      {v.name}
-                    </Link>
-                  </Td>
-                  <Td className="text-cream-muted">{v.area}</Td>
-                  <Td className="text-cream-muted">{CATEGORIES[v.category as keyof typeof CATEGORIES] ?? v.category}</Td>
-                  <Td>
-                    <Badge tone={v.tier === "top" ? "day" : "muted"}>{v.tier}</Badge>
-                  </Td>
-                  <Td>{!v.active ? <Badge tone="pop">inactive</Badge> : null}</Td>
-                </tr>
-              ))}
-            </Table>
+            {byPartner(p.id).length === 0 ? (
+              <EmptyState title="No venues yet" />
+            ) : (
+              <Table head={["Venue", "Area", "Category", "Tier", "Status"]}>
+                {byPartner(p.id).map((v) => (
+                  <tr key={v.id}>
+                    <Td>
+                      <Link href={`/venues/${v.id}`} className="font-semibold text-fg hover:text-accent">
+                        {v.name}
+                      </Link>
+                    </Td>
+                    <Td className="text-muted">{v.area}</Td>
+                    <Td className="text-muted">{CATEGORIES[v.category as keyof typeof CATEGORIES] ?? v.category}</Td>
+                    <Td>
+                      <Badge tone={v.tier === "top" ? "day" : "neutral"}>{v.tier === "top" ? "Top tier" : "Standard"}</Badge>
+                    </Td>
+                    <Td>
+                      <Badge dot tone={v.active ? "night" : "danger"}>
+                        {v.active ? "Active" : "Inactive"}
+                      </Badge>
+                    </Td>
+                  </tr>
+                ))}
+              </Table>
+            )}
           </Card>
         ))}
       </div>

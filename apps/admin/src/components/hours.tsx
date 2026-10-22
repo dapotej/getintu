@@ -18,19 +18,20 @@ const DAYS = [
  */
 export function HoursEditor({ name, value }: { name: string; value?: WeeklyHours | undefined }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-cream-muted">Opening hours (Lagos time)</legend>
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1.5 text-sm font-medium text-fg">Opening hours (Lagos time)</legend>
       {DAYS.map(([d, label]) => {
         const w = value?.[d]?.[0];
         return (
-          <div key={d} className="grid grid-cols-[3rem_1fr_1fr] items-center gap-2">
-            <span className="text-sm text-cream-muted">{label}</span>
+          <div key={d} className="grid grid-cols-[2.75rem_1fr_auto_1fr] items-center gap-2">
+            <span className="text-sm font-medium text-muted">{label}</span>
             <Input name={`${name}_${d}_open`} type="time" aria-label={`${label} opens`} defaultValue={w?.open ?? ""} />
+            <span aria-hidden className="text-faint">–</span>
             <Input name={`${name}_${d}_close`} type="time" aria-label={`${label} closes`} defaultValue={w?.close === "24:00" ? "00:00" : (w?.close ?? "")} />
           </div>
         );
       })}
-      <p className="text-xs text-cream-muted">Leave a day blank if closed. A closing time earlier than opening runs past midnight; 00:00 to 00:00 is open all day.</p>
+      <p className="text-xs text-muted">Leave a day blank if closed. A closing time earlier than opening runs past midnight; 00:00 to 00:00 is open all day.</p>
     </fieldset>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
-import { Badge, BENEFIT_LABELS, Button, Card, Field, formatMoney, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
+import { Badge, BENEFIT_LABELS, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ActionForm, checked, intOrNull, text, textOrNull } from "@/components/forms";
@@ -20,15 +21,24 @@ export default function VenuePage() {
   const { can } = useStaff();
   const writable = can("partners.write");
   const { data, error, reload } = useApi<{ venue: Venue; offers: Offer[] }>(`/admin/venues/${id}`);
-  if (error) return <p className="text-sm text-pop">{error}</p>;
-  if (!data) return <p className="text-sm text-cream-muted">Loading…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { venue, offers } = data;
   const missing = Object.keys(BENEFIT_LABELS).filter((t) => !offers.some((o) => o.benefitType === t));
 
   return (
     <>
-      <PageHeader title={venue.name} subtitle={`${venue.area}, ${venue.city === "lagos" ? "Lagos" : "Abuja"}${venue.externalRef ? ` · pilot ${venue.externalRef}` : ""}${venue.isTest ? " · TEST" : ""}`} />
-      <div className="grid gap-6 xl:grid-cols-2">
+      <PageHeader
+        eyebrow={
+          <Link href="/partners" className="inline-flex items-center gap-1 hover:text-fg">
+            <Icon name="back" className="size-4" /> Partners and venues
+          </Link>
+        }
+        title={venue.name}
+        subtitle={`${venue.area}, ${venue.city === "lagos" ? "Lagos" : "Abuja"}${venue.externalRef ? ` · pilot ID ${venue.externalRef}` : ""}${venue.isTest ? " · TEST" : ""}`}
+        actions={<Badge tone={venue.tier === "top" ? "day" : "neutral"}>{venue.tier === "top" ? "Top tier" : "Standard tier"}</Badge>}
+      />
+      <div className="grid items-start gap-6 xl:grid-cols-2">
         <Card title="Venue">
           <ActionForm
             success="Saved."
@@ -50,8 +60,8 @@ export default function VenuePage() {
             }}
           >
             {(busy) => (
-              <fieldset disabled={!writable} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+              <fieldset disabled={!writable} className="flex flex-col gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Name">
                     <Input name="name" defaultValue={venue.name} required />
                   </Field>
@@ -81,28 +91,32 @@ export default function VenuePage() {
                   <Input name="capacityNotes" defaultValue={venue.capacityNotes ?? ""} />
                 </Field>
                 <HoursEditor name="hours" value={venue.openingHours} />
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" name="active" defaultChecked={venue.active} /> Active
-                </label>
+                <Checkbox name="active" defaultChecked={venue.active} label="Active" hint="Inactive venues decline every scan." />
                 {writable ? (
-                  <Button type="submit" disabled={busy}>
-                    Save venue
-                  </Button>
+                  <div>
+                    <Button type="submit" disabled={busy}>
+                      Save venue
+                    </Button>
+                  </div>
                 ) : null}
               </fieldset>
             )}
           </ActionForm>
         </Card>
 
-        <Card title="Offers" actions={<span className="text-xs text-cream-muted">What intu pays per approved visit</span>}>
-          <Table head={["Benefit", "Rate", "Daily cap", "Dates", ""]} empty={offers.length === 0 && "No offers yet."}>
-            {offers.map((o) => (
-              <OfferRow key={o.id} offer={o} writable={writable} onChange={reload} />
-            ))}
-          </Table>
+        <Card title="Offers" description="What the venue gives for each benefit, and what intu pays per approved visit." flush>
+          {offers.length === 0 ? (
+            <EmptyState title="No offers yet">Add one below so members can use this venue.</EmptyState>
+          ) : (
+            <Table head={["Benefit", "Rate", "Daily cap", "Dates", ""]}>
+              {offers.map((o) => (
+                <OfferRow key={o.id} offer={o} writable={writable} onChange={reload} />
+              ))}
+            </Table>
+          )}
           {writable && missing.length ? (
             <ActionForm
-              className="mt-6 grid gap-3 border-t border-ink-line pt-4 sm:grid-cols-2"
+              className="grid gap-4 border-t border-line bg-subtle/60 px-5 py-4 sm:grid-cols-2"
               action={async (form) => {
                 await api("/admin/offers", { method: "POST", body: { venueId: id, benefitType: text(form, "benefitType"), rateMinor: naira(form, "rate"), dailyCap: intOrNull(form, "dailyCap") } });
                 reload();
@@ -122,8 +136,8 @@ export default function VenuePage() {
                   <Field label="Rate (₦ per visit)">
                     <Input name="rate" inputMode="decimal" required />
                   </Field>
-                  <Field label="Daily cap" hint="Blank = no cap">
-                    <Input name="dailyCap" type="number" min={1} />
+                  <Field label="Daily cap">
+                    <Input name="dailyCap" type="number" min={1} placeholder="No cap" />
                   </Field>
                   <div className="flex items-end">
                     <Button type="submit" disabled={busy}>
@@ -146,20 +160,30 @@ function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: bo
     return (
       <tr>
         <Td className="font-semibold">{BENEFIT_LABELS[o.benefitType] ?? o.benefitType}</Td>
-        <Td>{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
-        <Td>{o.dailyCap ?? "–"}</Td>
-        <Td className="text-cream-muted">{o.validFrom || o.validTo ? `${o.validFrom ?? "…"} → ${o.validTo ?? "…"}` : "Always"}</Td>
-        <Td>
-          {!o.active ? <Badge tone="pop">inactive</Badge> : null}
-          {writable ? <Button tone="ghost" onClick={() => setEditing(true)}>Edit</Button> : null}
+        <Td className="whitespace-nowrap font-medium tabular-nums">{formatMoney(o.rateMinor, o.rateCurrency)}</Td>
+        <Td className="tabular-nums">{o.dailyCap ?? <span className="text-faint">No cap</span>}</Td>
+        <Td className="whitespace-nowrap text-muted">{o.validFrom || o.validTo ? `${o.validFrom ?? "…"} → ${o.validTo ?? "…"}` : "Always"}</Td>
+        <Td className="text-right">
+          <div className="flex items-center justify-end gap-2">
+            {!o.active ? (
+              <Badge dot tone="danger">
+                Inactive
+              </Badge>
+            ) : null}
+            {writable ? (
+              <Button size="sm" tone="ghost" onClick={() => setEditing(true)}>
+                Edit
+              </Button>
+            ) : null}
+          </div>
         </Td>
       </tr>
     );
   return (
     <tr>
-      <Td colSpan={5}>
+      <Td colSpan={5} className="bg-subtle/60">
         <ActionForm
-          className="grid gap-3 rounded-lg border border-ink-line p-4 sm:grid-cols-2"
+          className="grid gap-4 py-2 sm:grid-cols-2"
           action={async (form) => {
             await api(`/admin/offers/${o.id}`, {
               method: "PATCH",
@@ -184,9 +208,7 @@ function OfferRow({ offer: o, writable, onChange }: { offer: Offer; writable: bo
               <Field label="Valid to">
                 <Input name="validTo" type="date" defaultValue={o.validTo ?? ""} />
               </Field>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="active" defaultChecked={o.active} /> Active
-              </label>
+              <Checkbox name="active" defaultChecked={o.active} label="Active" />
               <div className="flex gap-2">
                 <Button type="submit" disabled={busy}>
                   Save

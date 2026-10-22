@@ -51,14 +51,23 @@ export function StaffGate({ children }: { children: ReactNode }) {
     };
   }, [router]);
 
-  if (state.status === "loading") return <p className="p-10 text-sm text-cream-muted">Loading…</p>;
+  if (state.status === "loading") {
+    return (
+      <div className="grid min-h-screen place-items-center" aria-busy="true">
+        <span className="size-6 animate-spin rounded-full border-2 border-line border-t-accent" aria-label="Loading" />
+      </div>
+    );
+  }
   if (state.status === "not_staff" || state.status === "error") {
     return (
-      <div className="mx-auto max-w-md p-10 text-center">
-        <p className="text-sm">{state.status === "not_staff" ? "This account isn't on the intu team. Ask an ops lead to invite you." : state.message}</p>
-        <button className="mt-4 text-sm text-night underline" onClick={() => supabase().auth.signOut()}>
-          Sign out
-        </button>
+      <div className="grid min-h-screen place-items-center px-4">
+        <div className="max-w-sm rounded-xl border border-line bg-surface p-6 text-center shadow-card">
+          <p className="font-semibold text-fg">{state.status === "not_staff" ? "No access yet" : "Something went wrong"}</p>
+          <p className="mt-1 text-sm text-muted">{state.status === "not_staff" ? "This account isn't on the intu team. Ask an ops lead to invite you." : state.message}</p>
+          <button className="mt-4 text-sm font-semibold text-accent hover:underline" onClick={() => supabase().auth.signOut()}>
+            Sign out
+          </button>
+        </div>
       </div>
     );
   }

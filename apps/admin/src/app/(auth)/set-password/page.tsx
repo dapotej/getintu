@@ -31,12 +31,15 @@ export default function SetPasswordPage() {
     router.replace("/two-step");
   }
 
-  if (ready === null) return <p className="text-sm text-cream-muted">Loading…</p>;
+  if (ready === null) return <p className="text-sm text-muted">Loading…</p>;
   if (!ready) return <Notice>This invitation link has expired or was already used. Ask an ops lead to send a new one.</Notice>;
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <h1 className="text-lg font-bold">Choose a password</h1>
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Choose a password</h1>
+        <p className="mt-1 text-sm text-muted">Welcome to the intu team. After this you'll set up two-step verification.</p>
+      </div>
       {error ? <Notice>{error}</Notice> : null}
       <Field label="New password" hint="At least 12 characters.">
         <Input name="password" type="password" autoComplete="new-password" required />

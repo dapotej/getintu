@@ -1,28 +1,173 @@
-/* intu brand tokens for Tailwind v4. Import after "tailwindcss" in each web app's global CSS.
-   Dark "Lagos after dusk" base; amber for day benefits, teal for night, coral for urgency. */
-@theme {
-  --color-ink: #0d0b1a;
-  --color-ink-raised: #17142b;
-  --color-ink-line: #2a2545;
-  --color-cream: #fff5e6;
-  --color-cream-muted: #c9c0b3;
-  --color-day: #ffb020;
-  --color-night: #2ee6d6;
-  --color-pop: #ff6b6b;
+/* intu design tokens for Tailwind v4. Import after "tailwindcss" in each web app's global CSS.
+   Light by default, dark when the device asks for it (or when data-theme="dark" is set).
+   The brand colours (ink, cream, day amber, night teal, pop coral) are kept, but shifted per theme
+   so text always has enough contrast: deep teal and amber on light, bright on dark. */
+
+:root {
+  /* Surfaces */
+  --canvas: #f5f4f8;
+  --surface: #ffffff;
+  --subtle: #f0eef5;
+  --line: #e3e0eb;
+  --line-strong: #cfcadb;
+  /* Text */
+  --fg: #16132a;
+  --muted: #5d5873;
+  --faint: #8a8599;
+  /* Actions */
+  --primary: #16132a;
+  --primary-fg: #ffffff;
+  --primary-hover: #2a2547;
+  --accent: #087a72;
+  --accent-soft: #dbf6f2;
+  --focus: #12a99d;
+  /* Brand moments: day (amber), night (teal), pop (coral) */
+  --day: #9a5a00;
+  --day-soft: #fff0d4;
+  --night: #087a72;
+  --night-soft: #d9f5f1;
+  --danger: #c0353a;
+  --danger-soft: #ffe4e2;
+  --danger-fg: #ffffff;
+  /* The sidebar stays in brand ink in both themes */
+  --rail: #0d0b1a;
+  --rail-fg: #f6f1ea;
+  --rail-muted: #a7a1ba;
+  --rail-active: #1f1a38;
+  --shadow: 0 1px 2px rgb(22 19 42 / 0.05), 0 1px 3px rgb(22 19 42 / 0.06);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0d0b1a;
+    --surface: #16132a;
+    --subtle: #1d1934;
+    --line: #2a2545;
+    --line-strong: #3a3459;
+    --fg: #f6f1ea;
+    --muted: #b3adc6;
+    --faint: #8b85a1;
+    --primary: #2ee6d6;
+    --primary-fg: #0d0b1a;
+    --primary-hover: #5cefe2;
+    --accent: #43e9da;
+    --accent-soft: #0f3532;
+    --focus: #2ee6d6;
+    --day: #ffbf47;
+    --day-soft: #3a2a0c;
+    --night: #43e9da;
+    --night-soft: #0f3532;
+    --danger: #ff8a85;
+    --danger-soft: #3d1719;
+    --danger-fg: #0d0b1a;
+    --rail: #08070f;
+    --rail-fg: #f6f1ea;
+    --rail-muted: #9d97b1;
+    --rail-active: #1d1934;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0d0b1a;
+  --surface: #16132a;
+  --subtle: #1d1934;
+  --line: #2a2545;
+  --line-strong: #3a3459;
+  --fg: #f6f1ea;
+  --muted: #b3adc6;
+  --faint: #8b85a1;
+  --primary: #2ee6d6;
+  --primary-fg: #0d0b1a;
+  --primary-hover: #5cefe2;
+  --accent: #43e9da;
+  --accent-soft: #0f3532;
+  --focus: #2ee6d6;
+  --day: #ffbf47;
+  --day-soft: #3a2a0c;
+  --night: #43e9da;
+  --night-soft: #0f3532;
+  --danger: #ff8a85;
+  --danger-soft: #3d1719;
+  --danger-fg: #0d0b1a;
+  --rail: #08070f;
+  --rail-fg: #f6f1ea;
+  --rail-muted: #9d97b1;
+  --rail-active: #1d1934;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-hover: var(--primary-hover);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus: var(--focus);
+  --color-day: var(--day);
+  --color-day-soft: var(--day-soft);
+  --color-night: var(--night);
+  --color-night-soft: var(--night-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-fg: var(--danger-fg);
+  --color-rail: var(--rail);
+  --color-rail-fg: var(--rail-fg);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-active: var(--rail-active);
+  /* Fixed brand colours, for the wordmark and accents that never change with the theme. */
+  --color-brand-ink: #0d0b1a;
+  --color-brand-cream: #fff5e6;
+  --color-brand-day: #ffb020;
+  --color-brand-night: #2ee6d6;
+  --color-brand-pop: #ff6b6b;
+  --shadow-card: var(--shadow);
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
   }
   body {
-    background: var(--color-ink);
-    color: var(--color-cream);
+    background: var(--canvas);
+    color: var(--fg);
     font-family: var(--font-sans);
+    font-feature-settings: "ss01";
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
   :focus-visible {
-    outline: 2px solid var(--color-night);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+  /* Native dropdown lists and date pickers follow the theme too. */
+  option {
+    background: var(--surface);
+    color: var(--fg);
+  }
+  ::placeholder {
+    color: var(--faint);
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 }

@@ -21,8 +21,11 @@ export default function LoginPage() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <h1 className="text-lg font-bold">Sign in</h1>
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
+        <p className="mt-1 text-sm text-muted">Use your intu team account. You'll confirm with your authenticator app next.</p>
+      </div>
       {error ? <Notice>{error}</Notice> : null}
       <Field label="Email">
         <Input name="email" type="email" autoComplete="username" required />
