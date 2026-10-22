@@ -8,7 +8,10 @@ export interface AuthAdmin {
 
 export function createSupabaseAuthAdmin(opts: { supabaseUrl: string; serviceRoleKey: string }): AuthAdmin {
   const base = `${opts.supabaseUrl.replace(/\/$/, "")}/auth/v1`;
-  const headers = { apikey: opts.serviceRoleKey, authorization: `Bearer ${opts.serviceRoleKey}`, "content-type": "application/json" };
+  // A new-style secret key (sb_secret_…) goes in the apikey header only; Supabase turns it into a
+  // service-role token. A legacy service_role key is itself a JWT and is also sent as the bearer.
+  const legacyJwt = opts.serviceRoleKey.startsWith("eyJ");
+  const headers = { apikey: opts.serviceRoleKey, ...(legacyJwt ? { authorization: `Bearer ${opts.serviceRoleKey}` } : {}), "content-type": "application/json" };
 
   const call = async (path: string, init: RequestInit) => {
     const res = await fetch(`${base}${path}`, { ...init, headers });
