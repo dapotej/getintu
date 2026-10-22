@@ -1,5 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { createDb, one, schema } from "@intu/db";
+import { eq } from "drizzle-orm";
 import { signIn } from "./support/session";
 
 /** Picks a catalogue entry in a category dropdown by its name (options are indented by depth). */
@@ -338,4 +340,33 @@ test("book a visiting service for a member, and cancel it", async ({ page }) => 
   await panel.getByLabel("Reason").fill("TEST e2e: member changed flights");
   await panel.getByRole("button", { name: "Cancel booking" }).click();
   await expect(card.getByRole("row", { name: new RegExp(note) })).toContainText("Cancelled");
+});
+
+test("the concierge confirms one booking request from the app and declines another", async ({ page }) => {
+  // Two requests as the member app makes them, for a seeded TEST member.
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/intu", { max: 1 });
+  const tag = randomUUID().slice(0, 6);
+  const member = one(await db.select().from(schema.members).where(eq(schema.members.fullName, "TEST Ada London")));
+  const membership = one(await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, member.id)));
+  const venue = one(await db.select().from(schema.venues).where(eq(schema.venues.name, "TEST Ikoyi House")));
+  for (const day of ["2026-12-19", "2026-12-20"]) {
+    await db.insert(schema.bookings).values({ memberId: member.id, membershipId: membership.id, venueId: venue.id, bookingDate: day, partySize: 3, status: "requested", notes: `TEST e2e ${tag} ${day}` });
+  }
+  await sql.end();
+
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings" }).click();
+  const first = page.getByRole("row", { name: new RegExp(`TEST e2e ${tag} 2026-12-19`) });
+  const second = page.getByRole("row", { name: new RegExp(`TEST e2e ${tag} 2026-12-20`) });
+  await expect(first).toContainText("TEST Ada London");
+  await expect(first).toContainText("TEST Ikoyi House");
+  await first.getByRole("button", { name: "Confirm" }).click();
+  await expect(first).toHaveCount(0);
+
+  await second.getByRole("button", { name: "Decline" }).click();
+  await page.getByRole("dialog").getByLabel("Reason").fill("TEST e2e: the venue is full that night");
+  await page.getByRole("dialog").getByRole("button", { name: "Decline request" }).click();
+  await expect(second).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Confirmed, coming up" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(`TEST e2e ${tag} 2026-12-19`) })).toBeVisible();
 });

@@ -13,7 +13,7 @@ const uid = () => crypto.randomUUID();
 const stamp = { createdAt: "2026-10-21T09:00:00.000Z", updatedAt: "2026-10-21T09:00:00.000Z" };
 
 const ME = { id: "demo-founder", role: "founder", fullName: "Dapo Tejuoso", email: "founder@example.com" };
-const PERMISSIONS = ["members.read", "members.write", "plans.read", "plans.write", "partners.read", "partners.write", "staff.manage", "import.pilot", "audit.read"];
+const PERMISSIONS = ["members.read", "members.write", "plans.read", "plans.write", "partners.read", "partners.write", "staff.manage", "import.pilot", "audit.read", "bookings.manage"];
 
 // The catalogue, with ids, as migration 0009 loads it.
 const categories: Row[] = [];
@@ -44,6 +44,8 @@ const visits: Row[] = [];
 const doorStaff: Row[] = testDoorStaff.map((d) => ({ id: d.id, fullName: d.fullName, role: d.role, active: true, hasPin: true, venueId: d.venueId }));
 const devices: Row[] = [];
 const bookings: Row[] = testBookings.map((b) => ({ ...b, redemptionId: null }) as Row);
+// A request from the member app, waiting in the concierge's queue.
+bookings.push({ id: "00000000-0000-4000-8000-000000001699", memberId: testMembers[0]!.id, membershipId: testMemberships[0]!.id, venueId: testVenues[9]!.id, offerId: null, bookingDate: "2026-12-19", partySize: 4, status: "requested", notes: "TEST: a birthday, arriving 11pm", redemptionId: null, createdAt: "2026-12-12T10:00:00Z" } as Row);
 const bookingsFor = (memberId: string) => ({
   bookings: bookings
     .filter((b) => b.memberId === memberId)
@@ -364,6 +366,25 @@ const routes: [string, RegExp, Handler][] = [
   ["POST", /^\/admin\/members\/([^/]+)\/bookings$/, (m, b) => {
     bookings.push({ id: uid(), memberId: m[1], membershipId: b.membershipId, venueId: b.venueId, offerId: b.offerId ?? null, bookingDate: b.bookingDate, partySize: b.partySize ?? 1, status: "confirmed", notes: b.notes ?? null, redemptionId: null } as Row);
     return bookingsFor(m[1]!);
+  }],
+  ["GET", /^\/admin\/bookings$/, (_m, _b, q) => {
+    const status = q?.get("status") ?? "requested";
+    const venueOf = (id: unknown) => venues.find((v) => v.id === id);
+    return {
+      bookings: bookings
+        .filter((b) => b.status === status)
+        .map((b) => {
+          const member = members.find((x) => x.id === b.memberId)!;
+          const v = venueOf(b.venueId);
+          return { ...b, createdAt: b.createdAt ?? now(), member: { id: member.id, fullName: member.fullName, phone: member.phone }, venue: v ? { id: v.id, name: v.name, partnerId: v.partnerId, kind: v.kind } : null, offerName: null };
+        }),
+    };
+  }],
+  ["POST", /^\/admin\/bookings\/([^/]+)\/(confirm|decline)$/, (m) => {
+    const row = need(bookings.find((x) => x.id === m[1]), "Booking");
+    if (row.status !== "requested") throw new HttpError(409, "already_answered", "This request has already been answered");
+    row.status = m[2] === "confirm" ? "confirmed" : "declined";
+    return { ok: true };
   }],
   ["POST", /^\/admin\/bookings\/([^/]+)\/cancel$/, (m) => {
     const row = need(bookings.find((x) => x.id === m[1]), "Booking");

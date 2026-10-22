@@ -31,6 +31,15 @@ export default function MemberPage() {
         }
         title={member.fullName}
         subtitle={[member.phone, member.email, member.country].filter(Boolean).join("  ·  ")}
+        media={
+          member.photoUrl ? (
+            <img src={member.photoUrl} alt={`Photo of ${member.fullName}`} className="size-16 shrink-0 rounded-full object-cover ring-2 ring-line" />
+          ) : (
+            <div title="No photo yet" className="flex size-16 shrink-0 items-center justify-center rounded-full bg-subtle text-lg font-semibold text-muted">
+              {member.fullName.replace(/^TEST\s+/, "").split(/\s+/).slice(0, 2).map((w) => w[0]).join("")}
+            </div>
+          )
+        }
         actions={
           can("members.write") ? (
             <>

@@ -1,0 +1,13 @@
+# What's left, then venues: the plan's venues are marked, and the filters work.
+appId: com.getintu.member
+---
+- launchApp
+- tapOn: "Benefits"
+- assertVisible: "Your benefits"
+- assertVisible: ".* left|Unlimited|Used up"
+- tapOn: "Discover"
+- assertVisible: "In your plan"
+- tapOn: "Night"
+- tapOn: "Day"
+- tapOn: "Map"
+- tapOn: "List"

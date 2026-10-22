@@ -31,7 +31,7 @@ describe.runIf(url)("member app API", () => {
     const world = await createWorld(db);
     const authUserId = randomUUID();
     const me = (await asMember({ authUserId, phone: world.first.member.phone }).get("/me")).json;
-    expect(me.member).toMatchObject({ id: world.first.member.id, fullName: world.first.member.fullName, photoUrl: null });
+    expect(me.member).toMatchObject({ id: world.first.member.id, fullName: world.first.member.fullName, hasPhoto: false, photoUrl: null });
     expect(me.concierge).toEqual({ whatsapp: TEST_CONCIERGE });
     const [row] = await db.select().from(schema.members).where(eq(schema.members.id, world.first.member.id));
     expect(row?.authUserId).toBe(authUserId);
@@ -160,6 +160,36 @@ describe.runIf(url)("member app API", () => {
     expect((await client.post("/bookings", { ...request, offerId: other.offer.id })).json.error.code).toBe("unknown_offer");
     await db.update(schema.memberships).set({ status: "suspended" }).where(eq(schema.memberships.id, world.first.membership.id));
     expect((await client.post("/bookings", request)).json.error.code).toBe("membership_inactive");
+  });
+
+  it("puts requests in the concierge's queue to confirm or decline, once", async () => {
+    const world = await createWorld(db);
+    const client = await signedIn(world);
+    const base = { membershipId: world.first.membership.id, venueId: world.venue.id, partySize: 2 };
+    const first = (await client.post("/bookings", { ...base, bookingDate: "2026-12-18" })).json.booking;
+    const second = (await client.post("/bookings", { ...base, bookingDate: "2026-12-19" })).json.booking;
+    const concierge = as(await createStaff(db, "concierge"));
+    const queue = (await concierge.get("/admin/bookings")).json.bookings;
+    expect(queue.find((b: { id: string }) => b.id === first.id)).toMatchObject({ status: "requested", member: { id: world.first.member.id }, venue: { id: world.venue.id }, partySize: 2 });
+
+    expect((await concierge.post(`/admin/bookings/${first.id}/confirm`, {})).status).toBe(200);
+    expect((await concierge.post(`/admin/bookings/${first.id}/decline`, { note: "TEST too late" })).json.error.code).toBe("already_answered");
+    expect((await concierge.post(`/admin/bookings/${second.id}/decline`, {})).status).toBe(400);
+    expect((await concierge.post(`/admin/bookings/${second.id}/decline`, { note: "TEST venue is full that night" })).status).toBe(200);
+    expect((await client.get("/bookings")).json.bookings.map((b: { status: string }) => b.status).sort()).toEqual(["confirmed", "declined"]);
+    const confirmed = (await concierge.get("/admin/bookings?status=confirmed")).json.bookings;
+    expect(confirmed.some((b: { id: string }) => b.id === first.id)).toBe(true);
+    const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, second.id), eq(schema.auditLog.action, "booking.declined")));
+    expect(audit?.after).toMatchObject({ note: "TEST venue is full that night" });
+    // Finance can see the queue but not answer it.
+    expect((await as(await createStaff(db, "finance")).post(`/admin/bookings/${first.id}/confirm`, {})).status).toBe(403);
+  });
+
+  it("shows the member's photo to intu staff", async () => {
+    const world = await createWorld(db);
+    await (await signedIn(world)).put("/me/photo", { jpegBase64: jpeg });
+    const res = await as(await createStaff(db, "ops")).get(`/admin/members/${world.first.member.id}`);
+    expect(res.json.member.photoUrl).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   describe("Supabase's Send SMS hook", () => {

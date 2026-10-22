@@ -15,6 +15,7 @@ const NAV: { href: string; label: string; icon: IconName; needs: Permission | Pe
   { href: "/plans", label: "Plans and benefits", icon: "layers", needs: "plans.read" },
   { href: "/catalogue", label: "Catalogue", icon: "grid", needs: "plans.read" },
   { href: "/partners", label: "Partners", icon: "store", needs: "partners.read" },
+  { href: "/bookings", label: "Bookings", icon: "calendar", needs: "members.read" },
   { href: "/visits", label: "Visits to review", icon: "alert", needs: "members.read" },
   { href: "/import", label: "Pilot import", icon: "upload", needs: "import.pilot" },
   { href: "/settings", label: "Settings", icon: "sliders", needs: ["staff.manage", "plans.read"] },

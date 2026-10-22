@@ -1,0 +1,13 @@
+{
+  "extends": "@intu/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src", "e2e", "test", "playwright.config.ts", "vitest.config.ts", "app.config.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

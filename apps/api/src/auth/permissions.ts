@@ -12,6 +12,7 @@ export const PERMISSIONS = [
   "staff.manage",
   "import.pilot",
   "audit.read",
+  "bookings.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -26,8 +27,9 @@ const TEAM_READ: Permission[] = ["members.read", "plans.read", "partners.read"];
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   founder: PERMISSIONS,
   ops_lead: PERMISSIONS,
-  ops: [...TEAM_READ, "members.write"],
-  concierge: TEAM_READ,
+  ops: [...TEAM_READ, "members.write", "bookings.manage"],
+  // Bookings are the concierge's (spec: Bookings queue, main role Concierge).
+  concierge: [...TEAM_READ, "bookings.manage"],
   finance: TEAM_READ,
   partnerships: [...TEAM_READ, "partners.write"],
   door_staff: [],

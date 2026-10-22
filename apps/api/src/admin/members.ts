@@ -5,6 +5,7 @@ import { grantAllowances, one, schema, type Db } from "@intu/db";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
+import type { PhotoStore } from "../member/photos.ts";
 import { idParam, isoDate, uuid } from "./validation.ts";
 
 const { members, memberships, plans, allowances, benefits, categories, redemptions, venues } = schema;
@@ -31,7 +32,7 @@ const CreateMembership = z.object({
 
 const StatusChange = z.object({ reason: z.string().min(3).max(500) });
 
-export function memberRoutes(db: Db) {
+export function memberRoutes(db: Db, photos: PhotoStore) {
   const app = new Hono<AdminEnv>();
 
   app.get("/members", requirePermission("members.read"), async (c) => {
@@ -105,7 +106,8 @@ export function memberRoutes(db: Db) {
       .orderBy(desc(redemptions.occurredAt))
       .limit(50);
     return {
-      member,
+      // The photo link lasts an hour: long enough to look at, not to pass around.
+      member: { ...member, photoUrl: member.photoPath ? await photos.signedUrl(member.photoPath, 3600).catch(() => null) : null },
       memberships: ms.map(({ membership, plan }) => ({
         ...membership,
         plan,

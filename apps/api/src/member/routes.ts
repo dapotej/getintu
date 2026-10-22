@@ -135,7 +135,7 @@ export function memberAppRoutes(deps: MemberDeps) {
   const profile = async (m: Member) => {
     const planBenefits = await activeBenefits(m.id);
     return {
-      member: { id: m.id, fullName: m.fullName, phone: m.phone, email: m.email, country: m.country, consentMarketing: m.consentMarketing, photoUrl: await photoUrl(m), isTest: m.isTest },
+      member: { id: m.id, fullName: m.fullName, phone: m.phone, email: m.email, country: m.country, consentMarketing: m.consentMarketing, hasPhoto: m.photoPath !== null, photoUrl: await photoUrl(m), isTest: m.isTest },
       concierge: deps.conciergeWhatsApp ? { whatsapp: deps.conciergeWhatsApp } : null,
       // Only for members whose plan includes the doctor-on-call benefit.
       doctorOnCall: deps.doctorOnCallPhone && benefitFor(planBenefits, DOCTOR_ON_CALL) ? { phone: deps.doctorOnCallPhone } : null,

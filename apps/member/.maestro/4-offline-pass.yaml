@@ -1,0 +1,12 @@
+# With no signal the pass still shows and keeps changing its code.
+appId: com.getintu.member
+---
+- launchApp
+- setAirplaneMode: enabled
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Pass QR code"
+    timeout: 10000
+- assertVisible: "Offline"
+- setAirplaneMode: disabled

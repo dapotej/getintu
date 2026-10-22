@@ -1,0 +1,17 @@
+# Requests a booking at the first venue the plan includes, and sees it as requested.
+appId: com.getintu.member
+---
+- launchApp
+- tapOn: "Discover"
+- tapOn: "In my plan"
+- tapOn:
+    text: "In your plan"
+    index: 0
+- tapOn: "Request a booking"
+- tapOn:
+    below: "Day"
+    index: 1
+- tapOn: "Send request"
+- extendedWaitUntil:
+    visible: "Requested"
+    timeout: 10000

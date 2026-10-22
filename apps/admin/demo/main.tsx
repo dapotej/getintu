@@ -13,6 +13,7 @@ import ConsoleLayout from "../src/app/(console)/layout";
 import MemberPage from "../src/app/(console)/members/[id]/page";
 import TestPassPage from "../src/app/(console)/members/[id]/passes/[membershipId]/page";
 import VisitsPage from "../src/app/(console)/visits/page";
+import BookingsPage from "../src/app/(console)/bookings/page";
 import MembersPage from "../src/app/(console)/members/page";
 import Home from "../src/app/(console)/page";
 import PartnerPage from "../src/app/(console)/partners/[id]/page";
@@ -50,6 +51,7 @@ const ROUTES: [RegExp, ComponentType, Layout][] = [
   [/^\/members\/(?<id>[^/]+)$/, MemberPage, ConsoleLayout],
   [/^\/members\/(?<id>[^/]+)\/passes\/(?<membershipId>[^/]+)$/, TestPassPage, ConsoleLayout],
   [/^\/visits$/, VisitsPage, ConsoleLayout],
+  [/^\/bookings$/, BookingsPage, ConsoleLayout],
   [/^\/plans$/, PlansPage, ConsoleLayout],
   [/^\/plans\/(?<id>[^/]+)$/, PlanPage, ConsoleLayout],
   [/^\/partners$/, PartnersPage, ConsoleLayout],

@@ -1,6 +1,6 @@
 import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
-export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read";
+export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
 
 export interface Me {
@@ -160,6 +160,8 @@ export interface Member {
   consentMarketing: boolean;
   isTest: boolean;
   createdAt: string;
+  /** A signed link to their photo, for an hour; absent on member lists. */
+  photoUrl?: string | null;
 }
 
 export interface Allowance {
@@ -240,4 +242,17 @@ export interface ImportReport {
   warnings: ImportIssue[];
   errors: ImportIssue[];
   notImported: string[];
+}
+
+/** A booking in the concierge's queue. */
+export interface QueuedBooking {
+  id: string;
+  bookingDate: string;
+  partySize: number;
+  status: "requested" | "confirmed";
+  notes: string | null;
+  createdAt: string;
+  member: { id: string; fullName: string; phone: string };
+  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" } | null;
+  offerName: string | null;
 }

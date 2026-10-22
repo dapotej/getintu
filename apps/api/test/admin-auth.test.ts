@@ -60,7 +60,7 @@ describe.runIf(url)("admin authentication", () => {
     expect(res.status).toBe(200);
     expect(res.json).toEqual({
       staff: { id: staff.id, role: "concierge", fullName: staff.fullName, email: staff.email },
-      permissions: ["members.read", "plans.read", "partners.read"],
+      permissions: ["members.read", "plans.read", "partners.read", "bookings.manage"],
     });
   });
 

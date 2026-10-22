@@ -90,7 +90,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", categoryRoutes(deps.db));
   admin.route("/", planRoutes(deps.db));
   admin.route("/", partnerRoutes(deps.db));
-  admin.route("/", memberRoutes(deps.db));
+  admin.route("/", memberRoutes(deps.db, deps.photos));
   admin.route("/", importRoutes(deps.db));
   admin.route("/", scannerAdminRoutes({ db: deps.db, passKeys: deps.passKeys, clock }));
   admin.route("/", bookingRoutes({ db: deps.db, clock }));

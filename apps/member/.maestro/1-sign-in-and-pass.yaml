@@ -1,0 +1,16 @@
+# Signs in with a TEST number and shows the pass with its rotating QR code.
+appId: com.getintu.member
+---
+- launchApp:
+    clearState: true
+- tapOn: "Phone number"
+- inputText: ${PHONE}
+- tapOn: "Send code"
+- tapOn: "Code"
+- inputText: ${CODE}
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Pass QR code"
+    timeout: 15000
+- assertVisible: "New code in .*"
+- assertVisible: "Backup code.*"

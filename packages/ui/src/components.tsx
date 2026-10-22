@@ -94,13 +94,16 @@ export function Card({ title, description, actions, children, className, flush }
   );
 }
 
-export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: string | undefined; eyebrow?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, eyebrow, actions, media }: { title: string; subtitle?: string | undefined; eyebrow?: ReactNode; actions?: ReactNode; media?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        {eyebrow ? <div className="mb-1 text-sm text-muted">{eyebrow}</div> : null}
-        <h1 className="text-2xl font-bold tracking-tight text-fg">{title}</h1>
-        {subtitle ? <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
+      <div className="flex min-w-0 items-end gap-4">
+        {media}
+        <div className="min-w-0">
+          {eyebrow ? <div className="mb-1 text-sm text-muted">{eyebrow}</div> : null}
+          <h1 className="text-2xl font-bold tracking-tight text-fg">{title}</h1>
+          {subtitle ? <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
+        </div>
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </div>

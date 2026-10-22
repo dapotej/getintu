@@ -1,0 +1,47 @@
+# Publishes the member app to the staging channel of intu's Expo project, so it opens in the Expo
+# Go app on a phone. Runs after a push to main that changes the app or the code it shares, and by
+# hand from the Actions tab. Skips quietly until EXPO_TOKEN and the EXPO_PROJECT_ID variable exist.
+name: Member app to Expo Go (staging)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/member/**"
+      - "packages/qr/**"
+      - "pnpm-lock.yaml"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: staging
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID }}
+      EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+      EXPO_PUBLIC_API_URL: https://intu-api-staging.vercel.app
+      EXPO_PUBLIC_SUPABASE_URL: https://xokexyqjlydjqquownvw.supabase.co
+      # Publishable, so not a secret, but kept with the environment's settings.
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Check Expo is set up
+        id: expo
+        run: echo "ready=$([ -n "$EXPO_TOKEN" ] && [ -n "$EXPO_PROJECT_ID" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        if: steps.expo.outputs.ready == 'true'
+      - uses: pnpm/action-setup@v5
+        if: steps.expo.outputs.ready == 'true'
+      - uses: actions/setup-node@v6
+        if: steps.expo.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.expo.outputs.ready == 'true'
+      - name: Publish an update to the staging channel
+        if: steps.expo.outputs.ready == 'true'
+        working-directory: apps/member
+        env:
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual publish' }}
+        run: npx --yes eas-cli@24.12.1 update --branch staging --message "$(printf '%s' "$MESSAGE" | head -n 1)" --platform all --non-interactive
