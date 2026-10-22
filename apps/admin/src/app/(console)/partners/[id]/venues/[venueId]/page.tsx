@@ -1,7 +1,7 @@
 "use client";
 import { Badge, Button, Card, Checkbox, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, Table, Td, Textarea } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
-import { DoorStaffCard } from "@/components/door-staff";
+import { PartnerStaffCard } from "@/components/partner-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -39,7 +39,12 @@ export default function VenuePage() {
         }
         title={venue.name}
         subtitle={`${venue.area}, ${venue.city === "lagos" ? "Lagos" : "Abuja"}${venue.externalRef ? ` · pilot ID ${venue.externalRef}` : ""}${venue.isTest ? " · TEST" : ""}`}
-        actions={<Badge tone={venue.tier === "top" ? "day" : "neutral"}>{venue.tier === "top" ? "Top tier" : "Standard tier"}</Badge>}
+        actions={
+          <>
+            {venue.kind === "visiting" ? <Badge tone="accent">Visiting service</Badge> : null}
+            <Badge tone={venue.tier === "top" ? "day" : "neutral"}>{venue.tier === "top" ? "Top tier" : "Standard tier"}</Badge>
+          </>
+        }
       />
       <div className="flex flex-col gap-6">
         <Card title="Venue">
@@ -51,6 +56,7 @@ export default function VenuePage() {
                 body: {
                   name: text(form, "name"),
                   area: text(form, "area"),
+                  kind: text(form, "kind"),
                   categoryId: text(form, "categoryId"),
                   tier: text(form, "tier"),
                   description: textOrNull(form, "description"),
@@ -70,6 +76,12 @@ export default function VenuePage() {
                   </Field>
                   <Field label="Area">
                     <Input name="area" defaultValue={venue.area} required />
+                  </Field>
+                  <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
+                    <Select name="kind" defaultValue={venue.kind}>
+                      <option value="place">A place members visit</option>
+                      <option value="visiting">A service that comes to them (booked)</option>
+                    </Select>
                   </Field>
                   <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers below.">
                     <CategorySelect name="categoryId" placesOnly required defaultValue={venue.categoryId} />
@@ -170,7 +182,7 @@ export default function VenuePage() {
           ) : null}
         </Card>
 
-        <DoorStaffCard venueId={id} writable={writable} />
+        <PartnerStaffCard venueId={id} writable={writable} />
       </div>
     </>
   );

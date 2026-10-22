@@ -1,7 +1,7 @@
 {
   "name": "intu scanner",
   "short_name": "intu scan",
-  "description": "Door scanner for intu partner venues",
+  "description": "The intu scanner for partner venues and services",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

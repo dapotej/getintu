@@ -26,6 +26,8 @@ const VenueFields = z.object({
   city: z.enum(["lagos", "abuja"]),
   // A catalogue category or subcategory: what kind of place it is.
   categoryId: uuid,
+  // A visiting service (chauffeur, home beauty) is used only against a booking.
+  kind: z.enum(["place", "visiting"]),
   tier: venueTier,
   description: z.string().max(4000).nullable(),
   openingHours: WeeklyHours,

@@ -13,7 +13,9 @@ export interface VenueBundle {
   /** When this device fetched it, by its own clock. */
   fetchedAt?: string;
   staff: { id: string; fullName: string };
-  venue: VenueInput & { name: string; area: string };
+  venue: VenueInput & { name: string; area: string; kind: "place" | "visiting" };
+  /** Visiting services: confirmed, unused bookings around today, for offline checks. */
+  bookings: { id: string; membershipId: string | null; offerId: string | null; bookingDate: string }[];
   offers: (OfferInput & { name: string; description: string | null })[];
   benefits: (BenefitInput & { planId: string; name: string })[];
   keys: { keyId: number; publicKey: string }[];
@@ -84,6 +86,9 @@ export interface TodayBooking {
   status: string;
   eventName: string | null;
   notes: string | null;
+  offerName: string | null;
+  /** Already used at a scan. */
+  used: boolean;
 }
 
 /** POST /scan's answer. */

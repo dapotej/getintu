@@ -18,18 +18,23 @@ CREATE TEMP TABLE test_allowances ON COMMIT DROP AS
      OR group_id IN (SELECT group_id FROM test_memberships WHERE group_id IS NOT NULL)
      OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
 
-DELETE FROM redemptions
-WHERE member_id IN (SELECT id FROM test_members)
-   OR membership_id IN (SELECT id FROM test_memberships)
-   OR venue_id IN (SELECT id FROM test_venues)
-   OR offer_id IN (SELECT id FROM test_offers)
-   OR allowance_id IN (SELECT id FROM test_allowances)
-   OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
+CREATE TEMP TABLE test_redemptions ON COMMIT DROP AS
+  SELECT id FROM redemptions
+  WHERE member_id IN (SELECT id FROM test_members)
+     OR membership_id IN (SELECT id FROM test_memberships)
+     OR venue_id IN (SELECT id FROM test_venues)
+     OR offer_id IN (SELECT id FROM test_offers)
+     OR allowance_id IN (SELECT id FROM test_allowances)
+     OR benefit_id IN (SELECT id FROM benefits WHERE plan_id IN (SELECT id FROM test_plans));
+
 DELETE FROM bookings
 WHERE member_id IN (SELECT id FROM test_members)
    OR membership_id IN (SELECT id FROM test_memberships)
    OR venue_id IN (SELECT id FROM test_venues)
    OR allowance_id IN (SELECT id FROM test_allowances);
+-- Any other booking that a TEST visit used just loses the link.
+UPDATE bookings SET redemption_id = NULL WHERE redemption_id IN (SELECT id FROM test_redemptions);
+DELETE FROM redemptions WHERE id IN (SELECT id FROM test_redemptions);
 DELETE FROM esim_orders WHERE membership_id IN (SELECT id FROM test_memberships);
 DELETE FROM devices WHERE member_id IN (SELECT id FROM test_members) OR member_id IN (SELECT member_id FROM memberships WHERE id IN (SELECT id FROM test_memberships));
 DELETE FROM pass_codes WHERE membership_id IN (SELECT id FROM test_memberships);

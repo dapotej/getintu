@@ -1,11 +1,11 @@
-// The partner app's door scanner: sign in, everything needed to scan offline, scan, sync
+// The intu scanner's API: sign in, everything needed to scan offline, scan, sync
 // offline visits, today's list and reporting a problem with a visit.
 import { Hono } from "hono";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import { audit, schema, type Db } from "@intu/db";
 import { verifyPin } from "@intu/db";
-import { serviceDate } from "@intu/rules";
+import { serviceDate, shiftDate, toLagos } from "@intu/rules";
 import { body, fail, query } from "../http.ts";
 import { NotFoundError, redeem } from "../ledger/redeem.ts";
 import { identify, publishedKeys, revocations, type PassKeys } from "../passes.ts";
@@ -70,7 +70,7 @@ export function scannerRoutes(deps: PartnerDeps) {
     const match = staff.find((s) => verifyPin(pin, s.pinHash));
     if (!venue || !match) {
       pinAttempts.fail(key, now.getTime());
-      fail(401, "wrong_code_or_pin", "That venue code and PIN don't match");
+      fail(401, "wrong_code_or_pin", "That sign-in code and PIN don't match");
     }
     pinAttempts.clear(key);
     await audit(db, { type: "staff", id: match.id }, { action: "partner.signed_in", entity: "venue", entityId: venue.id });
@@ -82,14 +82,14 @@ export function scannerRoutes(deps: PartnerDeps) {
     });
   });
 
-  // Signed-in door staff only. Attached per route: these routes share the app's root with others.
+  // Signed-in partner staff only. Attached per route: these routes share the app's root with others.
   const signedIn = requireDoorStaff(deps);
 
   // Everything the scanner caches to work offline. Refreshed when online, and every 15 minutes.
   app.get("/partner/venue", signedIn, async (c) => {
     const { venueId, staffId, fullName } = c.get("door");
     const [venue] = await db
-      .select({ id: venues.id, name: venues.name, area: venues.area, active: venues.active, tier: venues.tier, openingHours: venues.openingHours })
+      .select({ id: venues.id, name: venues.name, kind: venues.kind, area: venues.area, active: venues.active, tier: venues.tier, openingHours: venues.openingHours })
       .from(venues)
       .where(eq(venues.id, venueId));
     if (!venue) fail(404, "not_found", "Venue not found");
@@ -106,8 +106,18 @@ export function scannerRoutes(deps: PartnerDeps) {
       .innerJoin(plans, eq(plans.id, benefits.planId))
       .where(eq(plans.active, true));
     const now = deps.clock();
+    // A visiting service checks bookings offline too: confirmed, unused ones around today.
+    const today = toLagos(now).date;
+    const upcoming =
+      venue.kind === "visiting"
+        ? await db
+            .select({ id: bookings.id, membershipId: bookings.membershipId, offerId: bookings.offerId, bookingDate: bookings.bookingDate })
+            .from(bookings)
+            .where(and(eq(bookings.venueId, venueId), eq(bookings.status, "confirmed"), isNull(bookings.redemptionId), gte(bookings.bookingDate, shiftDate(today, -1)), lte(bookings.bookingDate, shiftDate(today, 1))))
+        : [];
     return c.json({
       serverTime: now.toISOString(),
+      bookings: upcoming,
       staff: { id: staffId, fullName },
       venue,
       offers: venueOffers.map(({ offer, code, name }) => ({
@@ -251,11 +261,13 @@ export function scannerRoutes(deps: PartnerDeps) {
       .where(and(eq(redemptions.venueId, venueId), eq(redemptions.serviceDate, day), isNull(redemptions.deletedAt)))
       .orderBy(desc(redemptions.occurredAt));
     const expected = await db
-      .select({ id: bookings.id, memberName: members.fullName, partySize: bookings.partySize, status: bookings.status, eventName: bookings.eventName, notes: bookings.notes })
+      .select({ id: bookings.id, memberName: members.fullName, partySize: bookings.partySize, status: bookings.status, eventName: bookings.eventName, notes: bookings.notes, offerName: categories.name, used: bookings.redemptionId })
       .from(bookings)
       .innerJoin(members, eq(members.id, bookings.memberId))
+      .leftJoin(offers, eq(offers.id, bookings.offerId))
+      .leftJoin(categories, eq(categories.id, offers.categoryId))
       .where(and(eq(bookings.venueId, venueId), eq(bookings.bookingDate, day)));
-    return c.json({ date: day, visits, bookings: expected });
+    return c.json({ date: day, visits, bookings: expected.filter((b) => b.status !== "cancelled" && b.status !== "declined").map(({ used, ...b }) => ({ ...b, used: used !== null })) });
   });
 
   app.post("/partner/visits/:id/report", signedIn, async (c) => {

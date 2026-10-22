@@ -1,4 +1,4 @@
-// Admin side of the door scanner: venue login codes and door staff, member devices and TEST
+// Admin side of the intu scanner: sign-in codes and partner staff, member devices and TEST
 // passes, and the queue of visits flagged for review.
 import { randomInt } from "node:crypto";
 import { Hono } from "hono";
@@ -87,7 +87,7 @@ export function scannerAdminRoutes(deps: { db: Db; passKeys: PassKeys; clock: ()
     const { id } = idParam.parse(c.req.param());
     const input = await body(c, UpdateDoorStaff);
     const [before] = await db.select().from(staffUsers).where(eq(staffUsers.id, id));
-    if (!before || (before.role !== "door_staff" && before.role !== "venue_manager")) fail(404, "not_found", "Door staff not found");
+    if (!before || (before.role !== "door_staff" && before.role !== "venue_manager")) fail(404, "not_found", "Partner staff member not found");
     if (input.pin) {
       const links = await db.select({ venueId: staffUserVenues.venueId }).from(staffUserVenues).where(eq(staffUserVenues.staffUserId, id));
       for (const { venueId } of links) if (await pinTaken(venueId, input.pin, id)) fail(409, "pin_taken", "Someone at this venue already uses that PIN");

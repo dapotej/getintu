@@ -72,6 +72,8 @@ export const bookings = pgTable(
       .references(() => members.id),
     membershipId: uuid().references(() => memberships.id),
     venueId: uuid().references(() => venues.id),
+    // The offer booked (e.g. a 4-hour chauffeur); a scan for a visiting service must match it.
+    offerId: uuid().references(() => offers.id),
     eventName: text(),
     bookingDate: date({ mode: "string" }).notNull(),
     partySize: integer().notNull().default(1),

@@ -1,8 +1,8 @@
 import type { Db } from "./client.ts";
 import { grantAllowances } from "./ledger.ts";
 import { inArray } from "drizzle-orm";
-import { benefits, categories, fxRates, members, memberships, offers, partners, planPrices, plans, staffUsers, staffUserVenues, venues } from "./schema/index.ts";
-import { testBenefits, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "./seed-data.ts";
+import { benefits, bookings, categories, fxRates, members, memberships, offers, partners, planPrices, plans, staffUsers, staffUserVenues, venues } from "./schema/index.ts";
+import { testBenefits, testBookings, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "./seed-data.ts";
 
 /** Loads TEST data. Safe to run more than once: rows that already exist are left alone. */
 export async function seed(db: Db) {
@@ -35,6 +35,7 @@ export async function seed(db: Db) {
     await tx.insert(fxRates).values(testFxRates).onConflictDoNothing();
     await tx.insert(members).values(testMembers).onConflictDoNothing();
     await tx.insert(memberships).values(testMemberships).onConflictDoNothing();
+    await tx.insert(bookings).values(testBookings).onConflictDoNothing();
     for (const ms of testMemberships) {
       await grantAllowances(tx, ms.id ?? "", { type: "system" });
     }

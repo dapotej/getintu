@@ -3,7 +3,7 @@
 // Nothing is saved: reloading the page starts again.
 import { generateKeyPair, PASS_LIFETIME_SECONDS, signPass, toBase64url, fromBase64url } from "@intu/qr";
 import { allowancePeriods, benefitFor, costPlan, covers, type CostingBenefit, type CostingPlan } from "@intu/rules";
-import { testBenefits, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
+import { testBenefits, testBookings, testDoorStaff, testFxRates, testMembers, testMemberships, testOffers, testPartners, testPlanPrices, testPlans, testVenues } from "../../../packages/db/src/seed-data";
 import { flattenTaxonomy } from "../../../packages/db/src/taxonomy";
 import { readTable } from "../../api/src/import/csv";
 
@@ -31,7 +31,7 @@ const prices: Row[] = testPlanPrices.map((p) => ({ id: uid(), ...p }) as Row);
 const benefits: Row[] = testBenefits.map(({ categoryCode, ...b }) => ({ id: uid(), sharedByGroup: false, capOncePerVenuePerMonth: false, capOncePerVenuePerDay: true, drawPerPerson: false, allowedVenueTiers: ["standard"], costBasis: "per_use", plannedCostMinor: null, expectedUsePct: 60, ...b, categoryId: cat(categoryCode).id }) as Row);
 const partnerDefaults = { contactName: null, contactPhone: null, active: true, hasBankDetails: false, isTest: false, settlementTerms: null, contactEmail: null };
 const partners: Row[] = testPartners.map((p) => ({ ...partnerDefaults, ...stamp, ...p, hasBankDetails: p.id.endsWith("102") }) as Row);
-const venues: Row[] = testVenues.map(({ categoryCode, ...v }) => ({ description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v, categoryId: cat(categoryCode).id }) as Row);
+const venues: Row[] = testVenues.map(({ categoryCode, ...v }) => ({ kind: "place", description: null, capacityNotes: null, externalRef: null, active: true, ...stamp, ...v, categoryId: cat(categoryCode).id }) as Row);
 const offers: Row[] = testOffers.map(({ categoryCode, ...o }) => ({ description: null, validHours: null, validFrom: null, validTo: null, active: true, retailMinor: null, offerModel: "included", pricesArePlaceholders: false, ...o, categoryId: cat(categoryCode).id }) as Row);
 const members: Row[] = testMembers.map((m) => ({ consentMarketing: false, ...stamp, ...m, consentTermsAt: String(m.consentTermsAt) }) as Row);
 const memberships: Row[] = testMemberships.map((m) => ({ arrivesOn: null, departsOn: null, paymentSource: "direct", ...m }) as Row);
@@ -39,10 +39,21 @@ memberships.find((m) => m.passNumber === "TEST-0001")!.arrivesOn = "2026-12-14";
 memberships.find((m) => m.passNumber === "TEST-0001")!.departsOn = "2027-01-03";
 const allowances: Row[] = [];
 const visits: Row[] = [];
-// Door staff (PINs never leave the server, so the demo only knows who they are), member devices,
+// Partner staff (PINs never leave the server, so the demo only knows who they are), member devices,
 // and a demo key standing in for the server's pass-signing key.
 const doorStaff: Row[] = testDoorStaff.map((d) => ({ id: d.id, fullName: d.fullName, role: d.role, active: true, hasPin: true, venueId: d.venueId }));
 const devices: Row[] = [];
+const bookings: Row[] = testBookings.map((b) => ({ ...b, redemptionId: null }) as Row);
+const bookingsFor = (memberId: string) => ({
+  bookings: bookings
+    .filter((b) => b.memberId === memberId)
+    .map((b) => {
+      const venue = venues.find((v) => v.id === b.venueId);
+      const offer = offers.find((o) => o.id === b.offerId);
+      return { ...b, venue: venue ? { id: venue.id, name: venue.name, partnerId: venue.partnerId, kind: venue.kind ?? "place" } : null, offerName: offer ? catRef(offer.categoryId).name : null };
+    })
+    .sort((a, b) => String(b.bookingDate).localeCompare(String(a.bookingDate))),
+});
 const demoServerKey = generateKeyPair();
 const LOGIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const staff: Row[] = [
@@ -293,7 +304,7 @@ const routes: [string, RegExp, Handler][] = [
     return { staff: row };
   }],
   ["PATCH", /^\/admin\/door-staff\/([^/]+)$/, (m, b) => {
-    const row = need(doorStaff.find((d) => d.id === m[1]), "Door staff");
+    const row = need(doorStaff.find((d) => d.id === m[1]), "Partner staff");
     if (b.active !== undefined) row.active = b.active;
     return { staff: row };
   }],
@@ -327,6 +338,20 @@ const routes: [string, RegExp, Handler][] = [
     return { ok: true };
   }],
 
+  ["GET", /^\/admin\/members\/([^/]+)\/bookings$/, (m) => bookingsFor(m[1]!)],
+  ["POST", /^\/admin\/members\/([^/]+)\/bookings$/, (m, b) => {
+    bookings.push({ id: uid(), memberId: m[1], membershipId: b.membershipId, venueId: b.venueId, offerId: b.offerId ?? null, bookingDate: b.bookingDate, partySize: b.partySize ?? 1, status: "confirmed", notes: b.notes ?? null, redemptionId: null } as Row);
+    return bookingsFor(m[1]!);
+  }],
+  ["POST", /^\/admin\/bookings\/([^/]+)\/cancel$/, (m) => {
+    const row = need(bookings.find((x) => x.id === m[1]), "Booking");
+    row.status = "cancelled";
+    return bookingsFor(String(row.memberId));
+  }],
+  ["POST", /^\/admin\/redemptions\/([^/]+)\/reverse$/, (m) => {
+    Object.assign(need(visits.find((v) => v.id === m[1]), "Visit"), { reversedAt: now() });
+    return { ok: true };
+  }],
   ["GET", /^\/admin\/staff$/, () => ({ staff })],
   ["POST", /^\/admin\/staff$/, (_m, b) => {
     const email = String(b.email).toLowerCase();

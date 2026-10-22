@@ -90,6 +90,11 @@ export interface RedemptionContext {
   offerApprovalsOnServiceDate: number;
   /** When this exact scanned code was already approved, if it was. A code is only ever approved once. */
   codeClaimedAt?: Date | null;
+  /**
+   * Visiting services (chauffeurs, home beauty…) can only be used against a confirmed booking for
+   * the service day that hasn't been used yet (Dapo, 22 Oct 2026). Omitted means no booking needed.
+   */
+  booking?: { required: boolean; found: boolean };
 }
 
 export const DECLINE_REASONS = [
@@ -105,6 +110,7 @@ export const DECLINE_REASONS = [
   "VENUE_DAILY_LIMIT",
   "OFFER_DAILY_CAP",
   "DUPLICATE_SCAN",
+  "BOOKING_REQUIRED",
 ] as const;
 export type DeclineReason = (typeof DECLINE_REASONS)[number];
 

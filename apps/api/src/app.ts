@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { sql } from "drizzle-orm";
 import { z, ZodError } from "zod";
 import type { Db } from "@intu/db";
+import { bookingRoutes } from "./admin/bookings.ts";
 import { categoryRoutes } from "./admin/categories.ts";
 import { importRoutes } from "./admin/import.ts";
 import { memberRoutes } from "./admin/members.ts";
@@ -27,7 +28,7 @@ export interface AppDeps {
   inviteRedirectUrl?: string | undefined;
   /** Signs member passes; scanners trust the public halves. */
   passKeys: PassKeys;
-  /** Signs door staff shift sessions. */
+  /** Signs partner staff shift sessions. */
   partnerSessionSecret: string;
   /** The time, replaceable in tests. */
   clock?: () => Date;
@@ -69,6 +70,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", memberRoutes(deps.db));
   admin.route("/", importRoutes(deps.db));
   admin.route("/", scannerAdminRoutes({ db: deps.db, passKeys: deps.passKeys, clock }));
+  admin.route("/", bookingRoutes({ db: deps.db, clock }));
   app.route("/admin", admin);
 
   return app;

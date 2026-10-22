@@ -96,6 +96,7 @@ export function memberRoutes(db: Db) {
         reason: redemptions.reason,
         method: redemptions.method,
         partySize: redemptions.partySize,
+        reversedAt: redemptions.deletedAt,
       })
       .from(redemptions)
       .innerJoin(venues, eq(venues.id, redemptions.venueId))

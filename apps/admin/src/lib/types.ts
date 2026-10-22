@@ -99,6 +99,8 @@ export interface Venue {
   id: string;
   partnerId: string;
   name: string;
+  /** A place members visit, or a service that comes to them and is only used against a booking. */
+  kind: "place" | "visiting";
   area: string;
   city: "lagos" | "abuja";
   /** A catalogue category or subcategory. */
@@ -174,6 +176,20 @@ export interface Visit {
   reason: string | null;
   method: "online" | "offline" | "manual";
   partySize: number;
+  /** Set when ops reversed the visit (it didn't happen); the allowance was given back. */
+  reversedAt: string | null;
+}
+
+export interface Booking {
+  id: string;
+  membershipId: string | null;
+  bookingDate: string;
+  partySize: number;
+  status: "requested" | "confirmed" | "declined" | "cancelled" | "completed" | "no_show";
+  notes: string | null;
+  redemptionId: string | null;
+  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" } | null;
+  offerName: string | null;
 }
 
 export interface MemberDetail {

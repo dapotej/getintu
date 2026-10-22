@@ -2,7 +2,7 @@ import { and, count, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { audit, schema, type Db } from "@intu/db";
 import { benefitFor, evaluate, serviceDate as serviceDateFor, type Decision } from "@intu/rules";
 
-const { allowances, benefits, categories, memberships, offers, redemptions, venues } = schema;
+const { allowances, benefits, bookings, categories, memberships, offers, redemptions, venues } = schema;
 
 export interface RedeemInput {
   /** Set by an offline scanner, so a visit synced twice can only be recorded once. */
@@ -84,6 +84,28 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
           .for("update")
       : [];
 
+    // A visiting service is used against a confirmed booking for the day (lock order: offer,
+    // allowance, booking). One booking, one approved visit.
+    const [booking] =
+      venue.kind === "visiting"
+        ? await tx
+            .select()
+            .from(bookings)
+            .where(
+              and(
+                eq(bookings.membershipId, membership.id),
+                eq(bookings.venueId, venue.id),
+                eq(bookings.bookingDate, day),
+                eq(bookings.status, "confirmed"),
+                isNull(bookings.redemptionId),
+                or(isNull(bookings.offerId), eq(bookings.offerId, offer.id)),
+              ),
+            )
+            .orderBy(bookings.createdAt)
+            .limit(1)
+            .for("update")
+        : [];
+
     const monthStart = `${day.slice(0, 7)}-01`;
     const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
     const history = await tx
@@ -141,6 +163,7 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
       memberHistory: history.flatMap((h) => (h.benefitId ? [{ ...h, benefitId: h.benefitId }] : [])),
       offerApprovalsOnServiceDate: offerToday?.n ?? 0,
       codeClaimedAt: claimed?.occurredAt ?? null,
+      booking: { required: venue.kind === "visiting", found: booking !== undefined },
     });
 
     const offline = input.method === "offline";
@@ -183,6 +206,11 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
         .where(eq(allowances.id, allowance.id))
         .returning();
       await audit(tx, actor, { action: "allowance.drawn_down", entity: "allowance", entityId: allowance.id, before: allowance, after: updated });
+    }
+
+    if (approved && booking) {
+      const [usedBooking] = await tx.update(bookings).set({ status: "completed", redemptionId: row.id }).where(eq(bookings.id, booking.id)).returning();
+      await audit(tx, actor, { action: "booking.completed", entity: "booking", entityId: booking.id, before: booking, after: usedBooking });
     }
 
     return { redemptionId: row.id, decision, flagged };

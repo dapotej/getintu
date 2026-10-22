@@ -8,7 +8,7 @@ import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import { isNight } from "@/lib/catalogue";
 import { PAID_BY, STATUS_LABELS, statusTone } from "@/lib/labels";
-import type { Allowance, MemberDetail, Membership, Plan } from "@/lib/types";
+import type { Allowance, Booking, MemberDetail, Membership, Plan, Venue } from "@/lib/types";
 
 const METHOD: Record<string, string> = { online: "Scan", offline: "Scan (offline)", manual: "Manual" };
 
@@ -95,11 +95,13 @@ export default function MemberPage() {
 
         <DevicesCard memberId={id} canWrite={can("members.write")} />
 
+        <BookingsCard memberId={id} memberships={memberships} canWrite={can("members.write")} />
+
         <Card title="Visits" description="The last 50 scans at venues, in Lagos time." flush>
           {visits.length === 0 ? (
             <EmptyState title="No visits yet" />
           ) : (
-            <Table head={["When", "Venue", "Benefit", "Result", "How"]}>
+            <Table head={["When", "Venue", "Benefit", "Result", "How", ""]}>
               {visits.map((v) => (
                 <tr key={v.id}>
                   <Td className="whitespace-nowrap tabular-nums">{formatLagosDateTime(v.occurredAt)}</Td>
@@ -109,7 +111,11 @@ export default function MemberPage() {
                     {v.partySize > 1 ? <span className="text-muted"> · party of {v.partySize}</span> : null}
                   </Td>
                   <Td>
-                    {v.result === "approved" ? (
+                    {v.reversedAt ? (
+                      <Badge dot tone="neutral">
+                        Reversed
+                      </Badge>
+                    ) : v.result === "approved" ? (
                       <Badge dot tone="night">
                         Approved
                       </Badge>
@@ -120,6 +126,22 @@ export default function MemberPage() {
                     )}
                   </Td>
                   <Td className="text-muted">{METHOD[v.method] ?? v.method}</Td>
+                  <Td className="text-right">
+                    {can("members.write") && v.result === "approved" && !v.reversedAt ? (
+                      <Button
+                        size="sm"
+                        tone="ghost"
+                        onClick={async () => {
+                          const reason = window.prompt("Reverse this visit? Use it when the service didn't happen: the allowance is given back and any booking is cancelled. Why?");
+                          if (!reason || reason.trim().length < 3) return;
+                          await api(`/admin/redemptions/${v.id}/reverse`, { method: "POST", body: { reason } });
+                          setData(await api<MemberDetail>(`/admin/members/${id}`));
+                        }}
+                      >
+                        Reverse
+                      </Button>
+                    ) : null}
+                  </Td>
                 </tr>
               ))}
             </Table>
@@ -355,6 +377,145 @@ function DevicesCard({ memberId, canWrite }: { memberId: string; canWrite: boole
           </tr>
         ))}
       </Table>
+    </Card>
+  );
+}
+
+const BOOKING_STATUS: Record<Booking["status"], { label: string; tone: "night" | "day" | "neutral" | "danger" }> = {
+  requested: { label: "Requested", tone: "day" },
+  confirmed: { label: "Confirmed", tone: "night" },
+  completed: { label: "Used", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+  declined: { label: "Declined", tone: "danger" },
+  no_show: { label: "No-show", tone: "danger" },
+};
+
+/**
+ * Bookings, made by ops on the member's behalf once the partner has agreed. A visiting service
+ * (chauffeur, home beauty) only scans against a confirmed booking for the day.
+ */
+function BookingsCard({ memberId, memberships, canWrite }: { memberId: string; memberships: Membership[]; canWrite: boolean }) {
+  const { data, setData } = useApi<{ bookings: Booking[] }>(`/admin/members/${memberId}/bookings`);
+  const [adding, setAdding] = useState(false);
+  const [venueId, setVenueId] = useState("");
+  const venues = useApi<{ venues: Venue[] }>(adding ? "/admin/venues" : null);
+  const offers = useApi<{ offers: { id: string; category: { name: string } }[] }>(adding && venueId ? `/admin/venues/${venueId}` : null);
+  const active = memberships.filter((m) => m.status === "active");
+  const sorted = [...(venues.data?.venues ?? [])].filter((v) => v.active).sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "visiting" ? -1 : 1));
+
+  return (
+    <Card
+      title="Bookings"
+      description="Chauffeurs, home beauty and other visiting services can only be scanned against a confirmed booking for the day."
+      flush
+      actions={canWrite && active.length ? <Button size="sm" tone={adding ? "ghost" : "secondary"} onClick={() => setAdding((a) => !a)}>{adding ? "Cancel" : "Book a service"}</Button> : null}
+    >
+      {adding ? (
+        <ActionForm
+          className="grid gap-4 border-b border-line bg-subtle/60 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3"
+          action={async (form) => {
+            setData(
+              await api<{ bookings: Booking[] }>(`/admin/members/${memberId}/bookings`, {
+                method: "POST",
+                body: {
+                  membershipId: text(form, "membershipId"),
+                  venueId: text(form, "venueId"),
+                  offerId: textOrNull(form, "offerId"),
+                  bookingDate: text(form, "bookingDate"),
+                  partySize: Number(text(form, "partySize") || 1),
+                  notes: textOrNull(form, "notes"),
+                },
+              }),
+            );
+            setAdding(false);
+          }}
+        >
+          {(busy) => (
+            <>
+              <Field label="Pass">
+                <Select name="membershipId" required>
+                  {active.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.plan.name}
+                      {m.passNumber ? ` · ${m.passNumber}` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Service or venue">
+                <Select name="venueId" required value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+                  <option value="">Choose…</option>
+                  {sorted.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {v.kind === "visiting" ? " (visiting)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="What's booked">
+                <Select name="offerId">
+                  <option value="">Any of its offers</option>
+                  {offers.data?.offers.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.category.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Date (Lagos)">
+                <Input name="bookingDate" type="date" required />
+              </Field>
+              <Field label="Party size">
+                <Input name="partySize" type="number" min={1} max={20} defaultValue={1} />
+              </Field>
+              <Field label="Notes for the partner">
+                <Input name="notes" placeholder="e.g. Flight BA75 lands 15:20" />
+              </Field>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <Button type="submit" disabled={busy}>
+                  Confirm booking
+                </Button>
+              </div>
+            </>
+          )}
+        </ActionForm>
+      ) : null}
+      {!data || data.bookings.length === 0 ? (
+        <EmptyState title="No bookings" />
+      ) : (
+        <Table head={["Date", "Service", "Status", ""]}>
+          {data.bookings.map((b) => (
+            <tr key={b.id}>
+              <Td className="whitespace-nowrap tabular-nums">{formatDate(b.bookingDate)}</Td>
+              <Td>
+                <span className="font-medium">{b.venue?.name ?? "–"}</span>
+                <span className="block text-xs text-muted">{[b.offerName, b.partySize > 1 ? `party of ${b.partySize}` : null, b.notes].filter(Boolean).join(" · ")}</span>
+              </Td>
+              <Td>
+                <Badge dot tone={BOOKING_STATUS[b.status].tone}>
+                  {BOOKING_STATUS[b.status].label}
+                </Badge>
+              </Td>
+              <Td className="text-right">
+                {canWrite && b.status === "confirmed" && !b.redemptionId ? (
+                  <Button
+                    size="sm"
+                    tone="ghost"
+                    onClick={async () => {
+                      const reason = window.prompt("Why cancel this booking? Kept in the audit log.");
+                      if (!reason || reason.trim().length < 3) return;
+                      setData(await api<{ bookings: Booking[] }>(`/admin/bookings/${b.id}/cancel`, { method: "POST", body: { reason } }));
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </Td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </Card>
   );
 }

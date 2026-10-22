@@ -37,10 +37,15 @@ export function ScannerApp() {
 
   useEffect(() => {
     (async () => {
-      const [s, b] = await Promise.all([getKv("session"), getKv("bundle")]);
-      const live = s && Date.parse(s.expiresAt) > Date.now() ? s : null;
-      setSession(live);
-      setBundle(live && b ? b : null);
+      try {
+        const [s, b] = await Promise.all([getKv("session"), getKv("bundle")]);
+        const live = s && Date.parse(s.expiresAt) > Date.now() ? s : null;
+        setSession(live);
+        setBundle(live && b ? b : null);
+      } catch {
+        // Storage unavailable (e.g. a private window): sign in again rather than hang.
+        setSession(null);
+      }
     })();
   }, []);
 
@@ -78,8 +83,8 @@ function SignIn({ onSignedIn }: { onSignedIn: (s: Session, b: VenueBundle) => vo
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 px-5 py-10">
       <div>
         <Wordmark className="h-8 text-fg" />
-        <h1 className="mt-6 text-2xl font-bold">Door scanner</h1>
-        <p className="mt-1 text-muted">Sign in with your venue code and your own PIN. You stay signed in for the shift.</p>
+        <h1 className="mt-6 text-2xl font-bold">intu scanner</h1>
+        <p className="mt-1 text-muted">Sign in with your sign-in code and your own PIN. You stay signed in for the shift.</p>
       </div>
       <form
         className="flex flex-col gap-4"
@@ -100,7 +105,7 @@ function SignIn({ onSignedIn }: { onSignedIn: (s: Session, b: VenueBundle) => vo
           }
         }}
       >
-        <Field label="Venue code">
+        <Field label="Sign-in code">
           <Input name="venueCode" required autoCapitalize="characters" autoComplete="off" spellCheck={false} className="h-12 text-lg uppercase tracking-widest" />
         </Field>
         <Field label="Your PIN">
@@ -463,15 +468,17 @@ function TodayTab({ session, online }: { session: Session; online: boolean }) {
       {data ? (
         <>
           <section>
-            <h2 className="mb-2 text-sm font-semibold text-muted">Bookings expected</h2>
+            <h2 className="mb-2 text-sm font-semibold text-muted">Bookings today</h2>
             {data.bookings.length ? (
               <ul className="flex flex-col gap-2">
                 {data.bookings.map((b) => (
                   <li key={b.id} className="rounded-xl bg-surface px-4 py-3 ring-1 ring-line">
-                    <p className="font-semibold">{b.memberName}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold">{b.memberName}</p>
+                      <span className={cx("shrink-0 text-sm font-semibold", b.used ? "text-night" : "text-day")}>{b.used ? "Done" : "Expected"}</span>
+                    </div>
                     <p className="text-sm text-muted">
-                      Party of {b.partySize}
-                      {b.eventName ? ` · ${b.eventName}` : ""} · {b.status}
+                      {[b.offerName ?? b.eventName, b.partySize > 1 ? `party of ${b.partySize}` : null, b.notes].filter(Boolean).join(" · ")}
                     </p>
                   </li>
                 ))}

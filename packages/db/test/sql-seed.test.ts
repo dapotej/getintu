@@ -18,12 +18,13 @@ const FINGERPRINT = `
     (select count(*) from audit_log) as counts,
     (select md5(string_agg(r, '|' order by r)) from (select p.code||c.code||coalesce(b.quantity::text,'-')||b.shared_by_group||b.draw_per_person||b.allowed_venue_tiers::text||b.cap_once_per_venue_per_day||b.cost_basis||coalesce(b.planned_cost_minor::text,'-')||b.expected_use_pct as r from benefits b join plans p on p.id = b.plan_id join categories c on c.id = b.category_id) x) as benefits,
     (select md5(string_agg(r, '|' order by r)) from (select coalesce(a.membership_id::text, 'g:'||a.group_id)||p.code||c.code||coalesce(a.granted::text,'-')||a.period_start||a.period_end||a.used as r from allowances a join benefits b on b.id = a.benefit_id join plans p on p.id = b.plan_id join categories c on c.id = b.category_id) x) as allowances,
-    (select md5(string_agg(r, '|' order by r)) from (select v.id::text||v.name||v.opening_hours::text||v.tier||(select code from categories where id = v.category_id)||coalesce(v.login_code,'-') as r from venues v) x) as venues,
+    (select md5(string_agg(r, '|' order by r)) from (select v.id::text||v.name||v.opening_hours::text||v.tier||(select code from categories where id = v.category_id)||coalesce(v.login_code,'-')||v.kind as r from venues v) x) as venues,
     (select md5(string_agg(r, '|' order by r)) from (select o.id::text||o.venue_id::text||(select code from categories where id = o.category_id)||o.rate_minor||coalesce(o.retail_minor::text,'-')||o.prices_are_placeholders||coalesce(o.daily_cap::text,'-') as r from offers o) x) as offers,
     (select md5(string_agg(r, '|' order by r)) from (select m.id::text||m.full_name||m.phone||coalesce(m.email,'')||coalesce(m.country,'') as r from members m) x) as members,
     (select md5(string_agg(r, '|' order by r)) from (select p.code||pp.currency||pp.amount_minor as r from plan_prices pp join plans p on p.id = pp.plan_id) x) as prices,
     (select string_agg(p.code||':'||p.overhead_per_member_minor, '|' order by p.code) from plans p) as overheads,
     (select string_agg(currency||':'||kobo_per_unit, '|' order by currency) from fx_rates) as fx,
+    (select md5(string_agg(b.id::text||b.member_id||coalesce(b.offer_id::text,'-')||b.booking_date||b.status||coalesce(b.notes,''), '|' order by b.id)) from bookings b) as bookings,
     (select md5(string_agg(s.id::text||s.role||s.full_name||coalesce(s.pin_hash,'-')||coalesce(v.venue_id::text,'-'), '|' order by s.id)) from staff_users s left join staff_user_venues v on v.staff_user_id = s.id) as staff,
     (select md5(string_agg(r, '|' order by r)) from (select p.id::text||p.legal_name as r from partners p) x) as partners`;
 

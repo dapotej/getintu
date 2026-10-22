@@ -20,7 +20,7 @@ const Env = z.object({
   QR_SIGNING_KEY: z.string().optional(),
   // Retired keys scanners should still trust until their passes expire: "<id>:<base64url public key>,…".
   QR_PUBLIC_KEYS: z.string().default(""),
-  // Signs door staff shift sessions. At least 32 random characters.
+  // Signs partner staff shift sessions. At least 32 random characters.
   PARTNER_SESSION_SECRET: z.string().min(32).optional(),
 });
 

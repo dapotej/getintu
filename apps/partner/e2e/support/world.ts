@@ -14,18 +14,18 @@ export const { db, sql } = createDb(DATABASE_URL, { max: 2 });
 
 const categoryId = async (code: string) => one(await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, code))).id;
 
-export async function createWorld(opts: { quantity?: number; offers?: number } = {}) {
+export async function createWorld(opts: { quantity?: number; offers?: number; visiting?: boolean } = {}) {
   const tag = randomUUID().slice(0, 6).toUpperCase();
   const partner = one(await db.insert(schema.partners).values({ legalName: `TEST E2E Partner ${tag}`, tradingName: `TEST E2E ${tag}`, isTest: true }).returning());
   const loginCode = `E${tag.slice(0, 5)}`;
   const venue = one(
     await db
       .insert(schema.venues)
-      .values({ partnerId: partner.id, name: `TEST E2E Beach ${tag}`, area: "Oniru", city: "lagos", categoryId: await categoryId("C03-S01"), loginCode, openingHours: allDay, isTest: true })
+      .values({ partnerId: partner.id, name: `TEST E2E ${opts.visiting ? "Chauffeurs" : "Beach"} ${tag}`, kind: opts.visiting ? "visiting" : "place", area: "Oniru", city: "lagos", categoryId: await categoryId("C03-S01"), loginCode, openingHours: allDay, isTest: true })
       .returning(),
   );
   const offerCodes = ["C03-S01-T01", "C03-S01-T02"].slice(0, opts.offers ?? 1);
-  const offers = [];
+  const offers: (typeof schema.offers.$inferSelect)[] = [];
   for (const code of offerCodes) offers.push(one(await db.insert(schema.offers).values({ venueId: venue.id, categoryId: await categoryId(code), rateMinor: 1_500_000, isTest: true }).returning()));
   const pin = String(randomInt(100000, 999999));
   const staff = one(await db.insert(schema.staffUsers).values({ role: "door_staff", fullName: `TEST Door ${tag}`, partnerId: partner.id, pinHash: hashPin(pin), isTest: true }).returning());
@@ -45,5 +45,13 @@ export async function createWorld(opts: { quantity?: number; offers?: number } =
     { keyId: server.keyId, membershipId: membership.id, deviceId: row.id, planId: plan.id, startsOn: membership.startsOn, endsOn: membership.endsOn, name: member.fullName, expiresAt: new Date(Date.now() + 86_400_000), devicePublicKey: device.publicKey },
     server.secretKey,
   );
-  return { venue, offers, loginCode, pin, member, membership, code: (at = new Date()) => signCode(cert, device.secretKey, at) };
+  /** A confirmed booking for today (Lagos), for visiting services. */
+  const book = async () =>
+    one(
+      await db
+        .insert(schema.bookings)
+        .values({ memberId: member.id, membershipId: membership.id, venueId: venue.id, offerId: offers[0]?.id ?? null, bookingDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date()), status: "confirmed", notes: "TEST e2e pickup" })
+        .returning(),
+    );
+  return { venue, offers, loginCode, pin, member, membership, book, code: (at = new Date()) => signCode(cert, device.secretKey, at) };
 }

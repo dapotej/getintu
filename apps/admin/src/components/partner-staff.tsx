@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ActionForm, text } from "@/components/forms";
 import { api, useApi } from "@/lib/api";
 
-interface DoorStaff {
+interface PartnerStaff {
   id: string;
   fullName: string;
   role: string;
@@ -12,15 +12,15 @@ interface DoorStaff {
   hasPin: boolean;
 }
 
-/** Who can sign in to this venue's scanner: the venue's login code plus each person's own PIN. */
-export function DoorStaffCard({ venueId, writable }: { venueId: string; writable: boolean }) {
-  const { data, reload } = useApi<{ loginCode: string | null; staff: DoorStaff[] }>(`/admin/venues/${venueId}/door-staff`);
+/** Who can sign in to this venue's intu scanner: its sign-in code plus each person's own PIN. */
+export function PartnerStaffCard({ venueId, writable }: { venueId: string; writable: boolean }) {
+  const { data, reload } = useApi<{ loginCode: string | null; staff: PartnerStaff[] }>(`/admin/venues/${venueId}/door-staff`);
   const [resetting, setResetting] = useState<string | null>(null);
   if (!data) return null;
   return (
     <Card
-      title="Door scanner"
-      description="Staff open the intu scanner on the venue's phone and sign in with the venue code and their own 6-digit PIN."
+      title="intu scanner"
+      description="Partner staff open the intu scanner on their phone (or the venue's) and sign in with this code and their own 6-digit PIN. Drivers and home-service staff scan the member when they meet."
       flush
       actions={
         writable ? (
@@ -33,17 +33,17 @@ export function DoorStaffCard({ venueId, writable }: { venueId: string; writable
               reload();
             }}
           >
-            {data.loginCode ? "New venue code" : "Make venue code"}
+            {data.loginCode ? "New sign-in code" : "Make sign-in code"}
           </Button>
         ) : null
       }
     >
       <div className="border-b border-line px-5 py-4">
-        <p className="text-sm text-muted">Venue code</p>
+        <p className="text-sm text-muted">Sign-in code</p>
         <p className="mt-1 font-mono text-2xl font-bold tracking-[0.2em]">{data.loginCode ?? "Not set yet"}</p>
       </div>
       {data.staff.length === 0 ? (
-        <EmptyState title="No door staff yet">Add each person who scans at this venue.</EmptyState>
+        <EmptyState title="No partner staff yet">Add each person who scans members here.</EmptyState>
       ) : (
         <Table head={["Name", "Status", ""]}>
           {data.staff.map((s) => (
@@ -111,7 +111,7 @@ export function DoorStaffCard({ venueId, writable }: { venueId: string; writable
           {(busy) => (
             <>
               <div className="min-w-56 flex-1">
-                <Field label="Add door staff" hint="Their name as colleagues know it">
+                <Field label="Add partner staff" hint="Their name as colleagues know it">
                   <Input name="fullName" required placeholder="Full name" />
                 </Field>
               </div>

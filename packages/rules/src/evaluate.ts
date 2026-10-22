@@ -44,6 +44,9 @@ export function evaluate(ctx: RedemptionContext): Decision {
   // The same code shown again, here or at another offer: a screenshot or a second scan.
   if (ctx.codeClaimedAt) return { result: "declined", serviceDate: day, reason: "DUPLICATE_SCAN", claimedAt: ctx.codeClaimedAt };
 
+  // A visiting service needs a confirmed booking for today.
+  if (ctx.booking?.required && !ctx.booking.found) return decline("BOOKING_REQUIRED");
+
   // 4. Allowance remaining for the current period, enough for everyone it covers.
   const units = benefit.drawPerPerson ? ctx.partySize : 1;
   if (allowance === null || (allowance.granted !== null && allowance.used + units > allowance.granted)) {

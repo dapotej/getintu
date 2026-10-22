@@ -1,4 +1,4 @@
-// Door staff sign in on the venue's device with the venue's login code and their own PIN, and
+// Partner staff sign in on their phone (or the venue's) with the sign-in code and their own PIN, and
 // stay signed in for the shift.
 import { and, eq, isNull } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
@@ -45,7 +45,7 @@ export function requireDoorStaff(deps: { db: Db; partnerSessionSecret: string; c
   return createMiddleware<PartnerEnv>(async (c, next) => {
     const header = c.req.header("authorization") ?? "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-    if (!token) fail(401, "unauthenticated", "Sign in with your venue code and PIN");
+    if (!token) fail(401, "unauthenticated", "Sign in with the sign-in code and your PIN");
     let staffId: string;
     let venueId: string;
     try {

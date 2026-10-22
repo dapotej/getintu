@@ -22,6 +22,8 @@ export interface OfflineContext {
   partySize: number;
   /** Visits stored on this scanner and not yet synced. */
   visitsOnDevice: readonly OfflineVisit[];
+  /** For visiting services: whether the cached bookings include one for this pass today. */
+  booking?: { required: boolean; found: boolean };
 }
 
 /**
@@ -44,6 +46,7 @@ export function evaluateOffline(ctx: OfflineContext): Decision {
     allowance: { granted: null, used: 0 },
     memberHistory: ctx.benefit ? mine.map((v) => ({ ...v, benefitId: ctx.benefit?.id ?? "" })) : [],
     offerApprovalsOnServiceDate: 0,
+    ...(ctx.booking ? { booking: ctx.booking } : {}),
   });
   if (decision.result === "declined") return decision;
   if (mine.some((v) => v.venueId === ctx.venue.id && v.serviceDate === day)) return { result: "declined", serviceDate: day, reason: "VENUE_DAILY_LIMIT" };

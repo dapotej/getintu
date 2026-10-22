@@ -2,7 +2,7 @@
 // time are checked against the server's public keys, the cached rules run through the same
 // rules engine the server uses, and an approval is stored on the device to sync later.
 import { fromBase64url, verifyCode } from "@intu/qr";
-import { benefitFor, evaluateOffline } from "@intu/rules";
+import { benefitFor, evaluateOffline, serviceDate } from "@intu/rules";
 import { allVisits, putVisit } from "./store";
 import type { PendingVisit, ScanOutcome, VenueBundle } from "./types";
 
@@ -15,6 +15,9 @@ export function scanOffline(bundle: VenueBundle, input: { code: string; offerId:
   const { pass } = verified;
   if (bundle.revocations.devices.includes(pass.deviceId)) return { outcome: { kind: "invalid", problem: "device_revoked" }, visit: null };
 
+  // A visiting service needs a booking for the day: checked against the cached bookings.
+  const day = serviceDate(bundle.venue.openingHours, now);
+  const booked = (bundle.bookings ?? []).some((b) => b.membershipId === pass.membershipId && b.bookingDate === day && (b.offerId === null || b.offerId === offer.id));
   const decision = evaluateOffline({
     now,
     membership: { id: pass.membershipId, revoked: bundle.revocations.memberships.includes(pass.membershipId), startsOn: pass.startsOn, endsOn: pass.endsOn },
@@ -28,6 +31,7 @@ export function scanOffline(bundle: VenueBundle, input: { code: string; offerId:
     visitsOnDevice: visitsOnDevice
       .filter((v) => v.status !== "rejected")
       .map((v) => ({ membershipId: v.membershipId, venueId: bundle.venue.id, offerId: v.offerId, serviceDate: v.serviceDate, occurredAt: new Date(v.occurredAt) })),
+    booking: { required: bundle.venue.kind === "visiting", found: booked },
   });
   const outcome: ScanOutcome = { kind: "decision", decision, member: { name: pass.name, photoUrl: null }, offerName: offer.name, partySize: input.partySize, offline: true };
   if (decision.result !== "approved") return { outcome, visit: null };

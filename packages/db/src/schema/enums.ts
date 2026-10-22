@@ -3,6 +3,8 @@ import { DECLINE_REASONS, MEMBERSHIP_STATUSES, VENUE_TIERS } from "@intu/rules";
 
 // Enums the rules engine reasons about are defined once, in @intu/rules.
 export const venueTierEnum = pgEnum("venue_tier", VENUE_TIERS);
+// A place members go to, or a service that comes to them (chauffeur, home beauty), used by booking only.
+export const venueKindEnum = pgEnum("venue_kind", ["place", "visiting"]);
 export const membershipStatusEnum = pgEnum("membership_status", MEMBERSHIP_STATUSES);
 export const declineReasonEnum = pgEnum("decline_reason", DECLINE_REASONS);
 

@@ -10,9 +10,9 @@ test.afterAll(async () => {
   await sql.end();
 });
 
-async function signIn(page: Page, world: World) {
-  await page.goto("/");
-  await page.getByLabel("Venue code").fill(world.loginCode.toLowerCase());
+async function signIn(page: Page, world: World, opts: { reload?: boolean } = {}) {
+  if (opts.reload !== false) await page.goto("/");
+  await page.getByLabel("Sign-in code").fill(world.loginCode.toLowerCase());
   await page.getByLabel("Your PIN").fill(world.pin);
   await page.getByRole("button", { name: "Start shift" }).click();
   await expect(page.getByText(world.venue.name)).toBeVisible();
@@ -23,13 +23,13 @@ const scan = (page: Page, code: string) => page.evaluate((c) => window.__intuSca
 
 const visitsOf = (membershipId: string) => db.select().from(schema.redemptions).where(eq(schema.redemptions.membershipId, membershipId));
 
-test("door staff sign in with the venue code and their PIN, and stay signed in", async ({ page }) => {
+test("partner staff sign in with the sign-in code and their PIN, and stay signed in", async ({ page }) => {
   const world = await createWorld();
   await page.goto("/");
-  await page.getByLabel("Venue code").fill(world.loginCode);
+  await page.getByLabel("Sign-in code").fill(world.loginCode);
   await page.getByLabel("Your PIN").fill("000000");
   await page.getByRole("button", { name: "Start shift" }).click();
-  await expect(page.getByText("That venue code and PIN don't match")).toBeVisible();
+  await expect(page.getByText("That sign-in code and PIN don't match")).toBeVisible();
 
   await signIn(page, world);
   await page.reload();
@@ -73,10 +73,11 @@ test("shows the result in under 2 seconds on a throttled 3G phone", async ({ pag
 
 test("accepts the 6-digit backup code when the camera can't read the pass", async ({ page }) => {
   const world = await createWorld();
-  await db.insert(schema.passCodes).values({ membershipId: world.membership.id, code: "482913", validOn: toLagos(new Date()).date }).onConflictDoNothing();
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  await db.insert(schema.passCodes).values({ membershipId: world.membership.id, code, validOn: toLagos(new Date()).date });
   await signIn(page, world);
   await page.getByRole("button", { name: "Enter backup code" }).click();
-  await page.getByLabel("Backup code").fill("482913");
+  await page.getByLabel("Backup code").fill(code);
   await page.getByRole("button", { name: "Check" }).click();
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await expect(page.getByText(world.member.fullName)).toBeVisible();
@@ -154,4 +155,44 @@ test("lists today's visits and reports a problem with one to intu", async ({ pag
   await expect(page.getByText("sent to intu")).toBeVisible();
   const [visit] = await visitsOf(world.membership.id);
   expect(visit?.flagReason).toContain("Wrong person. TEST e2e: face didn't match");
+});
+
+test("a visiting service only scans against today's booking, offline too", async ({ page, context }) => {
+  const world = await createWorld({ visiting: true });
+  await signIn(page, world);
+  await scan(page, world.code());
+  await expect(page.getByText("No booking for today")).toBeVisible();
+  await page.getByRole("button", { name: "Next scan" }).click();
+  // The phone knows too, with no signal.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  await scan(page, world.code(new Date(Date.now() + 30_000)));
+  await expect(page.getByText("No booking for today")).toBeVisible();
+  await page.getByRole("button", { name: "Next scan" }).click();
+  await context.setOffline(false);
+
+  await world.book();
+  // The scanner picks up the booking when it refreshes; signing in again does it at once.
+  await page.getByRole("button", { name: "End shift" }).click();
+  await expect(page.getByRole("button", { name: "Start shift" })).toBeVisible();
+  await signIn(page, world, { reload: false });
+  await page.getByRole("button", { name: "Today" }).click();
+  await expect(page.getByText("Expected")).toBeVisible();
+  await page.getByRole("button", { name: "Scan" }).click();
+
+  // Signal drops in the car park: the cached booking still lets the job start.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await context.setOffline(true);
+  await scan(page, world.code(new Date(Date.now() + 30_000)));
+  await expect(page.getByText("Offline approval: checked on this phone")).toBeVisible();
+  await page.getByRole("button", { name: "Next scan" }).click();
+  await context.setOffline(false);
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 15_000 });
+
+  const visits = await visitsOf(world.membership.id);
+  expect(visits.filter((v) => v.result === "approved").map((v) => [v.method, v.flagged])).toEqual([["offline", false]]);
+  const [booking] = await db.select().from(schema.bookings).where(eq(schema.bookings.membershipId, world.membership.id));
+  expect(booking?.status).toBe("completed");
+  await page.getByRole("button", { name: "Today" }).click();
+  await expect(page.getByText("Done")).toBeVisible();
 });

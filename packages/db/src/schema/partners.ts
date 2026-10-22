@@ -2,7 +2,7 @@ import { boolean, date, integer, jsonb, pgTable, text, uuid } from "drizzle-orm/
 import type { WeeklyHours } from "@intu/rules";
 import { deletedAt, id, timestamps } from "./columns.ts";
 import { categories } from "./categories.ts";
-import { cityEnum, currencyEnum, offerModelEnum, venueTierEnum } from "./enums.ts";
+import { cityEnum, currencyEnum, offerModelEnum, venueKindEnum, venueTierEnum } from "./enums.ts";
 
 // A business intu pays. Bank details are encrypted at field level before they reach this table.
 export const partners = pgTable("partners", {
@@ -29,6 +29,9 @@ export const venues = pgTable("venues", {
     .notNull()
     .references(() => partners.id),
   name: text().notNull(),
+  // A visiting service has no address: area is where it serves, opening hours its service hours,
+  // and members can only use it against a confirmed booking.
+  kind: venueKindEnum().notNull().default("place"),
   area: text().notNull(),
   city: cityEnum().notNull(),
   // What kind of place it is: a catalogue category or subcategory (Beach Clubs, Gyms…).

@@ -11,7 +11,7 @@
 
 - API URL: `https://xokexyqjlydjqquownvw.supabase.co`
 - Migrations 0000–0007 were applied on 21 Oct 2026 through the Supabase connector and recorded in `drizzle.__drizzle_migrations`, so `pnpm db:migrate` continues from 0008. A fingerprint of columns, constraints, indexes and enums matched local exactly.
-- Migrations 0008–0010 (22 Oct 2026) move benefits, offers and redemptions onto the catalogue in three steps: add nullable columns, load the taxonomy and backfill (with an audit row per redemption), then set NOT NULL and drop the old `benefit_type` enum; 0011 drops the partner pipeline columns; 0012 adds plan costing and the `fx_rates` table; 0013–0014 move venue kinds onto the catalogue; 0015 adds venue login codes, daily backup codes and flag reviews for the door scanner. To replace TEST data on staging, run the "Reset staging TEST data" workflow (`gh workflow run staging-test-data.yml -f confirm=reset`), which runs `packages/db/sql/reset-test-data.sql` then `seed-test-data.sql`. They run through the automatic staging job below.
+- Migrations 0008–0010 (22 Oct 2026) move benefits, offers and redemptions onto the catalogue in three steps: add nullable columns, load the taxonomy and backfill (with an audit row per redemption), then set NOT NULL and drop the old `benefit_type` enum; 0011 drops the partner pipeline columns; 0012 adds plan costing and the `fx_rates` table; 0013–0014 move venue kinds onto the catalogue; 0015 adds venue sign-in codes, daily backup codes and flag reviews for the intu scanner; 0016 adds visiting services and booked offers. To replace TEST data on staging, run the "Reset staging TEST data" workflow (`gh workflow run staging-test-data.yml -f confirm=reset`), which runs `packages/db/sql/reset-test-data.sql` then `seed-test-data.sql`. They run through the automatic staging job below.
 - **Locked down.** Every table has row-level security with no policies, and Supabase's `anon` and `authenticated` roles have no grants. Supabase's public API can't read or write anything; only the intu API, which connects as the database owner, can. `packages/db/test/schema.test.ts` fails if a new table is added without RLS. Supabase's advisor reports "RLS enabled, no policy" as information. That's intended.
 - **TEST data loaded** on 21 Oct 2026 (Dapo's go-ahead) from `packages/db/sql/seed-test-data.sql`: 4 partners, 7 venues, 7 offers, 3 December Pass plans, 8 members, 58 allowances, each with its audit row. Checked against the local seed row for row. `packages/db/test/sql-seed.test.ts` keeps the SQL seed identical to the TypeScript seed. The audit log is append-only, so these rows are permanent unless the trigger is dropped.
 
@@ -30,11 +30,11 @@ Never commit the connection string or put it in `.env.example`.
 - The API verifies tokens against `https://xokexyqjlydjqquownvw.supabase.co/auth/v1/.well-known/jwks.json`. If the project still uses the legacy shared JWT secret, set `SUPABASE_JWT_SECRET` instead.
 - First account: `pnpm --filter @intu/api create:founder -- --email you@getintu.com --name "Dapo Tejuoso"` with the staging `.env`.
 
-## Door scanner keys
+## intu scanner keys
 
 The API needs two more secrets in staging and production (it refuses to start without them):
 
 - `QR_SIGNING_KEY`: signs member passes. Make one with `pnpm --filter @intu/qr keygen`. When rotating, give the new key a new id and keep the old public key in `QR_PUBLIC_KEYS` for 36 hours.
-- `PARTNER_SESSION_SECRET`: signs door staff shift sessions, at least 32 random characters.
+- `PARTNER_SESSION_SECRET`: signs partner staff shift sessions, at least 32 random characters.
 
 The scanner (`apps/partner`) is a static site built with `NEXT_PUBLIC_API_URL` set to the API, and its address must be in the API's `CORS_ORIGINS`.

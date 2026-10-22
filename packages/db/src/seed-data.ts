@@ -45,11 +45,12 @@ export const testPartners = [
 
 /** A seed venue names its catalogue category by code; seed() looks up the id. */
 export type SeedVenue = Omit<typeof venues.$inferInsert, "categoryId"> & { categoryCode: string };
+// Coastal Rides is a visiting service: no address, used only against a booking.
 const venueId = (n: number) => `00000000-0000-4000-8000-0000000012${String(n).padStart(2, "0")}`;
 export const testVenues: SeedVenue[] = [
   { id: venueId(1), partnerId: partnerId(1), name: "TEST SkyPort Arrivals Desk", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYARR", tier: "standard" as const, openingHours: allDay },
   { id: venueId(2), partnerId: partnerId(2), name: "TEST SkyPort Departure Lounge", area: "Ikeja", categoryCode: "C01-S01", loginCode: "SKYLNG", tier: "standard" as const, openingHours: allDay },
-  { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides Airport Desk", area: "Ikeja", categoryCode: "C01-S02", loginCode: "COASTL", tier: "standard" as const, openingHours: allDay },
+  { id: venueId(3), partnerId: partnerId(3), name: "TEST Coastal Rides chauffeurs", kind: "visiting" as const, area: "Lagos", categoryCode: "C01-S02", loginCode: "COASTL", tier: "standard" as const, openingHours: allDay },
   { id: venueId(4), partnerId: partnerId(4), name: "TEST Atlantic Shore Oniru", area: "Oniru", categoryCode: "C03-S01", loginCode: "ATLONI", tier: "standard" as const, openingHours: daily("10:00", "19:00") },
   { id: venueId(5), partnerId: partnerId(4), name: "TEST Atlantic Shore Lekki", area: "Lekki", categoryCode: "C03-S01", loginCode: "ATLLEK", tier: "standard" as const, openingHours: daily("09:00", "18:00") },
   { id: venueId(6), partnerId: partnerId(5), name: "TEST Marina Grand Hotel", area: "Victoria Island", categoryCode: "C04-S01", loginCode: "MARGRD", tier: "standard" as const, openingHours: daily("06:00", "22:00") },
@@ -214,4 +215,19 @@ export const testMemberships = [
 export const testFxRates = [
   { currency: "GBP" as const, koboPerUnit: 177_000 },
   { currency: "USD" as const, koboPerUnit: 140_000 },
+];
+
+/** A confirmed booking for a visiting service: TEST Ada's airport pickup on the day she lands. */
+export const testBookings = [
+  {
+    id: "00000000-0000-4000-8000-000000001601",
+    memberId: "00000000-0000-4000-8000-000000000301",
+    membershipId: "00000000-0000-4000-8000-000000000701",
+    venueId: venueId(3),
+    offerId: offerId(4),
+    bookingDate: "2026-12-14",
+    partySize: 1,
+    status: "confirmed" as const,
+    notes: "TEST: flight BA75 lands 15:20",
+  },
 ];

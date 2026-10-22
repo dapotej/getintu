@@ -89,6 +89,7 @@ describe("evaluate: each decline reason", () => {
     VENUE_DAILY_LIMIT: base({ memberHistory: [prior(180)] }),
     OFFER_DAILY_CAP: base({ offer: { id: "offer-beach", active: true, categoryCode: "C03-S01-T01", validHours: null, validFrom: null, validTo: null, dailyCap: 20 }, offerApprovalsOnServiceDate: 20 }),
     DUPLICATE_SCAN: base({ memberHistory: [prior(4)] }),
+    BOOKING_REQUIRED: base({ booking: { required: true, found: false } }),
   };
 
   it("has a case for every reason", () => {
@@ -147,6 +148,15 @@ describe("evaluate: details of each check", () => {
   it("declines a code that was already approved, saying when", () => {
     const claimedAt = new Date("2026-12-12T12:59:40Z");
     expect(evaluate(base({ codeClaimedAt: claimedAt }))).toEqual({ result: "declined", serviceDate: "2026-12-12", reason: "DUPLICATE_SCAN", claimedAt });
+  });
+
+  it("approves a visiting service against a booking, and anything else without one", () => {
+    expect(evaluate(base({ booking: { required: true, found: true } })).result).toBe("approved");
+    expect(evaluate(base({ booking: { required: false, found: false } })).result).toBe("approved");
+  });
+
+  it("tells staff a re-scan was claimed rather than that the (now used) booking is missing", () => {
+    expect(declinedWith(base({ booking: { required: true, found: false }, memberHistory: [prior(3)] }))).toBe("DUPLICATE_SCAN");
   });
 
   it("reports the daily limit, not a duplicate, after 10 minutes", () => {

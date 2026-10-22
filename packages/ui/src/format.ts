@@ -65,4 +65,5 @@ export const DECLINE_LABELS: Record<string, string> = {
   VENUE_DAILY_LIMIT: "Already used here today",
   OFFER_DAILY_CAP: "Venue's daily limit reached",
   DUPLICATE_SCAN: "Already claimed",
+  BOOKING_REQUIRED: "No booking for today",
 };

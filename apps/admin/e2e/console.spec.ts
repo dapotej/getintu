@@ -137,7 +137,7 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await expect(page.getByRole("heading", { name: `TEST Nights ${tag}` })).toBeVisible();
 
   await page.getByRole("button", { name: "Add venue" }).click();
-  await page.getByLabel("Venue name").fill(`TEST Rooftop ${tag}`);
+  await page.getByLabel("Venue or service name").fill(`TEST Rooftop ${tag}`);
   await page.getByLabel("Area").fill("Ikoyi");
   await pickCategory(page.getByLabel("Kind of place"), "Members' Clubs");
   await page.getByLabel("Tier").selectOption({ label: "Top tier" });
@@ -227,15 +227,15 @@ test("grow the catalogue: add a service type, rename it, and use it in a plan", 
   await expect(page.getByLabel("Add benefit").locator("option", { hasText: `TEST Range session ${tag}` })).toHaveCount(1);
 });
 
-test("set up a venue's door scanner, show a TEST pass, and review a visit the venue reported", async ({ page, request }) => {
+test("set up a venue's intu scanner, show a TEST pass, and review a visit the venue reported", async ({ page, request }) => {
   const API = "http://localhost:8788";
   const pin = String(randomInt(100000, 999999));
   await page.goto("/partners");
   await page.getByRole("link", { name: "TEST Atlantic Shore" }).click();
   await page.getByRole("link", { name: "TEST Atlantic Shore Oniru" }).click();
-  const scanner = page.locator("section", { hasText: "Door scanner" });
+  const scanner = page.locator("section", { hasText: "intu scanner" });
   await expect(scanner).toContainText("ATLONI");
-  await scanner.getByLabel("Add door staff").fill(`TEST Door E2E ${pin}`);
+  await scanner.getByLabel("Add partner staff").fill(`TEST Door E2E ${pin}`);
   await scanner.getByLabel("PIN", { exact: true }).fill(pin);
   await scanner.getByRole("button", { name: "Add", exact: true }).click();
   await expect(scanner.getByText(`TEST Door E2E ${pin}`)).toBeVisible();
@@ -252,7 +252,7 @@ test("set up a venue's door scanner, show a TEST pass, and review a visit the ve
   const code = await page.evaluate(() => document.body.dataset.passCode ?? "");
   expect(code.startsWith("I1.")).toBe(true);
 
-  // The new door staff member scans it and reports a problem with the visit.
+  // The new partner staff member scans it and reports a problem with the visit.
   const session = await (await request.post(`${API}/partner/session`, { data: { venueCode: "ATLONI", pin } })).json();
   const venue = await (await request.get(`${API}/partner/venue`, { headers: { authorization: `Bearer ${session.token}` } })).json();
   const scan = await (await request.post(`${API}/scan`, { headers: { authorization: `Bearer ${session.token}` }, data: { code, offerId: venue.offers[0].id } })).json();
@@ -269,4 +269,25 @@ test("set up a venue's door scanner, show a TEST pass, and review a visit the ve
   await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toHaveCount(0);
   await page.getByRole("button", { name: "Reviewed" }).click();
   await expect(page.locator("section", { hasText: `TEST e2e ${pin}` })).toContainText("spoke to the venue");
+});
+
+test("book a visiting service for a member, and cancel it", async ({ page }) => {
+  page.on("dialog", (d) => d.accept("TEST e2e: member changed flights"));
+  await page.goto("/members");
+  await page.getByLabel("Search members").fill("TEST Chioma");
+  await page.getByLabel("Search members").press("Enter");
+  await page.getByRole("link", { name: "TEST Chioma Houston" }).click();
+  const card = page.locator("section").filter({ has: page.getByRole("heading", { name: "Bookings", exact: true }) });
+  await card.getByRole("button", { name: "Book a service" }).click();
+  await card.getByLabel("Service or venue").selectOption({ label: "TEST Coastal Rides chauffeurs (visiting)" });
+  await expect(card.getByLabel("What's booked").locator("option", { hasText: "Airport pickup" })).toHaveCount(1);
+  await card.getByLabel("What's booked").selectOption({ label: "Airport pickup" });
+  await card.getByLabel("Date (Lagos)").fill("2026-12-20");
+  await card.getByLabel("Notes for the partner").fill("TEST e2e flight lands 16:00");
+  await card.getByRole("button", { name: "Confirm booking" }).click();
+  const row = card.getByRole("row", { name: /TEST e2e flight lands 16:00/ });
+  await expect(row).toContainText("Confirmed");
+  await expect(row).toContainText("Airport pickup");
+  await row.getByRole("button", { name: "Cancel" }).click();
+  await expect(card.getByRole("row", { name: /TEST e2e flight lands 16:00/ })).toContainText("Cancelled");
 });

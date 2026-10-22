@@ -1,4 +1,4 @@
-// The door scanner end to end through the API: PIN sign-in, scanning QR and backup codes,
+// The intu scanner end to end through the API: PIN sign-in, scanning QR and backup codes,
 // offline sync with flags to ops, today's list, reports, and the admin side.
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,7 +10,7 @@ import { createWorld } from "./support/fixtures.ts";
 
 const url = process.env.DATABASE_URL;
 
-describe.runIf(url)("door scanner", () => {
+describe.runIf(url)("intu scanner", () => {
   const { db, sql } = createDb(url ?? "", { max: 10 });
   afterAll(() => sql.end());
   // Saturday 12 December 2026, 14:00 in Lagos.
@@ -229,5 +229,76 @@ describe.runIf(url)("door scanner", () => {
     await db.update(schema.members).set({ isTest: false }).where(eq(schema.members.id, d.first.member.id));
     const res = await admin.post(`/admin/memberships/${d.first.membership.id}/test-pass`, { devicePublicKey: Buffer.from(generateKeyPair().publicKey).toString("base64url") });
     expect(res.json.error.code).toBe("test_members_only");
+  });
+
+  describe("visiting services (chauffeurs, home beauty)", () => {
+    async function visiting() {
+      const d = await door({ quantity: 3 });
+      await admin.patch(`/admin/venues/${d.venue.id}`, { kind: "visiting" });
+      const book = (extra: Record<string, unknown> = {}) =>
+        admin.post(`/admin/members/${d.first.member.id}/bookings`, { membershipId: d.first.membership.id, venueId: d.venue.id, offerId: d.offer.id, bookingDate: "2026-12-12", ...extra });
+      return { ...d, book };
+    }
+
+    it("only scans against a confirmed booking for today, and uses it up", async () => {
+      const d = await visiting();
+      const pass = await d.pass();
+      expect((await d.scan({ code: pass.code() })).json).toMatchObject({ result: "declined", reason: "BOOKING_REQUIRED" });
+      expect((await d.book({ bookingDate: "2026-12-13" })).status).toBe(201);
+      expect((await d.scan({ code: pass.code() })).json).toMatchObject({ result: "declined", reason: "BOOKING_REQUIRED" });
+
+      const booked = await d.book();
+      expect(booked.status).toBe(201);
+      const venueBundle = (await request("GET", "/partner/venue", { token: d.token })).json;
+      expect(venueBundle.venue.kind).toBe("visiting");
+      expect(venueBundle.bookings.map((b: { membershipId: string }) => b.membershipId)).toContain(d.first.membership.id);
+
+      at("2026-12-12T13:20:00Z");
+      const ok = await d.scan({ code: pass.code() });
+      expect(ok.json).toMatchObject({ result: "approved", remaining: 2 });
+      const [used] = await db.select().from(schema.bookings).where(and(eq(schema.bookings.membershipId, d.first.membership.id), eq(schema.bookings.bookingDate, "2026-12-12")));
+      expect(used).toMatchObject({ status: "completed", redemptionId: ok.json.redemptionId });
+      const today = (await request("GET", "/partner/visits", { token: d.token })).json;
+      expect(today.bookings).toEqual([expect.objectContaining({ memberName: d.first.member.fullName, offerName: "Entry only", used: true })]);
+
+      // One booking, one job: a second scan later the same day needs another booking.
+      at("2026-12-12T15:00:00Z");
+      expect((await d.scan({ code: pass.code() })).json).toMatchObject({ result: "declined", reason: "BOOKING_REQUIRED" });
+    });
+
+    it("lets ops reverse a job that didn't happen: allowance back, booking cancelled, visit kept as reversed", async () => {
+      const d = await visiting();
+      await d.book();
+      const ok = await d.scan({ code: (await d.pass()).code() });
+      expect(ok.json.result).toBe("approved");
+      expect((await admin.post(`/admin/redemptions/${ok.json.redemptionId}/reverse`, { reason: "TEST driver never arrived" })).status).toBe(200);
+      expect((await admin.post(`/admin/redemptions/${ok.json.redemptionId}/reverse`, { reason: "TEST again" })).json.error.code).toBe("cannot_reverse");
+
+      const [allowance] = await db.select().from(schema.allowances).where(eq(schema.allowances.membershipId, d.first.membership.id));
+      expect(allowance).toMatchObject({ granted: 3, used: 0 });
+      const bookings = (await admin.get(`/admin/members/${d.first.member.id}/bookings`)).json.bookings;
+      expect(bookings[0]).toMatchObject({ status: "cancelled", redemptionId: null });
+      const visits = (await admin.get(`/admin/members/${d.first.member.id}`)).json.visits;
+      expect(visits[0].reversedAt).not.toBeNull();
+      const audits = await db.select({ action: schema.auditLog.action }).from(schema.auditLog).where(eq(schema.auditLog.entityId, ok.json.redemptionId));
+      expect(audits.map((a) => a.action)).toContain("redemption.reversed");
+    });
+
+    it("flags an offline visit to a visiting service that had no booking", async () => {
+      const d = await visiting();
+      const pass = await d.pass();
+      const visit = { id: randomUUID(), code: pass.code(), offerId: d.offer.id, partySize: 1, occurredAt: now.toISOString() };
+      const sync = await request("POST", "/scan/sync", { token: d.token, body: { sentAt: now.toISOString(), visits: [visit] } });
+      expect(sync.json.results).toEqual([{ id: visit.id, status: "recorded", flagged: true }]);
+      const [row] = await db.select().from(schema.redemptions).where(eq(schema.redemptions.id, visit.id));
+      expect(row?.flagReason).toContain("BOOKING_REQUIRED");
+    });
+
+    it("refuses bookings outside the pass dates or for another venue's offer", async () => {
+      const d = await visiting();
+      expect((await d.book({ bookingDate: "2027-02-01" })).json.error.code).toBe("outside_pass_dates");
+      const other = await door();
+      expect((await d.book({ offerId: other.offer.id })).json.error.code).toBe("unknown_offer");
+    });
   });
 });

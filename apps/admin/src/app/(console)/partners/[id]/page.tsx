@@ -61,7 +61,7 @@ export default function PartnerPage() {
                   action={async (form) => {
                     const { venue } = await api<{ venue: Venue }>("/admin/venues", {
                       method: "POST",
-                      body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
+                      body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours") },
                     });
                     router.push(`/partners/${id}/venues/${venue.id}`);
                   }}
@@ -70,11 +70,19 @@ export default function PartnerPage() {
                     <>
                       <div className="grid content-start gap-4 sm:grid-cols-2">
                         <div className="sm:col-span-2">
-                          <Field label="Venue name">
+                          <Field label="Venue or service name" hint="e.g. Atlantic Shore Oniru, or Coastal Rides chauffeurs">
                             <Input name="name" required />
                           </Field>
                         </div>
-                        <Field label="Area">
+                        <div className="sm:col-span-2">
+                          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
+                          <Select name="kind" defaultValue={"place"}>
+                            <option value="place">A place members visit</option>
+                            <option value="visiting">A service that comes to them (booked)</option>
+                          </Select>
+                        </Field>
+                        </div>
+                        <Field label="Area" hint="Where it is, or where it serves">
                           <Input name="area" placeholder="Oniru" required />
                         </Field>
                         <Field label="City">
@@ -115,6 +123,7 @@ export default function PartnerPage() {
                         {v.name}
                       </Link>
                       <p className="text-xs text-muted">
+                        {v.kind === "visiting" ? "Visiting service · " : ""}
                         {v.area}, {v.city === "lagos" ? "Lagos" : "Abuja"}
                       </p>
                     </Td>

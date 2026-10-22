@@ -44,6 +44,11 @@ describe("evaluateOffline", () => {
     expect(reason(base({ venue: { ...base().venue, tier: "top" } }))).toBe("VENUE_TIER_NOT_ALLOWED");
   });
 
+  it("needs a cached booking for a visiting service", () => {
+    expect(reason(base({ booking: { required: true, found: false } }))).toBe("BOOKING_REQUIRED");
+    expect(reason(base({ booking: { required: true, found: true } }))).toBeNull();
+  });
+
   it("calls a re-scan within 10 minutes already claimed", () => {
     expect(evaluateOffline(base({ visitsOnDevice: [visit(3)] }))).toMatchObject({ reason: "DUPLICATE_SCAN", claimedAt: visit(3).occurredAt });
   });
