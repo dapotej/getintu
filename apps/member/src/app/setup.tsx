@@ -42,7 +42,7 @@ export default function Setup() {
       {error ? <Notice>{error}</Notice> : null}
       {saved ? <Notice tone="muted">Saved.</Notice> : null}
       <Field label="Full name" value={fullName} onChangeText={setFullName} autoComplete="name" textContentType="name" />
-      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" hint="For receipts. Optional." />
+      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" hint="For receipts. Optional. Confirm it in Account to sign in with it too." />
       <Field label="Country" value={country} onChangeText={setCountry} autoCapitalize="characters" maxLength={2} placeholder="GB" hint="Where you live, as two letters: GB, US, NG…" />
       <Check label="Send me intu news and offers" checked={marketing} onChange={setMarketing} />
       {existing ? null : <Check label="I agree to the intu terms and privacy notice" checked={terms} onChange={setTerms} />}

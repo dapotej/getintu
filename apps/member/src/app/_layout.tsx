@@ -10,7 +10,7 @@ import { colors, fonts } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync().catch(() => null);
 
-/** Sends people where they belong: sign in, set up a profile, take a photo, or their pass. */
+/** Sends people where they belong: welcome, set up a profile, take a photo, or their pass. */
 function Gate() {
   const { loading, session, me } = useSession();
   const segments = useSegments();
@@ -20,11 +20,12 @@ function Gate() {
   useEffect(() => {
     if (loading) return;
     void SplashScreen.hideAsync().catch(() => null);
-    const want = !session ? "sign-in" : me && !me.member ? "setup" : me?.member && !me.member.hasPhoto ? "photo" : null;
+    // The welcome and sign-in screens see someone through joining or signing in, and move on
+    // themselves. Setup and photo screens do too, since members also open them from Account.
+    if (at === "sign-in" || (!session && at === "welcome")) return;
+    const want = !session ? "welcome" : me && !me.member ? "setup" : me?.member && !me.member.hasPhoto ? "photo" : null;
     if (want && at !== want) router.replace(`/${want}`);
-    // Signed in with everything set up: leave the sign-in screen. Setup and photo screens move on
-    // themselves, since members also open them from Account to make changes.
-    else if (!want && at === "sign-in" && me?.member) router.replace("/");
+    else if (session && at === "welcome") router.replace("/");
   }, [loading, session, me, at, router]);
 
   return (
@@ -38,6 +39,7 @@ function Gate() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="setup" options={{ title: "Your details" }} />
       <Stack.Screen name="photo" options={{ title: "Your photo" }} />

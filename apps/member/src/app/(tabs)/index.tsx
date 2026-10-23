@@ -1,7 +1,7 @@
 // The pass: the member's photo beside a QR code that changes every 30 seconds. It keeps working
 // with no signal for a day after it was last renewed, and the screen stays on while it's open.
 import { useKeepAwake } from "expo-keep-awake";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Linking, useWindowDimensions, View } from "react-native";
 import { Qr } from "@/components/qr";
@@ -55,6 +55,7 @@ function Invites({ onJoined }: { onJoined: () => void }) {
 export default function PassScreen() {
   useKeepAwake();
   const router = useRouter();
+  const { back } = useLocalSearchParams<{ back?: string }>();
   const { me } = useSession();
   const { data, offline, loading, reload } = useCached<{ memberships: Membership[] }>("memberships", "/me/memberships");
   const [now, setNow] = useState(() => new Date());
@@ -76,6 +77,7 @@ export default function PassScreen() {
         <Wordmark />
         {offline ? <Badge label="Offline" tone="day" /> : null}
       </View>
+      {back ? <Notice tone="muted">You already have an account, so we&apos;ve signed you in. Welcome back.</Notice> : null}
       <Invites onJoined={() => void reload()} />
       {onHold ? <Notice>{onHold}</Notice> : null}
       {!shown && onHold ? null : !shown ? (

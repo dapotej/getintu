@@ -17,7 +17,7 @@ import { isJpeg, type PhotoStore } from "./photos.ts";
 const { allowances, benefits, bookings, categories, members, memberships, offers, partners, plans, redemptions, staffUsers, vehicles, venues } = schema;
 
 type Member = typeof members.$inferSelect;
-export type MemberEnv = { Variables: { authUserId: string; phone: string; member: Member | null } };
+export type MemberEnv = { Variables: { authUserId: string; phone: string; signInEmail: string | null; member: Member | null } };
 
 export interface MemberDeps {
   db: Db;
@@ -74,8 +74,9 @@ const NewBooking = z.object({
 });
 
 /**
- * A Supabase phone sign-in. Sets the member when there is one, linking it by phone the first time.
- * Staff accounts (email sign-in) have no phone and are refused.
+ * A Supabase sign-in by phone, or by an email the member confirmed on their account. Sets the
+ * member when there is one, linking it by phone the first time. Staff accounts have no phone and
+ * are refused.
  */
 export function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
   return createMiddleware<MemberEnv>(async (c, next) => {
@@ -89,7 +90,8 @@ export function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
       if (err instanceof InvalidTokenError) fail(401, "invalid_token", "Your session has expired. Sign in again.");
       throw err;
     }
-    if (!claims.phone) fail(403, "not_a_member", "Sign in with your phone number");
+    // Every member account has a phone; one signed in by email has had it confirmed on that account.
+    if (!claims.phone) fail(403, "not_a_member", "We don't have an intu account for this email. Join with your phone number.");
     const phone = claims.phone;
 
     let [member] = await deps.db.select().from(members).where(and(eq(members.authUserId, claims.sub), isNull(members.deletedAt)));
@@ -104,6 +106,7 @@ export function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
     }
     c.set("authUserId", claims.sub);
     c.set("phone", phone);
+    c.set("signInEmail", claims.email ?? null);
     c.set("member", member ?? null);
     await next();
   });
@@ -182,11 +185,12 @@ export function memberAppRoutes(deps: MemberDeps) {
     };
   };
 
-  // Who I am. A phone sign-in with no member yet gets `member: null` and sets up a profile.
+  // Who I am, and the email confirmed for signing in, if any. A phone sign-in with no member yet
+  // gets `member: null` and sets up a profile.
   app.get("/me", signedIn, async (c) => {
     const member = c.get("member");
-    if (!member) return c.json({ member: null, phone: c.get("phone"), concierge: deps.conciergeWhatsApp ? { whatsapp: deps.conciergeWhatsApp } : null, doctorOnCall: null });
-    return c.json(await profile(member));
+    if (!member) return c.json({ member: null, phone: c.get("phone"), signInEmail: c.get("signInEmail"), concierge: deps.conciergeWhatsApp ? { whatsapp: deps.conciergeWhatsApp } : null, doctorOnCall: null });
+    return c.json({ ...(await profile(member)), signInEmail: c.get("signInEmail") });
   });
 
   // Sets up or updates my profile. Setting it up needs the terms accepted.
@@ -209,7 +213,7 @@ export function memberAppRoutes(deps: MemberDeps) {
       await audit(tx, actorFor(created.id), { action: "member.signed_up", entity: "member", entityId: created.id, after: created });
       return created;
     });
-    return c.json(await profile(saved), existing ? 200 : 201);
+    return c.json({ ...(await profile(saved)), signInEmail: c.get("signInEmail") }, existing ? 200 : 201);
   });
 
   // My photo: a JPEG taken with the front camera. Venues see it at the door.

@@ -14,16 +14,22 @@ test.afterAll(async () => {
 const server = parseSecretKey(E2E_QR_SIGNING_KEY);
 const publicKeys = new Map([[server.keyId, server.publicKey]]);
 
-async function signIn(page: Page, phone: string) {
+/** Signs in as a member, or joins: from the welcome screen, by phone and the one-time code. */
+async function signIn(page: Page, phone: string, as: "member" | "join" = "member") {
   await fakeSupabase(page);
   await page.goto("/");
+  await page.getByRole("button", { name: as === "join" ? "Join intu" : "I'm already a member" }).click();
+  await enterCode(page, phone, as === "join" ? "Continue" : "Sign in");
+}
+
+async function enterCode(page: Page, phone: string, button: string) {
   await page.getByLabel("Phone number").fill(phone.replace(/^\+999/, "+999 "));
   await page.getByRole("button", { name: "Send code" }).click();
   await page.getByLabel("Code").fill("000000");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: button }).click();
   await expect(page.getByText("That code didn't work")).toBeVisible();
   await page.getByLabel("Code").fill(TEST_CODE);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: button }).click();
 }
 
 /** Takes the selfie: the web build's camera is a file picker, given a JPEG made on the spot. */
@@ -108,9 +114,9 @@ test("benefits show what's left; discover marks what the plan includes; a bookin
   expect(booking?.offerId).not.toBe(world.beachOffer.id);
 });
 
-test("someone new signs up with their details and the terms, then sees they have no pass yet", async ({ page }) => {
+test("someone new joins with their details and the terms, then sees they have no pass yet", async ({ page }) => {
   const phone = fakePhone();
-  await signIn(page, phone);
+  await signIn(page, phone, "join");
   await expect(page.getByRole("heading", { name: "Welcome to intu" })).toBeVisible();
   await page.getByLabel("Full name").fill("TEST E2E Newcomer");
   await page.getByLabel("Country").fill("gb");
@@ -124,7 +130,60 @@ test("someone new signs up with their details and the terms, then sees they have
 
   await page.getByRole("tab", { name: "Account" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByLabel("Phone number")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Join intu" })).toBeVisible();
+});
+
+test("signing in with a number that has no account offers to join", async ({ page }) => {
+  const phone = fakePhone();
+  await signIn(page, phone);
+  await expect(page.getByText(`We don't have an account for ${phone}`)).toBeVisible();
+  await page.getByRole("button", { name: "Join intu" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome to intu" })).toBeVisible();
+});
+
+test("joining with a member's number signs them in", async ({ page }) => {
+  const world = await createWorld();
+  await db.update(schema.members).set({ photoPath: `${world.member.id}/e2e.jpg` }).where(eq(schema.members.id, world.member.id));
+  await signIn(page, world.member.phone, "join");
+  await expect(page.getByText("You already have an account, so we've signed you in. Welcome back.")).toBeVisible();
+  await expect(page.getByLabel("Pass QR code")).toBeVisible();
+});
+
+test("a member confirms their email in Account, then signs in with it; an email on no account gets nowhere", async ({ page }) => {
+  const world = await createWorld();
+  const email = `test.${randomUUID().slice(0, 8)}@example.com`;
+  await db.update(schema.members).set({ photoPath: `${world.member.id}/e2e.jpg`, email }).where(eq(schema.members.id, world.member.id));
+  const fake = await (async () => {
+    const f = await fakeSupabase(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "I'm already a member" }).click();
+    await enterCode(page, world.member.phone, "Sign in");
+    return f;
+  })();
+  await page.getByRole("tab", { name: "Account" }).click();
+  await page.getByRole("button", { name: `Send a code to ${email}` }).click();
+  expect(fake.sent).toContain(email);
+  await page.getByLabel("Email code").fill(TEST_CODE);
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await expect(page.getByText(`On. You can sign in with ${email} or your phone number.`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "I'm already a member" }).click();
+  await page.getByRole("button", { name: "Use email instead" }).click();
+  // An unknown email gets the same answer, and no code works for it.
+  await page.getByLabel("Email").fill("nobody@example.com");
+  await page.getByRole("button", { name: "Send code" }).click();
+  await expect(page.getByText("If nobody@example.com is on an intu account, we've sent it a code.")).toBeVisible();
+  await page.getByLabel("Code").fill(TEST_CODE);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("That code didn't work")).toBeVisible();
+  await page.getByRole("button", { name: "Use a different email" }).click();
+
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: "Send code" }).click();
+  await page.getByLabel("Code").fill(TEST_CODE);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByLabel("Pass QR code")).toBeVisible();
 });
 
 test("with no signal the pass keeps showing and makes a new code every 30 seconds", async ({ page, context }) => {

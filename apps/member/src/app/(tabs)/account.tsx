@@ -6,6 +6,7 @@ import { Badge, Button, Card, Notice, Screen, T } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
 import { useCached } from "@/lib/data";
 import { formatDate, formatMoney, whatsappLink } from "@/lib/logic";
+import { EmailSignIn } from "@/components/email-sign-in";
 import { useSession } from "@/lib/session";
 import { colors, space } from "@/lib/theme";
 import type { Membership, Subscription } from "@/lib/types";
@@ -73,6 +74,7 @@ export default function Account() {
       </Card>
       <Button label="Edit details" tone="secondary" onPress={() => router.push("/setup")} />
       <Button label="Change photo" tone="secondary" onPress={() => router.push("/photo")} />
+      <EmailSignIn />
 
       <T variant="heading" style={{ marginTop: space(4) }}>
         Membership

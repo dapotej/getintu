@@ -41,6 +41,14 @@ describe.runIf(url)("member app API", () => {
     expect((await asMember({ authUserId, phone: fakePhone() }).get("/me")).json.member.id).toBe(world.first.member.id);
   });
 
+  it("says which email is confirmed for signing in, and finds the same member by it", async () => {
+    const world = await createWorld(db);
+    const authUserId = randomUUID();
+    expect((await asMember({ authUserId, phone: world.first.member.phone }).get("/me")).json.signInEmail).toBeNull();
+    const byEmail = (await asMember({ authUserId, phone: world.first.member.phone, email: "test.member@example.com" }).get("/me")).json;
+    expect(byEmail).toMatchObject({ member: { id: world.first.member.id }, signInEmail: "test.member@example.com" });
+  });
+
   it("refuses staff sign-ins and unsigned requests", async () => {
     const staff = await createStaff(db, "ops");
     expect((await as(staff).get("/me")).json.error.code).toBe("not_a_member");

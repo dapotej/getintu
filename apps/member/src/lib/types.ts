@@ -2,6 +2,8 @@
 
 export interface Me {
   member: { id: string; fullName: string; phone: string; email: string | null; country: string | null; consentMarketing: boolean; hasPhoto: boolean; photoUrl: string | null; isTest: boolean } | null;
+  /** The email confirmed for signing in, if any. */
+  signInEmail?: string | null;
   /** Only when there's no member yet: the number they signed in with. */
   phone?: string;
   concierge: { whatsapp: string } | null;

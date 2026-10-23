@@ -22,9 +22,10 @@ const { publicKey, privateKey } = await generateKeyPair("ES256");
 const jwk = { ...(await exportJWK(publicKey)), kid: "test-key", alg: "ES256", use: "sig" };
 export const jwks = createLocalJWKSet({ keys: [jwk] });
 
-export async function signToken(opts: { sub: string; aal?: "aal1" | "aal2"; issuer?: string; expiresIn?: string; key?: Parameters<SignJWT["sign"]>[0]; phone?: string }) {
+export async function signToken(opts: { sub: string; aal?: "aal1" | "aal2"; issuer?: string; expiresIn?: string; key?: Parameters<SignJWT["sign"]>[0]; phone?: string; email?: string }) {
   // Staff sign in by email; members by phone, which Supabase puts in the token without its +.
-  const claims = opts.phone ? { aal: "aal1", role: "authenticated", phone: opts.phone.replace(/^\+/, "") } : { aal: opts.aal ?? "aal2", role: "authenticated", email: "staff@example.com" };
+  // A member who confirmed an email on their account has both.
+  const claims = opts.phone ? { aal: "aal1", role: "authenticated", phone: opts.phone.replace(/^\+/, ""), ...(opts.email ? { email: opts.email } : {}) } : { aal: opts.aal ?? "aal2", role: "authenticated", email: "staff@example.com" };
   return new SignJWT(claims)
     .setProtectedHeader({ alg: "ES256", kid: "test-key" })
     .setSubject(opts.sub)
@@ -85,7 +86,7 @@ export function testApi(db: Db, opts: { clock?: () => Date; payments?: Payments 
 
   const as = (staff: { authUserId: string | null }, aal: "aal1" | "aal2" = "aal2") => client(() => signToken({ sub: staff.authUserId ?? "", aal }));
   /** Requests as someone signed in to the member app with this phone number. */
-  const asMember = (signIn: { authUserId: string; phone: string }) => client(() => signToken({ sub: signIn.authUserId, phone: signIn.phone }));
+  const asMember = (signIn: { authUserId: string; phone: string; email?: string }) => client(() => signToken({ sub: signIn.authUserId, phone: signIn.phone, ...(signIn.email ? { email: signIn.email } : {}) }));
 
   const client = (makeToken: () => Promise<string>) => {
     const call = async (method: string, path: string, body?: unknown) => {
