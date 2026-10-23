@@ -21,6 +21,8 @@ export const cityEnum = pgEnum("city", ["lagos", "abuja"]);
 // How a benefit is costed for plan margins: per use, or a flat fee per member.
 export const benefitCostBasisEnum = pgEnum("benefit_cost_basis", ["per_use", "flat_per_member"]);
 export const allowancePeriodEnum = pgEnum("allowance_period", ["per_pass", "per_month", "per_year"]);
+export const clientKindEnum = pgEnum("client_kind", ["bank", "employer", "promoter"]);
+export const clientInvoiceStatusEnum = pgEnum("client_invoice_status", ["issued", "paid", "void"]);
 export const paymentSourceEnum = pgEnum("payment_source", ["direct", "client", "gift"]);
 export const redemptionResultEnum = pgEnum("redemption_result", ["approved", "declined"]);
 export const redemptionMethodEnum = pgEnum("redemption_method", ["online", "offline", "manual"]);

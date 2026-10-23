@@ -4,6 +4,7 @@ export * from "./members.ts";
 export * from "./partners.ts";
 export * from "./plans.ts";
 export * from "./memberships.ts";
+export * from "./clients.ts";
 export * from "./staff.ts";
 export * from "./money.ts";
 export * from "./redemptions.ts";

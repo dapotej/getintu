@@ -13,6 +13,9 @@ export const PERMISSIONS = [
   "import.pilot",
   "audit.read",
   "bookings.manage",
+  "clients.read",
+  "clients.write",
+  "clients.invoices",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -27,11 +30,12 @@ const TEAM_READ: Permission[] = ["members.read", "plans.read", "partners.read"];
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   founder: PERMISSIONS,
   ops_lead: PERMISSIONS,
-  ops: [...TEAM_READ, "members.write", "bookings.manage"],
+  // Clients (spec: main role Partnerships): ops add and remove a client's people; finance keeps invoices.
+  ops: [...TEAM_READ, "members.write", "bookings.manage", "clients.read", "clients.write"],
   // Bookings are the concierge's (spec: Bookings queue, main role Concierge).
   concierge: [...TEAM_READ, "bookings.manage"],
-  finance: TEAM_READ,
-  partnerships: [...TEAM_READ, "partners.write"],
+  finance: [...TEAM_READ, "clients.read", "clients.invoices"],
+  partnerships: [...TEAM_READ, "partners.write", "clients.read", "clients.write", "clients.invoices"],
   door_staff: [],
   venue_manager: [],
 };

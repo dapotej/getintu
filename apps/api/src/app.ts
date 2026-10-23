@@ -6,6 +6,7 @@ import { z, ZodError } from "zod";
 import type { Db } from "@intu/db";
 import { bookingRoutes } from "./admin/bookings.ts";
 import { categoryRoutes } from "./admin/categories.ts";
+import { clientRoutes } from "./admin/clients.ts";
 import { importRoutes } from "./admin/import.ts";
 import { memberRoutes } from "./admin/members.ts";
 import { partnerRoutes } from "./admin/partners.ts";
@@ -93,6 +94,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", importRoutes(deps.db));
   admin.route("/", scannerAdminRoutes({ db: deps.db, passKeys: deps.passKeys, clock }));
   admin.route("/", bookingRoutes({ db: deps.db, clock }));
+  admin.route("/", clientRoutes({ db: deps.db, clock }));
   app.route("/admin", admin);
 
   return app;

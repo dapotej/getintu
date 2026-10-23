@@ -444,3 +444,74 @@ test("adding a chauffeur listing names it and takes its cars", async ({ page }) 
   await expect(cars.getByRole("row", { name: new RegExp(`TST ${tag} 1`) })).toContainText("Toyota Land Cruiser");
   await expect(cars.getByRole("row", { name: new RegExp(`TST ${tag} 2`) })).toContainText("Lexus LX 600");
 });
+
+test("a bank client: add people, give out and take back passes, upload a list, and record an invoice", async ({ page }) => {
+  const tag = randomUUID().slice(0, 4).toUpperCase();
+  const panel = panelOf(page);
+  const phone = () => `+999${Math.floor(1e9 + Math.random() * 9e9)}`;
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Clients" }).click();
+  await page.getByRole("button", { name: "Add client" }).click();
+  await panel.getByLabel("Name", { exact: true }).fill(`TEST Meridian Bank ${tag}`);
+  await panel.getByLabel("Seats").fill("10");
+  await panel.getByLabel("Contract starts").fill("2026-12-01");
+  await panel.getByLabel("Contract ends").fill("2027-01-10");
+  await panel.getByLabel("TEST client").check();
+  await panel.getByRole("button", { name: "Add client" }).click();
+  await expect(page.getByRole("heading", { name: `TEST Meridian Bank ${tag}` })).toBeVisible();
+
+  // One person, with the bank's customer number.
+  const people = cardOf(page, "People and passes");
+  await people.getByRole("button", { name: "Add a person" }).click();
+  await panel.getByLabel("Full name").fill(`TEST Kemi ${tag}`);
+  await panel.getByLabel("Phone").fill(phone());
+  await panel.getByLabel("Customer reference").fill(`CUST-${tag}`);
+  await panel.getByLabel("Plan").selectOption({ label: "TEST December Pass Plus" });
+  await panel.getByRole("button", { name: "Add person" }).click();
+  const kemi = people.getByRole("row", { name: new RegExp(`TEST Kemi ${tag}`) });
+  await expect(kemi).toContainText(`CUST-${tag}`);
+  await expect(kemi).toContainText("Active");
+
+  // Two passes waiting for a name; one is given out.
+  await people.getByRole("button", { name: "Add passes without names" }).click();
+  await panel.getByLabel("How many").fill("2");
+  await panel.getByLabel("Plan").selectOption({ label: "TEST December Pass Plus" });
+  await panel.getByRole("button", { name: "Add passes" }).click();
+  await expect(people.getByRole("row", { name: /Waiting for a name/ })).toHaveCount(2);
+  await people.getByRole("row", { name: /Waiting for a name/ }).first().getByRole("button", { name: "Give out" }).click();
+  await panel.getByLabel("Full name").fill(`TEST Tobi ${tag}`);
+  await panel.getByLabel("Phone").fill(phone());
+  await panel.getByRole("button", { name: "Give out pass" }).click();
+  await expect(people.getByRole("row", { name: new RegExp(`TEST Tobi ${tag}`) })).toContainText("Active");
+  await expect(people.getByRole("row", { name: /Waiting for a name/ })).toHaveCount(1);
+
+  // Kemi leaves the bank: her pass ends and the seat opens again.
+  await kemi.getByRole("button", { name: "Remove" }).click();
+  await panel.getByLabel("Reason").fill("TEST e2e: closed her account");
+  await panel.getByRole("button", { name: "Remove and end pass" }).click();
+  await expect(people.getByRole("row", { name: new RegExp(`TEST Kemi ${tag}`) })).toHaveCount(0);
+  await expect(people.getByRole("row", { name: /Waiting for a name/ })).toHaveCount(2);
+
+  // A list: checked first, then added.
+  await people.getByRole("button", { name: "Upload a list" }).click();
+  await panel.getByLabel("List (CSV)").setInputFiles({ name: "people.csv", mimeType: "text/csv", buffer: Buffer.from(`Name,Mobile\nTEST Lola ${tag},${phone()}\nTEST Musa ${tag},${phone()}\n`) });
+  await panel.getByLabel("Plan").selectOption({ label: "TEST December Pass Plus" });
+  await panel.getByRole("button", { name: "Check the list" }).click();
+  await expect(panel.getByText(/2\s+new to intu/)).toBeVisible();
+  await panel.getByRole("button", { name: "Add 2 people" }).click();
+  await expect(panel.getByText("Added 2 people.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(people.getByRole("row", { name: new RegExp(`TEST Musa ${tag}`) })).toContainText("Active");
+  await expect(page.getByText("Passes given out")).toBeVisible();
+
+  // An invoice, then paid.
+  const invoices = cardOf(page, "Invoices");
+  await invoices.getByRole("button", { name: "Record invoice" }).click();
+  await panel.getByLabel("Invoice number").fill(`TEST-INV-${tag}`);
+  await panel.getByLabel("Issued").fill("2026-12-01");
+  await panel.getByLabel("Amount").fill("2,500,000");
+  await panel.getByRole("button", { name: "Record invoice" }).click();
+  const invoice = invoices.getByRole("row", { name: new RegExp(`TEST-INV-${tag}`) });
+  await expect(invoice).toContainText("₦2,500,000");
+  await invoice.getByRole("button", { name: "Mark paid" }).click();
+  await expect(invoice).toContainText("Paid");
+});

@@ -213,7 +213,7 @@ function MembershipCard({ ms, canWrite, onChange, testPassHref }: { ms: Membersh
     `${formatDate(ms.startsOn)} – ${formatDate(ms.endsOn)}`,
     ms.arrivesOn ? `Arrives ${formatDate(ms.arrivesOn)}` : null,
     ms.departsOn ? `Departs ${formatDate(ms.departsOn)}` : null,
-    PAID_BY[ms.paymentSource] ?? ms.paymentSource,
+    ms.client ? `Paid by ${ms.client.name}` : (PAID_BY[ms.paymentSource] ?? ms.paymentSource),
     ms.groupId ? "Crew" : null,
   ].filter(Boolean);
   return (

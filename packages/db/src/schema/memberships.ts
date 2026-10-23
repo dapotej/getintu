@@ -1,17 +1,28 @@
 import { sql } from "drizzle-orm";
-import { char, check, date, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, char, check, date, index, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { deletedAt, id, timestamps } from "./columns.ts";
-import { membershipStatusEnum, paymentSourceEnum } from "./enums.ts";
+import { clientKindEnum, membershipStatusEnum, paymentSourceEnum } from "./enums.ts";
 import { members } from "./members.ts";
 import { benefits, plans } from "./plans.ts";
 
-// A company or bank buying memberships for others.
+// A company or bank buying memberships for others. Run by intu's team in the console until the
+// client portal exists (Phase 3).
 export const clientAccounts = pgTable("client_accounts", {
   id: id(),
   name: text().notNull(),
+  kind: clientKindEnum().notNull().default("bank"),
   contractRef: text(),
+  contractStartsOn: date({ mode: "string" }),
+  contractEndsOn: date({ mode: "string" }),
+  // The most passes the contract allows at once; null for no limit.
   seats: integer(),
+  contactName: text(),
+  contactEmail: text(),
+  contactPhone: text(),
   billingEmail: text(),
+  notes: text(),
+  active: boolean().notNull().default(true),
+  isTest: boolean().notNull().default(false),
   ...timestamps,
   deletedAt: deletedAt(),
 });

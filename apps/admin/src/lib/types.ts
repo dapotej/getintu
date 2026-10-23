@@ -1,7 +1,7 @@
 import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
 export type UsageMode = "door" | "booking" | "airport" | "call" | "concierge" | "in_app";
-export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage";
+export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage" | "clients.read" | "clients.write" | "clients.invoices";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
 
 export interface Me {
@@ -190,6 +190,8 @@ export interface Membership {
   groupId: string | null;
   passNumber: string | null;
   plan: { id: string; name: string; code: string };
+  /** The client paying for it, when paymentSource is client. */
+  client?: { id: string; name: string } | null;
   allowances: Allowance[];
 }
 
@@ -287,4 +289,62 @@ export interface QueuedBooking {
   offerName: string | null;
   vehicle?: Assigned["vehicle"];
   driver?: Assigned["driver"];
+}
+
+/** A company or bank buying passes for others (banks and fintechs first). */
+export interface Client {
+  id: string;
+  name: string;
+  kind: "bank" | "employer" | "promoter";
+  contractRef: string | null;
+  contractStartsOn: string | null;
+  contractEndsOn: string | null;
+  /** The most passes the contract allows; null for no limit. */
+  seats: number | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  billingEmail: string | null;
+  notes: string | null;
+  active: boolean;
+  isTest: boolean;
+  seatsSetUp?: number;
+  seatsAssigned?: number;
+}
+
+/** One pass a client pays for; open until someone holds it. */
+export interface ClientSeat {
+  id: string;
+  startsOn: string;
+  endsOn: string;
+  customerRef: string | null;
+  assignedAt: string | null;
+  plan: { id: string; name: string };
+  membership: { id: string; status: string; startsOn: string; endsOn: string } | null;
+  member: { id: string; fullName: string; phone: string } | null;
+}
+
+export interface ClientInvoice {
+  id: string;
+  number: string;
+  issuedOn: string;
+  dueOn: string | null;
+  amountMinor: number;
+  currency: "GBP" | "USD" | "NGN";
+  status: "issued" | "paid" | "void";
+  paidOn: string | null;
+  note: string | null;
+}
+
+export interface ClientDetail {
+  client: Client;
+  seats: ClientSeat[];
+  invoices: ClientInvoice[];
+  usage: {
+    seats: { total: number; assigned: number; open: number; limit: number | null };
+    visits: number;
+    visitsThisMonth: number;
+    peopleThisMonth: number;
+    byService: { name: string; visits: number; thisMonth: number }[];
+  };
 }

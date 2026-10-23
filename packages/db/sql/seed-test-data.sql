@@ -1,7 +1,7 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
--- Needs migrations 0000-0020: the catalogue (categories) comes from migration 0009.
+-- Needs migrations 0000-0021: the catalogue (categories) comes from migration 0009.
 -- To replace older TEST data first, run sql/reset-test-data.sql.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;

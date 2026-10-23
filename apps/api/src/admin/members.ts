@@ -8,7 +8,7 @@ import { staffAudit } from "./audited.ts";
 import type { PhotoStore } from "../member/photos.ts";
 import { idParam, isoDate, uuid } from "./validation.ts";
 
-const { members, memberships, plans, allowances, benefits, categories, redemptions, vehicles, venues } = schema;
+const { members, memberships, plans, allowances, benefits, categories, clientAccounts, redemptions, vehicles, venues } = schema;
 
 const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format, e.g. +447700900001");
 const MemberFields = z.object({
@@ -66,9 +66,10 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
     const [member] = await db.select().from(members).where(eq(members.id, id));
     if (!member) fail(404, "not_found", "Member not found");
     const ms = await db
-      .select({ membership: memberships, plan: { id: plans.id, name: plans.name, code: plans.code } })
+      .select({ membership: memberships, plan: { id: plans.id, name: plans.name, code: plans.code }, client: { id: clientAccounts.id, name: clientAccounts.name } })
       .from(memberships)
       .innerJoin(plans, eq(plans.id, memberships.planId))
+      .leftJoin(clientAccounts, eq(clientAccounts.id, memberships.clientAccountId))
       .where(eq(memberships.memberId, id))
       .orderBy(desc(memberships.startsOn));
     const ownerFilter = ms.length
@@ -110,9 +111,10 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
     return {
       // The photo link lasts an hour: long enough to look at, not to pass around.
       member: { ...member, photoUrl: member.photoPath ? await photos.signedUrl(member.photoPath, 3600).catch(() => null) : null },
-      memberships: ms.map(({ membership, plan }) => ({
+      memberships: ms.map(({ membership, plan, client }) => ({
         ...membership,
         plan,
+        client,
         allowances: allowanceRows
           .filter((a) => a.allowance.membershipId === membership.id || (a.allowance.groupId !== null && a.allowance.groupId === membership.groupId))
           .map((a) => ({ ...a.allowance, category: a.category, shared: a.allowance.groupId !== null })),

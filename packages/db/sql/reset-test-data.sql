@@ -49,6 +49,13 @@ DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_par
 UPDATE staff_users SET partner_id = NULL WHERE partner_id IN (SELECT id FROM test_partners);
 DELETE FROM settlements WHERE partner_id IN (SELECT id FROM test_partners);
 
+-- TEST clients go with their passes and invoices; a real client's seat held by a TEST member opens again.
+CREATE TEMP TABLE test_clients ON COMMIT DROP AS SELECT id FROM client_accounts WHERE is_test;
+DELETE FROM client_seats WHERE client_account_id IN (SELECT id FROM test_clients);
+UPDATE client_seats SET membership_id = NULL, customer_ref = NULL, assigned_at = NULL WHERE membership_id IN (SELECT id FROM test_memberships);
+DELETE FROM client_invoices WHERE client_account_id IN (SELECT id FROM test_clients);
+UPDATE memberships SET client_account_id = NULL WHERE client_account_id IN (SELECT id FROM test_clients);
+
 DELETE FROM allowances WHERE id IN (SELECT id FROM test_allowances);
 DELETE FROM memberships WHERE id IN (SELECT id FROM test_memberships);
 DELETE FROM members WHERE id IN (SELECT id FROM test_members);
@@ -60,5 +67,6 @@ DELETE FROM plans WHERE id IN (SELECT id FROM test_plans);
 DELETE FROM offers WHERE id IN (SELECT id FROM test_offers);
 DELETE FROM venues WHERE id IN (SELECT id FROM test_venues);
 DELETE FROM partners WHERE id IN (SELECT id FROM test_partners);
+DELETE FROM client_accounts WHERE id IN (SELECT id FROM test_clients);
 
 COMMIT;
