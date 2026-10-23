@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { schema, type Db } from "@intu/db";
-import { CURRENCIES, defaultCurrency, holdsPlan, passTerms, saleStatus, toLagos } from "@intu/rules";
+import { benefitLabel, CURRENCIES, defaultCurrency, holdsPlan, parentCodeOf, passTerms, saleStatus, toLagos } from "@intu/rules";
 import type { TokenVerifier } from "../auth/tokens.ts";
 import { idParam, uuid } from "../admin/validation.ts";
 import { body, fail } from "../http.ts";
@@ -44,6 +44,7 @@ export function paymentRoutes(deps: { db: Db; verify: TokenVerifier; payments: P
       .innerJoin(categories, eq(categories.id, benefits.categoryId))
       .where(inArray(benefits.planId, ids))
       .orderBy(asc(categories.code));
+    const parents = new Map((await db.select({ code: categories.code, name: categories.name }).from(categories).where(eq(categories.level, "subcategory"))).map((x) => [x.code, x.name]));
     return c.json({
       currency: defaultCurrency(member),
       plans: rows
@@ -56,7 +57,7 @@ export function paymentRoutes(deps: { db: Db; verify: TokenVerifier; payments: P
           held: holdsPlan(mine, p.id, today()),
           ...passTerms(p, today()),
           prices: prices.filter((x) => x.planId === p.id).map((x) => ({ currency: x.currency, amountMinor: x.amountMinor })),
-          benefits: included.filter((b) => b.planId === p.id).map(({ planId: _p, ...b }) => b),
+          benefits: included.filter((b) => b.planId === p.id).map(({ planId: _p, ...b }) => ({ ...b, name: benefitLabel(b.name, parents.get(parentCodeOf(b.code) ?? "")) })),
         }))
         .filter((p) => p.prices.length > 0),
     });

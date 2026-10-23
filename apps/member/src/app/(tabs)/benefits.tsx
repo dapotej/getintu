@@ -3,9 +3,9 @@ import { Link } from "expo-router";
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Badge, Card, Loading, Segment, T, styles as ui } from "@/components/ui";
+import { Badge, Card, Loading, Notice, Segment, T, styles as ui } from "@/components/ui";
 import { useCached } from "@/lib/data";
-import { allowanceLabel, formatLagosTime, periodLabel } from "@/lib/logic";
+import { allowanceLabel, formatLagosTime, periodLabel, suspendedNotice, usablePasses } from "@/lib/logic";
 import { colors, fonts, space } from "@/lib/theme";
 import type { Allowance, Membership, Visit } from "@/lib/types";
 
@@ -27,8 +27,9 @@ export default function Benefits() {
         {tab === "left" ? (
           <>
             {!ms.data ? <Loading /> : null}
+            {ms.data && suspendedNotice(ms.data.memberships) ? <Notice>{suspendedNotice(ms.data.memberships)}</Notice> : null}
             {ms.data?.memberships.length === 0 ? <T color={colors.muted}>No pass yet.</T> : null}
-            {ms.data?.memberships.map((m) => (
+            {usablePasses(ms.data?.memberships ?? []).map((m) => (
               <View key={m.id} style={{ gap: space(3) }}>
                 <T variant="label" color={colors.muted}>
                   {m.plan.name}

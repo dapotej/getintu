@@ -8,7 +8,7 @@ import { Qr } from "@/components/qr";
 import { Badge, Button, Card, Loading, Notice, Screen, T, Wordmark } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
 import { useCached } from "@/lib/data";
-import { backupCodeFor, currentPass, formatDate, formatLagosTime, lagosDate, passUsable, whatsappLink } from "@/lib/logic";
+import { backupCodeFor, currentPass, formatDate, formatLagosTime, lagosDate, passUsable, suspendedNotice, usablePasses, whatsappLink } from "@/lib/logic";
 import { currentCode, ensurePass } from "@/lib/pass";
 import { photoForPass } from "@/lib/photo";
 import { useSession } from "@/lib/session";
@@ -65,7 +65,8 @@ export default function PassScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const memberships = data?.memberships ?? [];
+  const memberships = usablePasses(data?.memberships ?? []);
+  const onHold = suspendedNotice(data?.memberships ?? []);
   const shown = memberships.find((m) => m.id === chosen) ?? currentPass(memberships, now);
   if (!data && loading) return <Screen><Loading /></Screen>;
 
@@ -76,7 +77,8 @@ export default function PassScreen() {
         {offline ? <Badge label="Offline" tone="day" /> : null}
       </View>
       <Invites onJoined={() => void reload()} />
-      {!shown ? (
+      {onHold ? <Notice>{onHold}</Notice> : null}
+      {!shown && onHold ? null : !shown ? (
         <Card>
           <T variant="heading" accessibilityRole="header">No pass yet</T>
           <T color={colors.muted}>Buy one here, or if someone invited you to their Crew, accept below. Passes the concierge sets up for you appear here too.</T>

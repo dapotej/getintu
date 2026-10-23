@@ -5,6 +5,16 @@ import type { Allowance, BenefitPage, Booking, BookingStatus, Hours, Membership,
 /** Lagos has no daylight saving: it's always UTC+1. */
 export const lagosDate = (now: Date) => new Date(now.getTime() + 3_600_000).toISOString().slice(0, 10);
 
+/** Passes the member can use or will soon. A suspended pass is only mentioned, not shown in full. */
+export const usablePasses = (memberships: readonly Membership[]) => memberships.filter((m) => m.status !== "suspended");
+
+/** One line about suspended passes, or null when there are none. */
+export function suspendedNotice(memberships: readonly Membership[]): string | null {
+  const names = memberships.filter((m) => m.status === "suspended").map((m) => m.plan.name);
+  if (names.length === 0) return null;
+  return `Your ${names.join(" and ")} ${names.length > 1 ? "passes are" : "pass is"} on hold. Message the concierge for help.`;
+}
+
 /** The pass to show: an active one valid today, else the next active one to start, else the latest. */
 export function currentPass(memberships: readonly Membership[], now: Date): Membership | null {
   const today = lagosDate(now);

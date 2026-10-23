@@ -53,3 +53,17 @@ export const usesVehicles = (code: string) => covers("C01-S02", code) || covers(
 
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => covers("C06", code);
+
+/**
+ * A benefit's name as members and staff read it. A single service type gets its subcategory in front,
+ * "Beach Clubs: Entry only", unless its own name already says what it is ("Airport pickup" under
+ * Airport Transfers). Whole categories and subcategories keep their own name.
+ */
+export function benefitLabel(name: string, parentName: string | null | undefined): string {
+  if (!parentName) return name;
+  const key = (parentName.split(/[\s&]+/)[0] ?? "").toLowerCase().replace(/s$/, "");
+  return key && name.toLowerCase().includes(key) ? name : `${parentName}: ${name}`;
+}
+
+/** The subcategory code a service type sits under (C03-S01-T01 → C03-S01), or null for anything higher. */
+export const parentCodeOf = (code: string) => (code.split("-").length === 3 ? code.split("-").slice(0, 2).join("-") : null);

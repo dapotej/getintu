@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benefitFor, covers, includes, isBooked, usesVehicles, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
+import { benefitFor, benefitLabel, covers, includes, isBooked, parentCodeOf, usesVehicles, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
 
 describe("covers", () => {
   it("matches a code, and every code beneath it", () => {
@@ -97,5 +97,17 @@ describe("usesVehicles", () => {
     expect(usesVehicles("C01-S03-T04")).toBe(true);
     expect(usesVehicles("C01-S01")).toBe(false);
     expect(usesVehicles("C05-S07")).toBe(false);
+  });
+});
+
+describe("benefitLabel", () => {
+  it("puts the subcategory in front of a service type, unless its name already says it", () => {
+    expect(benefitLabel("Entry only", "Beach Clubs")).toBe("Beach Clubs: Entry only");
+    expect(benefitLabel("Guest list and priority entry", "Nightclubs")).toBe("Nightclubs: Guest list and priority entry");
+    expect(benefitLabel("Airport pickup", "Airport Transfers")).toBe("Airport pickup");
+    expect(benefitLabel("12-hour chauffeur", "Chauffeur & Car Hire")).toBe("12-hour chauffeur");
+    expect(benefitLabel("Beach Clubs", null)).toBe("Beach Clubs");
+    expect(parentCodeOf("C03-S01-T01")).toBe("C03-S01");
+    expect(parentCodeOf("C03-S01")).toBeNull();
   });
 });

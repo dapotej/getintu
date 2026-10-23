@@ -7,7 +7,7 @@ import { createMiddleware } from "hono/factory";
 import { and, asc, desc, eq, gte, inArray, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { audit, one, schema, type Db } from "@intu/db";
-import { benefitFor, covers, includes, isBooked, isNight, openWindowDate, toLagos, usageModeOf } from "@intu/rules";
+import { benefitFor, benefitLabel, covers, includes, isBooked, isNight, openWindowDate, parentCodeOf, toLagos, usageModeOf } from "@intu/rules";
 import { InvalidTokenError, type TokenVerifier } from "../auth/tokens.ts";
 import { body, fail } from "../http.ts";
 import { issuePass, renewPass, type PassKeys } from "../passes.ts";
@@ -123,13 +123,16 @@ export function memberAppRoutes(deps: MemberDeps) {
 
   const photoUrl = async (m: Member) => (m.photoPath ? deps.photos.signedUrl(m.photoPath, PHOTO_LINK_SECONDS) : null);
 
-  /** Memberships the member can use now or later: active and not yet ended. */
+  /**
+   * The member's passes that haven't finished: active, upcoming, or suspended (the app says why it
+   * won't scan). Cancelled and ended passes are left out.
+   */
   const currentMemberships = (memberId: string) =>
     db
       .select({ membership: memberships, plan: { id: plans.id, name: plans.name } })
       .from(memberships)
       .innerJoin(plans, eq(plans.id, memberships.planId))
-      .where(and(eq(memberships.memberId, memberId), isNull(memberships.deletedAt), gte(memberships.endsOn, today())))
+      .where(and(eq(memberships.memberId, memberId), isNull(memberships.deletedAt), gte(memberships.endsOn, today()), inArray(memberships.status, ["active", "pending", "suspended"])))
       .orderBy(asc(memberships.startsOn));
 
   /** The benefits of the member's active passes, in the shape the rules take. */
@@ -146,6 +149,8 @@ export function memberAppRoutes(deps: MemberDeps) {
 
   /** How members use each catalogue entry, for usageModeOf. */
   const usageModes = async () => new Map((await db.select({ code: categories.code, mode: categories.usageMode }).from(categories)).map((c) => [c.code, c.mode]));
+  /** Subcategory names by code, so a service type reads "Beach Clubs: Entry only". */
+  const subcategoryNames = async () => new Map((await db.select({ code: categories.code, name: categories.name }).from(categories).where(eq(categories.level, "subcategory"))).map((c) => [c.code, c.name]));
 
   /**
    * Service lines (doctor on call) under a catalogue entry that the plan's benefits include, with
@@ -241,6 +246,7 @@ export function memberAppRoutes(deps: MemberDeps) {
       : [];
     const now = today();
     const modes = await usageModes();
+    const names = await subcategoryNames();
     return c.json({
       memberships: ms.map(({ membership: m, plan }) => ({
         id: m.id,
@@ -260,15 +266,15 @@ export function memberAppRoutes(deps: MemberDeps) {
             const current = forBenefit.find((o) => o.allowance.periodStart <= now && o.allowance.periodEnd >= now) ?? forBenefit[0];
             return current === r;
           })
-          .map((r) => allowanceView(r, modes)),
+          .map((r) => allowanceView(r, modes, names)),
       })),
     });
   });
 
   /** One benefit's allowance as the app shows it. */
-  const allowanceView = (r: { allowance: typeof allowances.$inferSelect; name: string; code: string; period: "per_pass" | "per_month" | "per_year"; shared: boolean }, modes: Map<string, (typeof categories.$inferSelect)["usageMode"]>) => ({
+  const allowanceView = (r: { allowance: typeof allowances.$inferSelect; name: string; code: string; period: "per_pass" | "per_month" | "per_year"; shared: boolean }, modes: Map<string, (typeof categories.$inferSelect)["usageMode"]>, names: Map<string, string>) => ({
     id: r.allowance.id,
-    name: r.name,
+    name: benefitLabel(r.name, names.get(parentCodeOf(r.code) ?? "")),
     code: r.code,
     night: isNight(r.code),
     usageMode: usageModeOf(r.code, modes),
@@ -294,7 +300,7 @@ export function memberAppRoutes(deps: MemberDeps) {
     const mine = (await currentMemberships(member.id)).find(({ membership: m }) => (row?.allowance.membershipId ?? null) === m.id || (m.groupId !== null && row?.allowance.groupId === m.groupId));
     if (!row || !mine) fail(404, "not_found", "Benefit not found");
     const modes = await usageModes();
-    const view = allowanceView({ allowance: row.allowance, name: row.name, code: row.code, period: row.benefit.period, shared: row.benefit.sharedByGroup }, modes);
+    const view = allowanceView({ allowance: row.allowance, name: row.name, code: row.code, period: row.benefit.period, shared: row.benefit.sharedByGroup }, modes, await subcategoryNames());
 
     // The service types it covers that members can see.
     const covered = (await db.select({ code: categories.code, name: categories.name }).from(categories).where(and(eq(categories.level, "service"), eq(categories.active, true), eq(categories.customerVisible, true), or(eq(categories.code, row.code), like(categories.code, `${row.code}-%`))))).sort((a, b) => a.code.localeCompare(b.code));

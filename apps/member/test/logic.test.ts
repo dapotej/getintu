@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowanceLabel, discoverSections, formatMoney, needsFlight, vehicleText, venueActions, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
+import { allowanceLabel, discoverSections, formatMoney, needsFlight, vehicleText, venueActions, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, suspendedNotice, usablePasses, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
 import type { Hours, Membership, StoredPass } from "../src/lib/types";
 
 const pass = (id: string, startsOn: string, endsOn: string, status: Membership["status"] = "active"): Membership => ({ id, plan: { id: "p", name: "TEST Plan" }, passNumber: null, status, startsOn, endsOn, arrivesOn: null, departsOn: null, crew: false, allowances: [] });
@@ -25,6 +25,15 @@ describe("currentPass", () => {
   it("falls back to a suspended pass so the member sees why it won't scan", () => {
     expect(currentPass([pass("s", "2026-12-01", "2027-01-10", "suspended")], now)?.id).toBe("s");
     expect(currentPass([], now)).toBeNull();
+  });
+});
+
+describe("suspended passes", () => {
+  it("leaves them out of the pass list and sums them up in one line", () => {
+    const held = pass("s", "2026-12-01", "2027-01-10", "suspended");
+    expect(usablePasses([held, pass("a", "2026-12-01", "2027-01-10")]).map((m) => m.id)).toEqual(["a"]);
+    expect(suspendedNotice([held])).toBe("Your TEST Plan pass is on hold. Message the concierge for help.");
+    expect(suspendedNotice([pass("a", "2026-12-01", "2027-01-10")])).toBeNull();
   });
 });
 

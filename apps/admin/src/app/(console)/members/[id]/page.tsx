@@ -7,7 +7,8 @@ import { ActionForm, checked, text, textOrNull } from "@/components/forms";
 import { ReasonPanel } from "@/components/reason-panel";
 import { api, ApiError, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { isNight } from "@/lib/catalogue";
+import { isNight, useCatalogue } from "@/lib/catalogue";
+import { benefitLabel, parentCodeOf } from "@intu/rules";
 import { ORDER_STATUS, PROVIDER_LABELS, RefundLines, RefundPanel } from "@/components/refunds";
 import { currentAllowances, lagosToday, PAID_BY, STATUS_LABELS, statusTone, tripText, vehicleText } from "@/lib/labels";
 import type { Allowance, Booking, MemberDetail, Membership, Order, PaymentsOverview, Plan, Venue } from "@/lib/types";
@@ -183,6 +184,8 @@ export default function MemberPage() {
 
 /** One benefit's current period; one that resets says when, and how many periods are still to come. */
 function AllowanceBar({ a, periods = 1, ahead = 0 }: { a: Allowance; periods?: number; ahead?: number }) {
+  const { byCode } = useCatalogue();
+  const name = benefitLabel(a.category.name, byCode.get(parentCodeOf(a.category.code) ?? "")?.name);
   const night = isNight(a.category.code);
   const left = a.granted === null ? null : a.granted - a.used;
   const pct = a.granted ? Math.min(100, Math.round((a.used / a.granted) * 100)) : 0;
@@ -191,8 +194,8 @@ function AllowanceBar({ a, periods = 1, ahead = 0 }: { a: Allowance; periods?: n
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span aria-hidden className={cx("size-2 shrink-0 rounded-full", night ? "bg-brand-night" : "bg-brand-day")} />
-          <span className="truncate text-sm font-semibold text-fg" title={a.category.name}>
-            {a.category.name}
+          <span className="truncate text-sm font-semibold text-fg" title={name}>
+            {name}
           </span>
         </div>
         {a.shared ? <Badge tone="accent">Shared by Crew</Badge> : null}
