@@ -259,7 +259,7 @@ test("grow the catalogue: add a service type, rename it, and use it in a plan", 
   await panel.getByLabel("Name").fill(`TEST Driving range ${tag}`);
   await panel.getByRole("button", { name: "Add service type" }).click();
   await cardOf(page, "Service types").getByRole("link", { name: `TEST Driving range ${tag}` }).click();
-  await expect(page.getByText(/^Service type · C04-S08-T\d\d$/)).toBeVisible();
+  await expect(page.getByText(/^Service type · C04-S08-T\d\d · Members: show the pass at the door \(same as above\)$/)).toBeVisible();
 
   await page.getByRole("button", { name: "Edit" }).click();
   await panel.getByLabel("Name").fill(`TEST Range session ${tag}`);

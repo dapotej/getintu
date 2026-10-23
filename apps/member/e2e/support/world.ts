@@ -28,3 +28,21 @@ export async function createWorld() {
   await grantAllowances(db, membership.id, { type: "system" });
   return { tag, member, membership, plan, beach, spa, beachOffer };
 }
+
+/**
+ * Adds the travel and medical benefits to a world's plan: airport meet-and-assist at a desk (asked
+ * for with the flight), and doctor on call by the medical partner's phone line.
+ */
+export async function addTravelAndDoctor(world: Awaited<ReturnType<typeof createWorld>>) {
+  const desk = one(await db.insert(schema.venues).values({ partnerId: world.beach.partnerId, name: `TEST E2E Arrivals ${world.tag}`, area: "Ikeja", city: "lagos", categoryId: await categoryId("C01-S01"), openingHours: allDay, isTest: true }).returning());
+  await db.insert(schema.offers).values({ venueId: desk.id, categoryId: await categoryId("C01-S01-T01"), rateMinor: 6_000_000, isTest: true });
+  const line = one(await db.insert(schema.venues).values({ partnerId: world.beach.partnerId, name: `TEST E2E Doctor line ${world.tag}`, kind: "remote", servicePhone: "+9990000000002", area: "Lagos", city: "lagos", categoryId: await categoryId("C08-S02"), openingHours: allDay, isTest: true }).returning());
+  await db.insert(schema.offers).values({ venueId: line.id, categoryId: await categoryId("C08-S02-T01"), rateMinor: 0, isTest: true });
+  await db.insert(schema.benefits).values([
+    { planId: world.plan.id, categoryId: await categoryId("C01-S01-T01"), quantity: 1, period: "per_pass" },
+    { planId: world.plan.id, categoryId: await categoryId("C08-S02"), quantity: null, period: "per_pass", costBasis: "flat_per_member" },
+  ]);
+  await db.delete(schema.allowances).where(eq(schema.allowances.membershipId, world.membership.id));
+  await grantAllowances(db, world.membership.id, { type: "system" });
+  return { desk, line };
+}

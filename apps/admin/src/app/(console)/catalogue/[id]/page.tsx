@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { AddEntryPanel, EditEntryPanel } from "@/components/catalogue-panels";
 import { useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { LEVEL_LABEL, markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
+import { LEVEL_LABEL, markup, OFFER_MODELS, USAGE_LABELS, useCatalogue } from "@/lib/catalogue";
 import type { CategoryDetail } from "@/lib/types";
 
 const PERIODS = { per_pass: "per pass", per_month: "per calendar month", per_year: "per membership year" };
@@ -48,7 +48,7 @@ export default function CatalogueEntryPage() {
           </span>
         }
         title={c.name}
-        subtitle={`${LEVEL_LABEL[c.level]} · ${c.code}`}
+        subtitle={`${LEVEL_LABEL[c.level]} · ${c.code} · Members: ${USAGE_LABELS[cat.usageOf(c.code)].toLowerCase()}${c.usageMode ? "" : " (same as above)"}`}
         actions={
           <>
             {!c.customerVisible ? (

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { deletedAt, id, timestamps } from "./columns.ts";
 import { bookingStatusEnum, declineReasonEnum, redemptionMethodEnum, redemptionResultEnum } from "./enums.ts";
 import { members } from "./members.ts";
@@ -79,6 +79,8 @@ export const bookings = pgTable(
     partySize: integer().notNull().default(1),
     status: bookingStatusEnum().notNull().default("requested"),
     allowanceId: uuid().references(() => allowances.id),
+    // Airport services: the flight, so the protocol partner can meet it.
+    trip: jsonb().$type<{ direction: "arrival" | "departure"; flightNumber: string; time: string }>(),
     redemptionId: uuid().references(() => redemptions.id),
     notes: text(),
     ...timestamps,

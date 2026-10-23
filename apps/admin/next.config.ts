@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  transpilePackages: ["@intu/ui", "@intu/qr"],
+  transpilePackages: ["@intu/ui", "@intu/qr", "@intu/rules"],
   poweredByHeader: false,
   async headers() {
     return [

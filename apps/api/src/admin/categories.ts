@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { and, asc, eq, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { one, schema, type Db, type Tx } from "@intu/db";
-import { covers } from "@intu/rules";
+import { covers, USAGE_MODES } from "@intu/rules";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail } from "../http.ts";
 import { staffAudit } from "./audited.ts";
@@ -12,7 +12,8 @@ const { categories, offers, venues, partners, benefits, plans } = schema;
 const LEVELS = ["category", "subcategory", "service"] as const;
 
 const Create = z.object({ parentId: uuid.nullable(), name: z.string().trim().min(2).max(120), customerVisible: z.boolean().optional() });
-const Update = z.object({ name: z.string().trim().min(2).max(120), sortOrder: z.number().int().min(0), customerVisible: z.boolean(), active: z.boolean() }).partial();
+// usageMode null means "the same as the entry above".
+const Update = z.object({ name: z.string().trim().min(2).max(120), sortOrder: z.number().int().min(0), customerVisible: z.boolean(), active: z.boolean(), usageMode: z.enum(USAGE_MODES).nullable() }).partial();
 
 /** The next free code under a parent: C09, C03-S08, C03-S01-T04. Codes are never reused. */
 async function nextCode(tx: Tx, parent: typeof categories.$inferSelect | null) {

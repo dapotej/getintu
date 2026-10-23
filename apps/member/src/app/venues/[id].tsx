@@ -32,7 +32,7 @@ export default function VenuePage() {
         <T variant="title" accessibilityRole="header">
           {v.name}
         </T>
-        <T color={colors.muted}>{v.kind === "visiting" ? "Comes to you, by booking" : `${v.area}, ${v.city === "lagos" ? "Lagos" : "Abuja"}`}</T>
+        <T color={colors.muted}>{v.kind === "visiting" ? "Comes to you, by booking" : v.kind === "remote" ? "By phone, any time" : `${v.area}, ${v.city === "lagos" ? "Lagos" : "Abuja"}`}</T>
       </View>
       <View style={{ flexDirection: "row", gap: space(2), flexWrap: "wrap" }}>
         <Badge label={v.included ? "In your plan" : "Not in your plan"} tone={v.included ? (v.night ? "night" : "day") : "muted"} />
@@ -60,7 +60,11 @@ export default function VenuePage() {
         </Card>
       ))}
 
-      <Button label="Request a booking" onPress={() => router.push(`/book/${v.id}`)} />
+      {v.kind === "remote" ? (
+        v.servicePhone && v.included ? <Button label="Call now" onPress={() => Linking.openURL(`tel:${v.servicePhone ?? ""}`)} /> : <T color={colors.muted}>A service by phone, for members whose plan includes it.</T>
+      ) : (
+        <Button label={v.offers.length > 0 && v.offers.every((o) => o.usageMode === "airport") ? "Request it with your flight" : "Request a booking"} onPress={() => router.push(`/book/${v.id}`)} />
+      )}
       {v.latitude !== null && v.longitude !== null ? <Button label="Directions" tone="secondary" onPress={() => Linking.openURL(directions(v))} /> : null}
     </Screen>
   );

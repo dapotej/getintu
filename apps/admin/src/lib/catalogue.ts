@@ -1,7 +1,8 @@
 "use client";
 import { useMemo } from "react";
 import { useApi } from "./api";
-import type { Category, OfferModel } from "./types";
+import { usageModeOf } from "@intu/rules";
+import type { Category, OfferModel, UsageMode } from "./types";
 
 /** The catalogue, with lookups the screens need. Loads once per screen. */
 export function useCatalogue() {
@@ -20,9 +21,21 @@ export function useCatalogue() {
     const ordered: { c: Category; depth: number }[] = [];
     const walk = (parentId: string | null, depth: number) => children(parentId).forEach((c) => (ordered.push({ c, depth }), walk(c.id, depth + 1)));
     walk(null, 0);
-    return { ready: data !== null, error, reload, all, byId, byCode, children, path, ordered };
+    /** How members use an entry: its own setting, else the nearest above it (the same rule the API uses). */
+    const modes = new Map(all.map((c) => [c.code, c.usageMode]));
+    const usageOf = (code: string) => usageModeOf(code, modes);
+    return { ready: data !== null, error, reload, all, byId, byCode, children, path, ordered, usageOf };
   }, [data, error, reload]);
 }
+
+export const USAGE_LABELS: Record<UsageMode, string> = {
+  door: "Show the pass at the door",
+  booking: "Book a visit (the service comes to them)",
+  airport: "Airport service, requested with flight details",
+  call: "Call (doctor on call)",
+  concierge: "Ask the concierge",
+  in_app: "In the app (eSIM)",
+};
 
 export const LEVEL_LABEL = { category: "Category", subcategory: "Subcategory", service: "Service type" } as const;
 

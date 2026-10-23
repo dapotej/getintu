@@ -50,6 +50,8 @@ export const venues = pgTable("venues", {
   // Where it is on the map (WGS84). Empty for visiting services, which have no address.
   latitude: doublePrecision(),
   longitude: doublePrecision(),
+  // A service by phone or video (doctor on call): the line members call, in E.164.
+  servicePhone: text(),
   active: boolean().notNull().default(true),
   isTest: boolean().notNull().default(false),
   ...timestamps,

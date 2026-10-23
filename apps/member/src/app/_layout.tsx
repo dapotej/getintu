@@ -42,6 +42,7 @@ function Gate() {
       <Stack.Screen name="setup" options={{ title: "Your details" }} />
       <Stack.Screen name="photo" options={{ title: "Your photo" }} />
       <Stack.Screen name="venues/[id]" options={{ title: "" }} />
+      <Stack.Screen name="benefit/[id]" options={{ title: "" }} />
       <Stack.Screen name="book/[venueId]" options={{ title: "Request a booking", presentation: "modal" }} />
     </Stack>
   );

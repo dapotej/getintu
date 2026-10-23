@@ -41,7 +41,7 @@ export default function VenuePage() {
         subtitle={`${venue.area}, ${venue.city === "lagos" ? "Lagos" : "Abuja"}${venue.externalRef ? ` · pilot ID ${venue.externalRef}` : ""}${venue.isTest ? " · TEST" : ""}`}
         actions={
           <>
-            {venue.kind === "visiting" ? <Badge tone="accent">Visiting service</Badge> : null}
+            {venue.kind === "visiting" ? <Badge tone="accent">Visiting service</Badge> : venue.kind === "remote" ? <Badge tone="accent">By phone or video</Badge> : null}
             <Badge tone={venue.tier === "top" ? "day" : "neutral"}>{venue.tier === "top" ? "Top tier" : "Standard tier"}</Badge>
           </>
         }
@@ -66,7 +66,8 @@ export default function VenuePage() {
         >
           <DetailList
             items={[
-              ["How members use it", venue.kind === "visiting" ? "A service that comes to them (booked)" : "A place members visit"],
+              ["How members use it", venue.kind === "visiting" ? "A service that comes to them (booked)" : venue.kind === "remote" ? "A service by phone or video" : "A place members visit"],
+              ...(venue.kind === "remote" ? [["Service line", venue.servicePhone] as [string, string | null]] : []),
               ["Kind of place", byId.get(venue.categoryId)?.name],
               ["Tier", venue.tier === "top" ? "Top tier" : "Standard"],
               ["Status", venue.active ? "Active" : "Inactive: declines every scan"],
@@ -78,8 +79,8 @@ export default function VenuePage() {
                   <a key="map" href={`https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`} target="_blank" rel="noreferrer" className="text-accent hover:underline">
                     {locationText(venue)}
                   </a>
-                ) : venue.kind === "visiting" ? (
-                  "None: it comes to the member"
+                ) : venue.kind !== "place" ? (
+                  "None: it isn't a place"
                 ) : (
                   <span key="map" className="text-day">Not set: it won&apos;t show on the member app&apos;s map</span>
                 ),
@@ -120,7 +121,8 @@ export default function VenuePage() {
           )}
         </Card>
 
-        <PartnerStaffCard venueId={id} writable={writable} />
+        {/* A service by phone has nothing to scan. */}
+        {venue.kind !== "remote" ? <PartnerStaffCard venueId={id} writable={writable} /> : null}
       </div>
     </>
   );
@@ -142,6 +144,7 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
             capacityNotes: textOrNull(form, "capacityNotes"),
             openingHours: readHours(form, "hours"),
             ...readLocation(form, "location"),
+            servicePhone: textOrNull(form, "servicePhone"),
             active: checked(form, "active"),
           },
         });
@@ -156,10 +159,11 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
           <Field label="Area">
             <Input name="area" defaultValue={venue.area} required />
           </Field>
-          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
+          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking. A phone service (doctor on call) has nothing to scan.">
             <Select name="kind" defaultValue={venue.kind}>
               <option value="place">A place members visit</option>
               <option value="visiting">A service that comes to them (booked)</option>
+              <option value="remote">A service by phone or video</option>
             </Select>
           </Field>
           <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers.">
@@ -170,6 +174,9 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
               <option value="standard">Standard</option>
               <option value="top">Top tier</option>
             </Select>
+          </Field>
+          <Field label="Service line" hint="For a service by phone or video: the number members call, e.g. +2348012345678.">
+            <Input name="servicePhone" type="tel" defaultValue={venue.servicePhone ?? ""} />
           </Field>
           <Field label="Map location" hint="Latitude, longitude. In Google Maps, right-click the venue and click the numbers to copy them.">
             <Input name="location" defaultValue={locationText(venue)} placeholder="6.4262, 3.4486" />

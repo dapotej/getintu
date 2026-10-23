@@ -60,7 +60,7 @@ export default function PartnerPage() {
                       action={async (form) => {
                         const { venue } = await api<{ venue: Venue }>("/admin/venues", {
                           method: "POST",
-                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location") },
+                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location"), servicePhone: textOrNull(form, "servicePhone") },
                         });
                         router.push(`/partners/${id}/venues/${venue.id}`);
                       }}
@@ -70,10 +70,11 @@ export default function PartnerPage() {
                           <Field label="Venue or service name" hint="e.g. Atlantic Shore Oniru, or Coastal Rides chauffeurs">
                             <Input name="name" required />
                           </Field>
-                          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking">
+                          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking. A phone service (doctor on call) has nothing to scan.">
                             <Select name="kind" defaultValue="place">
                               <option value="place">A place members visit</option>
                               <option value="visiting">A service that comes to them (booked)</option>
+                              <option value="remote">A service by phone or video</option>
                             </Select>
                           </Field>
                           <Field label="Area" hint="Where it is, or where it serves">
@@ -94,7 +95,10 @@ export default function PartnerPage() {
                               <option value="top">Top tier</option>
                             </Select>
                           </Field>
-                          <Field label="Map location" hint="Latitude, longitude, e.g. 6.4262, 3.4486. Leave blank for a visiting service.">
+                          <Field label="Service line" hint="For a service by phone or video: the number members call, e.g. +2348012345678.">
+                            <Input name="servicePhone" type="tel" />
+                          </Field>
+                          <Field label="Map location" hint="Latitude, longitude, e.g. 6.4262, 3.4486. Leave blank for a service that isn't a place.">
                             <Input name="location" />
                           </Field>
                           <HoursEditor name="hours" />
@@ -120,7 +124,7 @@ export default function PartnerPage() {
                         {v.name}
                       </Link>
                       <p className="text-xs text-muted">
-                        {v.kind === "visiting" ? "Visiting service · " : ""}
+                        {v.kind === "visiting" ? "Visiting service · " : v.kind === "remote" ? "By phone or video · " : ""}
                         {v.area}, {v.city === "lagos" ? "Lagos" : "Abuja"}
                       </p>
                     </Td>

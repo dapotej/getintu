@@ -5,7 +5,7 @@ import { createDb, schema } from "@intu/db";
 import { generateKeyPair, toBase64url } from "@intu/qr";
 import { redeem } from "../src/ledger/redeem.ts";
 import { verifyWebhook } from "../src/member/sms-hook.ts";
-import { createStaff, SMS_HOOK_SECRET, TEST_CONCIERGE, TEST_DOCTOR, testApi } from "./support/auth.ts";
+import { createStaff, SMS_HOOK_SECRET, TEST_CONCIERGE, testApi } from "./support/auth.ts";
 import { categoryIdOf, createWorld } from "./support/fixtures.ts";
 
 const url = process.env.DATABASE_URL;
@@ -135,11 +135,53 @@ describe.runIf(url)("member app API", () => {
     expect((await client.get(`/venues/${randomUUID()}`)).status).toBe(404);
   });
 
-  it("shows the doctor-on-call line only to members whose plan includes it", async () => {
+  it("shows the doctor-on-call line, the medical partner's service line, only to members whose plan includes it", async () => {
     const without = await createWorld(db);
     expect((await (await signedIn(without)).get("/me")).json.doctorOnCall).toBeNull();
     const withDoctor = await createWorld(db, { benefitCode: "C08-S02", offerCode: "C08-S02-T01" });
-    expect((await (await signedIn(withDoctor)).get("/me")).json.doctorOnCall).toEqual({ phone: TEST_DOCTOR });
+    // The world's venue is the medical partner's phone line.
+    await db.update(schema.venues).set({ kind: "remote", servicePhone: "+9990000000002" }).where(eq(schema.venues.id, withDoctor.venue.id));
+    // Any medical partner line the plan includes (TEST seed data may add another with the same number).
+    expect((await (await signedIn(withDoctor)).get("/me")).json.doctorOnCall).toEqual({ name: expect.any(String), phone: "+9990000000002" });
+  });
+
+  it("opens a benefit's page: what it covers, what's left, its rules, how to use it, where, and its visits", async () => {
+    const world = await createWorld(db, { quantity: 4 });
+    const client = await signedIn(world);
+    await redeem(db, { membershipId: world.first.membership.id, venueId: world.venue.id, offerId: world.offer.id, method: "online", partySize: 1, now });
+    const [allowance] = (await client.get("/me/memberships")).json.memberships[0].allowances;
+    expect(allowance).toMatchObject({ name: "Beach Clubs", usageMode: "door", remaining: 3 });
+    const page = (await client.get(`/me/allowances/${allowance.id}`)).json;
+    expect(page.benefit).toMatchObject({ id: allowance.id, usageMode: "door", granted: 4, used: 1, remaining: 3 });
+    expect(page.covers).toEqual(expect.arrayContaining(["Entry only"]));
+    expect(page.rules).toMatchObject({ oncePerVenuePerDay: true, onePerPerson: false, sharedByCrew: false, topTierVenues: false });
+    expect(page.venues).toEqual(expect.arrayContaining([expect.objectContaining({ id: world.venue.id, services: ["Entry only"], openNow: true, servicePhone: null })]));
+    expect(page.visits).toEqual([expect.objectContaining({ venue: expect.objectContaining({ id: world.venue.id }), service: "Entry only" })]);
+    // A top-tier beach club isn't where this benefit works (it only opens standard venues).
+    const top = (await db.insert(schema.venues).values({ partnerId: world.venue.partnerId, name: `TEST Top ${randomUUID().slice(0, 4)}`, area: "Ikoyi", city: "lagos", categoryId: await categoryIdOf(db, "C03-S01"), tier: "top", openingHours: world.venue.openingHours, isTest: true }).returning())[0]!;
+    await db.insert(schema.offers).values({ venueId: top.id, categoryId: await categoryIdOf(db, "C03-S01-T01"), rateMinor: 1_000_000, isTest: true });
+    expect((await client.get(`/me/allowances/${allowance.id}`)).json.venues.some((v: { id: string }) => v.id === top.id)).toBe(false);
+    // Someone else's benefit is not found.
+    const other = await signedIn(await createWorld(db));
+    expect((await other.get(`/me/allowances/${allowance.id}`)).status).toBe(404);
+  });
+
+  it("asks for the flight on airport services, and sends calls to the phone", async () => {
+    const world = await createWorld(db, { benefitCode: "C01-S01", offerCode: "C01-S01-T01" });
+    const client = await signedIn(world);
+    const [allowance] = (await client.get("/me/memberships")).json.memberships[0].allowances;
+    expect(allowance.usageMode).toBe("airport");
+    const request = { membershipId: world.first.membership.id, venueId: world.venue.id, offerId: world.offer.id, bookingDate: "2026-12-20", partySize: 2 };
+    expect((await client.post("/bookings", request)).json.error.code).toBe("flight_needed");
+    expect((await client.post("/bookings", { ...request, trip: { direction: "arrival", flightNumber: "not a flight", time: "15:20" } })).status).toBe(400);
+    const res = await client.post("/bookings", { ...request, trip: { direction: "arrival", flightNumber: "ba75", time: "15:20" } });
+    expect(res.status).toBe(201);
+    expect(res.json.booking.trip).toEqual({ direction: "arrival", flightNumber: "BA75", time: "15:20" });
+    const queue = (await as(await createStaff(db, "concierge")).get("/admin/bookings")).json.bookings;
+    expect(queue.find((b: { id: string }) => b.id === res.json.booking.id).trip).toEqual({ direction: "arrival", flightNumber: "BA75", time: "15:20" });
+
+    await db.update(schema.venues).set({ kind: "remote", servicePhone: "+9990000000003" }).where(eq(schema.venues.id, world.venue.id));
+    expect((await client.post("/bookings", { ...request, trip: { direction: "arrival", flightNumber: "BA75", time: "15:20" } })).json.error.code).toBe("call_instead");
   });
 
   it("takes booking requests for dates on my pass, for the concierge to confirm", async () => {

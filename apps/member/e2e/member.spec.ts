@@ -4,7 +4,7 @@ import { parseSecretKey, verifyCode } from "@intu/qr";
 import { eq } from "drizzle-orm";
 import { fakeSupabase, TEST_CODE } from "./support/fake-supabase";
 import { E2E_QR_SIGNING_KEY } from "./support/keys";
-import { createWorld, db, fakePhone, sql } from "./support/world";
+import { addTravelAndDoctor, createWorld, db, fakePhone, sql } from "./support/world";
 
 test.afterAll(async () => {
   await sql.end();
@@ -143,4 +143,43 @@ test("with no signal the pass keeps showing and makes a new code every 30 second
   await expect(page.getByText("Offline: showing what was saved")).toBeVisible();
   await expect(page.getByText("4 of 4 left")).toBeVisible();
   await context.setOffline(false);
+});
+
+test("a benefit's page says how to use it: show the pass, request an airport service with the flight, or call the doctor", async ({ page }) => {
+  const world = await createWorld();
+  const { desk } = await addTravelAndDoctor(world);
+  await db.update(schema.members).set({ photoPath: `${world.member.id}/e2e.jpg` }).where(eq(schema.members.id, world.member.id));
+  await signIn(page, world.member.phone);
+  await expect(page.getByLabel("Pass QR code")).toBeVisible();
+  // Doctor on call is on the pass, from the medical partner's line.
+  await expect(page.getByRole("button", { name: "Doctor on call" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Benefits" }).click();
+  await page.getByRole("link", { name: "Beach Clubs" }).click();
+  await expect(page.getByRole("heading", { name: "Beach Clubs" })).toBeVisible();
+  // The Benefits list stays loaded behind the page, so the count is on it twice.
+  await expect(page.getByText("4 of 4 left").last()).toBeVisible();
+  await expect(page.getByText("Show your pass at the door.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Once per venue per day")).toBeVisible();
+  await expect(page.getByRole("link", { name: world.beach.name })).toBeVisible();
+  await expect(page.getByRole("link", { name: world.spa.name })).toHaveCount(0);
+  await page.goBack();
+
+  await page.getByRole("link", { name: "Doctor on call" }).click();
+  await expect(page.getByText("Calls aren't counted", { exact: false })).toBeVisible();
+  // "Call now", or "Call <line>" for each line when there's more than one.
+  await expect(page.getByRole("button", { name: /^Call / }).first()).toBeVisible();
+  await page.goBack();
+
+  await page.getByRole("link", { name: "Meet-and-assist" }).click();
+  await expect(page.getByText("Request it with your flight.", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: desk.name }).click();
+  await page.getByRole("radiogroup", { name: "Day" }).getByRole("radio").nth(1).click();
+  await expect(page.getByRole("button", { name: "Send request" })).toBeDisabled();
+  await page.getByLabel("Flight number").fill("ba75");
+  await page.getByLabel("Lands at").fill("15:20");
+  await page.getByRole("button", { name: "Send request" }).click();
+  await expect(page.getByText("Arriving on BA75 at 15:20")).toBeVisible();
+  const [booking] = await db.select().from(schema.bookings).where(eq(schema.bookings.venueId, desk.id));
+  expect(booking).toMatchObject({ status: "requested", trip: { direction: "arrival", flightNumber: "BA75", time: "15:20" } });
 });

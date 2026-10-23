@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benefitFor, covers, includes, isNight } from "../src/index.ts";
+import { benefitFor, covers, includes, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
 
 describe("covers", () => {
   it("matches a code, and every code beneath it", () => {
@@ -60,5 +60,25 @@ describe("includes", () => {
     expect(includes(plan, "C03-S02-T01", "top")).toBe(false);
     expect(includes(plan, "C04-S05-T01", "standard")).toBe(false);
     expect(includes([], "C03-S01-T01", "standard")).toBe(false);
+  });
+});
+
+describe("usageModeOf", () => {
+  const modes = new Map<string, UsageMode | null>([
+    ["C01", "door"],
+    ["C01-S01", "airport"],
+    ["C01-S01-T03", "door"],
+    ["C08", "concierge"],
+    ["C08-S02", "call"],
+  ]);
+  it("takes the entry's own setting, else the nearest above it", () => {
+    expect(usageModeOf("C01-S01-T01", modes)).toBe("airport");
+    expect(usageModeOf("C01-S01-T03", modes)).toBe("door");
+    expect(usageModeOf("C08-S02-T01", modes)).toBe("call");
+    expect(usageModeOf("C08-S04-T01", modes)).toBe("concierge");
+  });
+  it("defaults to the door", () => {
+    expect(usageModeOf("C03-S01", modes)).toBe("door");
+    expect(usageModeOf("C09", new Map())).toBe("door");
   });
 });

@@ -27,7 +27,9 @@ const VenueFields = z.object({
   // A catalogue category or subcategory: what kind of place it is.
   categoryId: uuid,
   // A visiting service (chauffeur, home beauty) is used only against a booking.
-  kind: z.enum(["place", "visiting"]),
+  kind: z.enum(["place", "visiting", "remote"]),
+  // A service by phone or video: the number members call.
+  servicePhone: z.string().regex(/^\+\d{8,15}$/, "A phone number in international format, e.g. +2348012345678").nullable(),
   tier: venueTier,
   description: z.string().max(4000).nullable(),
   openingHours: WeeklyHours,
@@ -137,6 +139,7 @@ export function partnerRoutes(db: Db) {
     const row = await db.transaction(async (tx) => {
       const [partner] = await tx.select({ id: partners.id }).from(partners).where(eq(partners.id, input.partnerId));
       if (!partner) fail(422, "unknown_partner", "Partner not found");
+      if (input.kind === "remote" && !input.servicePhone) fail(422, "service_phone_required", "A service by phone or video needs the number members call");
       await checkVenueCategory(tx, input.categoryId);
       const created = one(await tx.insert(venues).values(input).returning());
       await staffAudit(tx, staff, "venue.created", "venue", created.id, null, created);
@@ -152,6 +155,7 @@ export function partnerRoutes(db: Db) {
     const row = await db.transaction(async (tx) => {
       const [before] = await tx.select().from(venues).where(eq(venues.id, id)).for("update");
       if (!before) fail(404, "not_found", "Venue not found");
+      if ((input.kind ?? before.kind) === "remote" && !(input.servicePhone === undefined ? before.servicePhone : input.servicePhone)) fail(422, "service_phone_required", "A service by phone or video needs the number members call");
       await checkVenueCategory(tx, input.categoryId);
       const after = one(await tx.update(venues).set(input).where(eq(venues.id, id)).returning());
       await staffAudit(tx, staff, "venue.updated", "venue", id, before, after);

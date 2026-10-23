@@ -133,7 +133,7 @@ function VenueCard({ v }: { v: Venue }) {
             {v.name}
           </T>
           <T variant="small" color={colors.muted} numberOfLines={1}>
-            {v.kind === "visiting" ? "Comes to you, by booking" : v.area}
+            {v.kind === "visiting" ? "Comes to you, by booking" : v.kind === "remote" ? "By phone, any time" : v.area}
           </T>
           <View style={{ flexDirection: "row", gap: space(1.5), flexWrap: "wrap", marginTop: "auto" }}>
             {v.included ? <Badge label="In your plan" tone={v.night ? "night" : "day"} /> : null}

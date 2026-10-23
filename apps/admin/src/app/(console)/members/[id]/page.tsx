@@ -8,7 +8,7 @@ import { ReasonPanel } from "@/components/reason-panel";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import { isNight } from "@/lib/catalogue";
-import { PAID_BY, STATUS_LABELS, statusTone } from "@/lib/labels";
+import { PAID_BY, STATUS_LABELS, statusTone, tripText } from "@/lib/labels";
 import type { Allowance, Booking, MemberDetail, Membership, Plan, Venue } from "@/lib/types";
 
 const METHOD: Record<string, string> = { online: "Scan", offline: "Scan (offline)", manual: "Manual" };
@@ -433,7 +433,7 @@ function BookingsCard({ memberId, memberships, canWrite }: { memberId: string; m
               <Td className="whitespace-nowrap tabular-nums">{formatDate(b.bookingDate)}</Td>
               <Td>
                 <span className="font-medium">{b.venue?.name ?? "–"}</span>
-                <span className="block text-xs text-muted">{[b.offerName, b.partySize > 1 ? `party of ${b.partySize}` : null, b.notes].filter(Boolean).join(" · ")}</span>
+                <span className="block text-xs text-muted">{[b.offerName, tripText(b.trip), b.partySize > 1 ? `party of ${b.partySize}` : null, b.notes].filter(Boolean).join(" · ")}</span>
               </Td>
               <Td>
                 <Badge dot tone={BOOKING_STATUS[b.status].tone}>

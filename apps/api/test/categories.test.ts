@@ -28,6 +28,11 @@ describe.runIf(url)("catalogue API", () => {
     const tag = randomUUID().slice(0, 6);
     const allDay = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]]));
     const partner = (await api.post("/admin/partners", { legalName: `TEST Spa ${tag} Ltd`, tradingName: `TEST Spa ${tag}` })).json.partner;
+    // A service by phone needs its number.
+    expect((await api.post("/admin/venues", { partnerId: partner.id, name: `TEST Line ${tag}`, kind: "remote", area: "Lagos", city: "lagos", categoryId: await categoryIdOf(db, "C08-S02"), openingHours: allDay })).json.error.code).toBe("service_phone_required");
+    const line = (await api.post("/admin/venues", { partnerId: partner.id, name: `TEST Line ${tag}`, kind: "remote", servicePhone: "+9990000000009", area: "Lagos", city: "lagos", categoryId: await categoryIdOf(db, "C08-S02"), openingHours: allDay })).json.venue;
+    expect(line).toMatchObject({ kind: "remote", servicePhone: "+9990000000009" });
+    expect((await api.patch(`/admin/venues/${line.id}`, { servicePhone: null })).json.error.code).toBe("service_phone_required");
     const venue = (await api.post("/admin/venues", { partnerId: partner.id, name: `TEST Spa ${tag} Ikoyi`, area: "Ikoyi", city: "lagos", categoryId: await categoryIdOf(db, "C04-S05"), tier: "standard", openingHours: allDay })).json.venue;
     const massage = await categoryIdOf(db, "C04-S05-T01");
     await api.post("/admin/offers", { venueId: venue.id, categoryId: massage, rateMinor: 2_500_000 });
@@ -48,6 +53,14 @@ describe.runIf(url)("catalogue API", () => {
     const other = (await api.get(`/admin/categories/${await categoryIdOf(db, "C04-S01")}`)).json;
     expect(other.offers.some((o: { venue: { id: string } }) => o.venue.id === venue.id)).toBe(false);
     expect((await api.get(`/admin/categories/${randomUUID()}`)).status).toBe(404);
+  });
+
+  it("sets how members use an entry, or clears it to follow the entry above", async () => {
+    const api = as(await createStaff(db, "ops_lead"));
+    const id = await categoryIdOf(db, "C05-S01");
+    expect((await api.patch(`/admin/categories/${id}`, { usageMode: "booking" })).json.category.usageMode).toBe("booking");
+    expect((await api.patch(`/admin/categories/${id}`, { usageMode: "teleport" })).status).toBe(400);
+    expect((await api.patch(`/admin/categories/${id}`, { usageMode: null })).json.category.usageMode).toBeNull();
   });
 
   it("adds entries with the next free code at the right level, and audits them", async () => {

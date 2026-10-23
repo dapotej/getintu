@@ -1,7 +1,7 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
--- Needs migrations 0000-0017: the catalogue (categories) comes from migration 0009.
+-- Needs migrations 0000-0018: the catalogue (categories) comes from migration 0009.
 -- To replace older TEST data first, run sql/reset-test-data.sql.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
@@ -40,6 +40,13 @@ FROM (VALUES
   ('00000000-0000-4000-8000-000000001214', '00000000-0000-4000-8000-000000001110', 'TEST Ikoyi Kitchen', 'place', 'Ikoyi', 'C02-S01', 'IKKTCH', 'standard', '{"0":[{"open":"12:00","close":"23:00"}],"1":[{"open":"12:00","close":"23:00"}],"2":[{"open":"12:00","close":"23:00"}],"3":[{"open":"12:00","close":"23:00"}],"4":[{"open":"12:00","close":"23:00"}],"5":[{"open":"12:00","close":"23:00"}],"6":[{"open":"12:00","close":"23:00"}]}', 6.451, 3.43)
 ) AS v(id, partner_id, name, kind, area, code, login_code, tier, hours, lat, lng)
 JOIN categories c ON c.code = v.code
+ON CONFLICT DO NOTHING;
+-- Doctor on call: a service by phone (fictional number, country code 999), nothing to scan.
+INSERT INTO venues (id, partner_id, name, kind, area, city, category_id, tier, opening_hours, service_phone, is_test)
+SELECT '00000000-0000-4000-8000-000000001215', '00000000-0000-4000-8000-000000001111', 'TEST CareLine doctor line', 'remote', 'Lagos', 'lagos', c.id, 'standard',
+  '{"0":[{"open":"00:00","close":"24:00"}],"1":[{"open":"00:00","close":"24:00"}],"2":[{"open":"00:00","close":"24:00"}],"3":[{"open":"00:00","close":"24:00"}],"4":[{"open":"00:00","close":"24:00"}],"5":[{"open":"00:00","close":"24:00"}],"6":[{"open":"00:00","close":"24:00"}]}'::jsonb,
+  '+9990000000002', true
+FROM categories c WHERE c.code = 'C08-S02'
 ON CONFLICT DO NOTHING;
 
 -- Door staff, one per venue, all with the TEST PIN 246810.
@@ -97,7 +104,8 @@ FROM (VALUES
   ('00000000-0000-4000-8000-000000001514', '00000000-0000-4000-8000-000000001211', 'C06-S01-T03', 0, 40),
   ('00000000-0000-4000-8000-000000001515', '00000000-0000-4000-8000-000000001212', 'C06-S01-T03', 0, 30),
   ('00000000-0000-4000-8000-000000001516', '00000000-0000-4000-8000-000000001213', 'C02-S01-T01', 0, 10),
-  ('00000000-0000-4000-8000-000000001517', '00000000-0000-4000-8000-000000001214', 'C02-S01-T01', 0, 10)
+  ('00000000-0000-4000-8000-000000001517', '00000000-0000-4000-8000-000000001214', 'C02-S01-T01', 0, 10),
+  ('00000000-0000-4000-8000-000000001518', '00000000-0000-4000-8000-000000001215', 'C08-S02-T01', 0, NULL)
 ) AS o(id, venue_id, code, rate, cap)
 JOIN categories c ON c.code = o.code
 ON CONFLICT DO NOTHING;

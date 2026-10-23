@@ -35,8 +35,8 @@ export interface AppDeps {
   partnerSessionSecret: string;
   /** Member photos, in private storage. */
   photos: PhotoStore;
-  /** The member app: concierge and doctor-on-call numbers, and whether sign-ups are TEST data. */
-  memberApp?: { conciergeWhatsApp: string | null; doctorOnCallPhone: string | null; newMembersAreTest: boolean };
+  /** The member app: the concierge's number, and whether sign-ups are TEST data. */
+  memberApp?: { conciergeWhatsApp: string | null; newMembersAreTest: boolean };
   /** Supabase's Send SMS hook: its signing secret, and who delivers sign-in codes. */
   smsHook?: { secret: string | undefined; sender?: CodeSender };
   /** The time, replaceable in tests. */
@@ -79,7 +79,6 @@ export function createApp(deps: AppDeps) {
       photos: deps.photos,
       clock,
       conciergeWhatsApp: deps.memberApp?.conciergeWhatsApp ?? null,
-      doctorOnCallPhone: deps.memberApp?.doctorOnCallPhone ?? null,
       newMembersAreTest: deps.memberApp?.newMembersAreTest ?? true,
     }),
   );

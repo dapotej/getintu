@@ -46,6 +46,6 @@ The scanner (`apps/partner`) is a static site built with `NEXT_PUBLIC_API_URL` s
 2. Authentication → **Hooks** → add a **Send SMS** hook of type HTTPS, URL `https://intu-api-staging.vercel.app/auth/sms-hook`. Generate its secret and put it in the API's Vercel settings as `SUPABASE_SMS_HOOK_SECRET` (sensitive), then redeploy the API.
 3. In the Phone provider settings, add **test phone numbers** with fixed codes, e.g. a TEST member's number with `123456`. With the TEST sender, nothing is sent: only these numbers can sign in.
 
-**Concierge and doctor buttons:** set `CONCIERGE_WHATSAPP` and `DOCTOR_ON_CALL_PHONE` (E.164) on the API. Left blank, the app hides them.
+**Concierge button:** set `CONCIERGE_WHATSAPP` (E.164) on the API; left blank, the app hides it. **Doctor on call** uses the medical partner's service line: a venue of kind "A service by phone or video" with the doctor-on-call offer (TEST CareLine doctor line in TEST data).
 
 **Expo Go:** create the `intu` project under intu's Expo account, then in GitHub → Settings → Environments → staging add the secret `EXPO_TOKEN` (expo.dev → Access tokens) and the variables `EXPO_PROJECT_ID`, `EXPO_OWNER` and `SUPABASE_PUBLISHABLE_KEY` (the `sb_publishable_…` key). The **Member app to Expo Go (staging)** workflow then publishes every change; open it in the Expo Go app from the project's page on expo.dev.

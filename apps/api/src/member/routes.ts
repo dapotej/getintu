@@ -4,10 +4,10 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { and, asc, desc, eq, gte, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { audit, one, schema, type Db } from "@intu/db";
-import { benefitFor, includes, isNight, openWindowDate, toLagos } from "@intu/rules";
+import { benefitFor, covers, includes, isNight, openWindowDate, toLagos, usageModeOf } from "@intu/rules";
 import { InvalidTokenError, type TokenVerifier } from "../auth/tokens.ts";
 import { body, fail } from "../http.ts";
 import { issuePass, renewPass, type PassKeys } from "../passes.ts";
@@ -27,12 +27,11 @@ export interface MemberDeps {
   clock: () => Date;
   /** Members who sign up outside production are TEST data. */
   newMembersAreTest: boolean;
-  /** WhatsApp number of the concierge, and the medical partner's line; E.164. */
+  /** WhatsApp number of the concierge, E.164. */
   conciergeWhatsApp: string | null;
-  doctorOnCallPhone: string | null;
 }
 
-/** Catalogue code of the doctor-on-call benefit. */
+/** Catalogue code of the doctor-on-call benefit; the number comes from the medical partner's service line. */
 const DOCTOR_ON_CALL = "C08-S02";
 /** Signed photo links last this long. */
 const PHOTO_LINK_SECONDS = 60 * 60;
@@ -59,6 +58,19 @@ const NewBooking = z.object({
   bookingDate: isoDate,
   partySize: z.number().int().min(1).max(20).default(1),
   notes: z.string().trim().max(1000).nullable().default(null),
+  // Airport services: the flight to meet or see off.
+  trip: z
+    .object({
+      direction: z.enum(["arrival", "departure"]),
+      flightNumber: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z0-9]{2,3} ?\d{1,4}[A-Z]?$/, "A flight number, e.g. BA75"),
+      time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "The time as HH:MM"),
+    })
+    .nullable()
+    .default(null),
 });
 
 /**
@@ -132,13 +144,36 @@ export function memberAppRoutes(deps: MemberDeps) {
     return rows;
   };
 
+  /** How members use each catalogue entry, for usageModeOf. */
+  const usageModes = async () => new Map((await db.select({ code: categories.code, mode: categories.usageMode }).from(categories)).map((c) => [c.code, c.mode]));
+
+  /**
+   * Services by phone or video (doctor on call) under a catalogue entry that the plan's benefits
+   * include, with the number to call: the partner's service line, set in the console.
+   */
+  const callLines = async (planBenefits: Awaited<ReturnType<typeof activeBenefits>>, underCode: string) => {
+    if (!planBenefits.length) return [];
+    const rows = await db
+      .select({ venueId: venues.id, name: venues.name, phone: venues.servicePhone, tier: venues.tier, code: categories.code })
+      .from(offers)
+      .innerJoin(venues, eq(venues.id, offers.venueId))
+      .innerJoin(partners, eq(partners.id, venues.partnerId))
+      .innerJoin(categories, eq(categories.id, offers.categoryId))
+      .where(and(eq(venues.kind, "remote"), eq(venues.active, true), isNull(venues.deletedAt), eq(offers.active, true), isNull(offers.deletedAt), eq(partners.active, true), or(eq(categories.code, underCode), like(categories.code, `${underCode}-%`))))
+      .orderBy(asc(venues.name));
+    const lines = new Map<string, { venueId: string; name: string; phone: string }>();
+    for (const r of rows) if (r.phone && includes(planBenefits, r.code, r.tier) && !lines.has(r.venueId)) lines.set(r.venueId, { venueId: r.venueId, name: r.name, phone: r.phone });
+    return [...lines.values()];
+  };
+
   const profile = async (m: Member) => {
     const planBenefits = await activeBenefits(m.id);
+    const [doctor] = await callLines(planBenefits, DOCTOR_ON_CALL);
     return {
       member: { id: m.id, fullName: m.fullName, phone: m.phone, email: m.email, country: m.country, consentMarketing: m.consentMarketing, hasPhoto: m.photoPath !== null, photoUrl: await photoUrl(m), isTest: m.isTest },
       concierge: deps.conciergeWhatsApp ? { whatsapp: deps.conciergeWhatsApp } : null,
-      // Only for members whose plan includes the doctor-on-call benefit.
-      doctorOnCall: deps.doctorOnCallPhone && benefitFor(planBenefits, DOCTOR_ON_CALL) ? { phone: deps.doctorOnCallPhone } : null,
+      // Only for members whose plan includes doctor on call, from the medical partner's service line.
+      doctorOnCall: doctor ? { name: doctor.name, phone: doctor.phone } : null,
     };
   };
 
@@ -205,6 +240,7 @@ export function memberAppRoutes(deps: MemberDeps) {
           .orderBy(asc(categories.code), asc(allowances.periodStart))
       : [];
     const now = today();
+    const modes = await usageModes();
     return c.json({
       memberships: ms.map(({ membership: m, plan }) => ({
         id: m.id,
@@ -224,19 +260,92 @@ export function memberAppRoutes(deps: MemberDeps) {
             const current = forBenefit.find((o) => o.allowance.periodStart <= now && o.allowance.periodEnd >= now) ?? forBenefit[0];
             return current === r;
           })
-          .map((r) => ({
-            id: r.allowance.id,
-            name: r.name,
-            code: r.code,
-            night: isNight(r.code),
-            granted: r.allowance.granted,
-            used: r.allowance.used,
-            remaining: r.allowance.granted === null ? null : Math.max(0, r.allowance.granted - r.allowance.used),
-            period: r.period,
-            periodEnd: r.allowance.periodEnd,
-            sharedByCrew: r.shared,
-          })),
+          .map((r) => allowanceView(r, modes)),
       })),
+    });
+  });
+
+  /** One benefit's allowance as the app shows it. */
+  const allowanceView = (r: { allowance: typeof allowances.$inferSelect; name: string; code: string; period: "per_pass" | "per_month" | "per_year"; shared: boolean }, modes: Map<string, (typeof categories.$inferSelect)["usageMode"]>) => ({
+    id: r.allowance.id,
+    name: r.name,
+    code: r.code,
+    night: isNight(r.code),
+    usageMode: usageModeOf(r.code, modes),
+    granted: r.allowance.granted,
+    used: r.allowance.used,
+    remaining: r.allowance.granted === null ? null : Math.max(0, r.allowance.granted - r.allowance.used),
+    period: r.period,
+    periodEnd: r.allowance.periodEnd,
+    sharedByCrew: r.shared,
+  });
+
+  // One benefit's page: what it covers, what's left, its rules, how to use it, where, and its visits.
+  app.get("/me/allowances/:id", signedIn, async (c) => {
+    const member = needMember(c);
+    const { id } = idParam.parse(c.req.param());
+    const [row] = await db
+      .select({ allowance: allowances, benefit: benefits, name: categories.name, code: categories.code })
+      .from(allowances)
+      .innerJoin(benefits, eq(benefits.id, allowances.benefitId))
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .where(eq(allowances.id, id));
+    // Theirs if it's on one of their passes, or shared by their Crew.
+    const mine = (await currentMemberships(member.id)).find(({ membership: m }) => (row?.allowance.membershipId ?? null) === m.id || (m.groupId !== null && row?.allowance.groupId === m.groupId));
+    if (!row || !mine) fail(404, "not_found", "Benefit not found");
+    const modes = await usageModes();
+    const view = allowanceView({ allowance: row.allowance, name: row.name, code: row.code, period: row.benefit.period, shared: row.benefit.sharedByGroup }, modes);
+
+    // The service types it covers that members can see.
+    const covered = (await db.select({ code: categories.code, name: categories.name }).from(categories).where(and(eq(categories.level, "service"), eq(categories.active, true), eq(categories.customerVisible, true), or(eq(categories.code, row.code), like(categories.code, `${row.code}-%`))))).sort((a, b) => a.code.localeCompare(b.code));
+
+    // Where it works: venues with an offer this benefit pays for, by the same rules as a scan (the
+    // most specific benefit of this pass's plan covering the offer is this one, and the tier is open).
+    const planBenefits = await db
+      .select({ id: benefits.id, categoryCode: categories.code, allowedVenueTiers: benefits.allowedVenueTiers })
+      .from(benefits)
+      .innerJoin(categories, eq(categories.id, benefits.categoryId))
+      .where(eq(benefits.planId, mine.membership.planId));
+    const offerRows = await db
+      .select({ offerId: offers.id, code: categories.code, service: categories.name, venue: venues })
+      .from(offers)
+      .innerJoin(venues, eq(venues.id, offers.venueId))
+      .innerJoin(partners, eq(partners.id, venues.partnerId))
+      .innerJoin(categories, eq(categories.id, offers.categoryId))
+      .where(and(eq(offers.active, true), isNull(offers.deletedAt), eq(venues.active, true), isNull(venues.deletedAt), eq(partners.active, true), or(eq(categories.code, row.code), like(categories.code, `${row.code}-%`))))
+      .orderBy(asc(venues.name));
+    const now = deps.clock();
+    const where = new Map<string, { id: string; name: string; area: string; kind: "place" | "visiting" | "remote"; night: boolean; openNow: boolean; servicePhone: string | null; services: string[] }>();
+    for (const o of offerRows) {
+      const applies = benefitFor(planBenefits, o.code);
+      if (applies?.id !== row.benefit.id || !covers(row.code, o.code) || !applies.allowedVenueTiers.includes(o.venue.tier)) continue;
+      const v = where.get(o.venue.id) ?? { id: o.venue.id, name: o.venue.name, area: o.venue.area, kind: o.venue.kind, night: isNight(o.code), openNow: o.venue.kind === "place" && openWindowDate(o.venue.openingHours, now) !== null, servicePhone: o.venue.kind === "remote" ? o.venue.servicePhone : null, services: [] };
+      v.services.push(o.service);
+      where.set(o.venue.id, v);
+    }
+
+    const visits = await db
+      .select({ id: redemptions.id, occurredAt: redemptions.occurredAt, partySize: redemptions.partySize, venue: { id: venues.id, name: venues.name, area: venues.area }, service: categories.name })
+      .from(redemptions)
+      .innerJoin(venues, eq(venues.id, redemptions.venueId))
+      .innerJoin(categories, eq(categories.id, redemptions.categoryId))
+      .where(and(eq(redemptions.allowanceId, id), eq(redemptions.memberId, member.id), eq(redemptions.result, "approved"), isNull(redemptions.deletedAt)))
+      .orderBy(desc(redemptions.occurredAt))
+      .limit(50);
+
+    return c.json({
+      benefit: view,
+      membership: { id: mine.membership.id, plan: mine.plan, startsOn: mine.membership.startsOn, endsOn: mine.membership.endsOn, status: mine.membership.status },
+      covers: covered.map((x) => x.name),
+      rules: {
+        oncePerVenuePerDay: row.benefit.capOncePerVenuePerDay,
+        oncePerVenuePerMonth: row.benefit.capOncePerVenuePerMonth,
+        onePerPerson: row.benefit.drawPerPerson,
+        sharedByCrew: row.benefit.sharedByGroup,
+        topTierVenues: row.benefit.allowedVenueTiers.includes("top"),
+      },
+      venues: [...where.values()],
+      visits,
     });
   });
 
@@ -297,11 +406,12 @@ export function memberAppRoutes(deps: MemberDeps) {
     const planBenefits = await activeBenefits(memberId);
     // The top of the catalogue (Beach & Water, Nightlife & Social…), which Discover groups by.
     const sections = new Map((await db.select({ code: categories.code, name: categories.name }).from(categories).where(eq(categories.level, "category"))).map((c) => [c.code, c]));
+    const modes = await usageModes();
     const now = deps.clock();
     return rows.map(({ venue: v, category }) => {
       const venueOffers = offerRows
         .filter((o) => o.venueId === v.id)
-        .map((o) => ({ id: o.id, name: o.name, code: o.code, description: o.description, included: includes(planBenefits, o.code, v.tier) }));
+        .map((o) => ({ id: o.id, name: o.name, code: o.code, description: o.description, usageMode: usageModeOf(o.code, modes), included: includes(planBenefits, o.code, v.tier) }));
       return {
         id: v.id,
         name: v.name,
@@ -314,6 +424,7 @@ export function memberAppRoutes(deps: MemberDeps) {
         description: v.description,
         latitude: v.latitude,
         longitude: v.longitude,
+        servicePhone: v.kind === "remote" ? v.servicePhone : null,
         openingHours: v.openingHours,
         openNow: v.kind === "place" && openWindowDate(v.openingHours, now) !== null,
         included: venueOffers.some((o) => o.included),
@@ -344,6 +455,7 @@ export function memberAppRoutes(deps: MemberDeps) {
         partySize: bookings.partySize,
         status: bookings.status,
         notes: bookings.notes,
+        trip: bookings.trip,
         createdAt: bookings.createdAt,
         venue: { id: venues.id, name: venues.name, area: venues.area, kind: venues.kind },
         offerName: categories.name,
@@ -371,9 +483,13 @@ export function memberAppRoutes(deps: MemberDeps) {
     if (input.bookingDate < ms.startsOn || input.bookingDate > ms.endsOn) fail(422, "outside_pass_dates", "Choose a date while your pass is valid");
     const [venue] = (await loadVenues(member.id, input.venueId)) as (Awaited<ReturnType<typeof loadVenues>>[number] | undefined)[];
     if (!venue) fail(422, "unknown_venue", "Venue not found");
+    if (venue.kind === "remote") fail(422, "call_instead", "Call this service instead: it's by phone or video");
     if (input.offerId && !venue.offers.some((o) => o.id === input.offerId)) fail(422, "unknown_offer", "That isn't one of this venue's offers");
+    // An airport service needs the flight: the offer asked for, or the venue's only kind of offer.
+    const asked = input.offerId ? venue.offers.filter((o) => o.id === input.offerId) : venue.offers;
+    if (asked.length > 0 && asked.every((o) => o.usageMode === "airport") && !input.trip) fail(422, "flight_needed", "Add your flight number and time");
     const created = await db.transaction(async (tx) => {
-      const row = one(await tx.insert(bookings).values({ memberId: member.id, membershipId: ms.id, venueId: venue.id, offerId: input.offerId, bookingDate: input.bookingDate, partySize: input.partySize, notes: input.notes, status: "requested" }).returning());
+      const row = one(await tx.insert(bookings).values({ memberId: member.id, membershipId: ms.id, venueId: venue.id, offerId: input.offerId, bookingDate: input.bookingDate, partySize: input.partySize, notes: input.notes, trip: input.trip, status: "requested" }).returning());
       await audit(tx, { type: "member", id: member.id }, { action: "booking.requested", entity: "booking", entityId: row.id, after: row });
       return row;
     });

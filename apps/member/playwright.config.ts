@@ -41,7 +41,6 @@ export default defineConfig({
         QR_SIGNING_KEY: E2E_QR_SIGNING_KEY,
         PHOTO_STORE: "memory",
         CONCIERGE_WHATSAPP: "+2348000000001",
-        DOCTOR_ON_CALL_PHONE: "+2348000000002",
       },
     },
     {

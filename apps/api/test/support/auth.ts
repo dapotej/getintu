@@ -62,7 +62,6 @@ export async function createStaff(db: Db, role: StaffRole, extra: Partial<typeof
 
 /** The API with test auth, plus a helper that makes authenticated JSON requests as a given staff member. */
 export const TEST_CONCIERGE = "+2348000000001";
-export const TEST_DOCTOR = "+2348000000002";
 export const SMS_HOOK_SECRET = `v1,whsec_${Buffer.from("test-sms-hook-secret-0123456789ab").toString("base64")}`;
 
 export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
@@ -77,7 +76,7 @@ export function testApi(db: Db, opts: { clock?: () => Date } = {}) {
     passKeys,
     partnerSessionSecret: PARTNER_SESSION_SECRET,
     photos,
-    memberApp: { conciergeWhatsApp: TEST_CONCIERGE, doctorOnCallPhone: TEST_DOCTOR, newMembersAreTest: true },
+    memberApp: { conciergeWhatsApp: TEST_CONCIERGE, newMembersAreTest: true },
     smsHook: { secret: SMS_HOOK_SECRET, sender: { send: async (phone, code) => void sent.push({ phone, code }) } },
     ...(opts.clock ? { clock: opts.clock } : {}),
   });

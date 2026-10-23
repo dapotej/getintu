@@ -63,13 +63,17 @@ export const testVenues: SeedVenue[] = [
   { id: venueId(12), partnerId: partnerId(9), name: "TEST Afterdark Lekki", area: "Lekki", categoryCode: "C06-S01", loginCode: "AFTRLK", latitude: 6.439, longitude: 3.48, tier: "standard" as const, openingHours: weekendNights },
   { id: venueId(13), partnerId: partnerId(10), name: "TEST Marina Grill", area: "Victoria Island", categoryCode: "C02-S01", loginCode: "MARGRL", latitude: 6.427, longitude: 3.418, tier: "standard" as const, openingHours: daily("12:00", "23:00") },
   { id: venueId(14), partnerId: partnerId(10), name: "TEST Ikoyi Kitchen", area: "Ikoyi", categoryCode: "C02-S01", loginCode: "IKKTCH", latitude: 6.451, longitude: 3.43, tier: "standard" as const, openingHours: daily("12:00", "23:00") },
+  // Doctor on call: a service by phone, with no address and nothing to scan. The number is fictional
+  // (country code 999 is unassigned).
+  { id: venueId(15), partnerId: partnerId(11), name: "TEST CareLine doctor line", kind: "remote" as const, area: "Lagos", categoryCode: "C08-S02", servicePhone: "+9990000000002", tier: "standard" as const, openingHours: allDay },
 ].map((v) => ({ ...v, city: "lagos" as const, isTest: true }));
 
 // Door staff: one per venue, all with the TEST PIN 246810 (hashed with a fixed salt so the SQL
 // seed matches). They sign in to the scanner with their venue's login code.
 export const TEST_DOOR_PIN = "246810";
 export const TEST_DOOR_PIN_HASH = "scrypt$7465737470696e73616c743030303030$862ff69b444925568d4da5f8707dac34d39145715071a6027eef74292e9ce4c9";
-export const testDoorStaff = testVenues.map((v, i) => ({
+// Services by phone have no scanner, so no staff.
+export const testDoorStaff = testVenues.filter((v) => v.kind !== "remote").map((v, i) => ({
   id: `00000000-0000-4000-8000-0000000013${String(i + 1).padStart(2, "0")}`,
   role: "door_staff" as const,
   fullName: `TEST Door ${v.name.replace(/^TEST /, "")}`,
@@ -185,6 +189,8 @@ export const testOffers: SeedOffer[] = (
     { venueId: venueId(12), categoryCode: "C06-S01-T03", rateMinor: 0, dailyCap: 30 },
     { venueId: venueId(13), categoryCode: "C02-S01-T01", rateMinor: 0, dailyCap: 10 },
     { venueId: venueId(14), categoryCode: "C02-S01-T01", rateMinor: 0, dailyCap: 10 },
+    // Paid as a flat fee per member (the plans' doctor-on-call benefit), not per call.
+    { venueId: venueId(15), categoryCode: "C08-S02-T01", rateMinor: 0, dailyCap: null },
   ] satisfies Omit<SeedOffer, "rateCurrency" | "isTest">[]
 ).map((o, i) => ({ id: offerId(i + 1), ...o, retailMinor: Math.round((o.rateMinor * 3) / 2), rateCurrency: "NGN" as const, pricesArePlaceholders: true, isTest: true }));
 

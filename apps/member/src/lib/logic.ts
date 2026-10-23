@@ -1,6 +1,6 @@
 // The app's small decisions, kept free of React Native so they're unit-tested. None of them is an
 // entitlement decision: the API and the scan decide what a member may use.
-import type { Allowance, BookingStatus, Hours, Membership, StoredPass } from "./types";
+import type { Allowance, BenefitPage, BookingStatus, Hours, Membership, StoredPass, Trip, UsageMode } from "./types";
 
 /** Lagos has no daylight saving: it's always UTC+1. */
 export const lagosDate = (now: Date) => new Date(now.getTime() + 3_600_000).toISOString().slice(0, 10);
@@ -131,4 +131,34 @@ export function discoverSections<V extends { name: string; area: string; night: 
   return [...sections.values()]
     .sort((a, b) => a.section.code.localeCompare(b.section.code))
     .map((row) => ({ ...row, venues: row.venues.sort((a, b) => Number(b.included) - Number(a.included) || a.name.localeCompare(b.name)) }));
+}
+
+/** How to use a benefit, in a line, by how it's used. */
+export const HOW_TO_USE: Record<UsageMode, string> = {
+  door: "Show your pass at the door. The venue scans it, and it's counted here.",
+  booking: "Request a booking. On the day the provider comes to you and scans your pass.",
+  airport: "Request it with your flight. We confirm with the airport team; on the day, show your pass.",
+  call: "Call any time, day or night. Calls aren't counted.",
+  concierge: "Message the concierge and they'll arrange it for you.",
+  in_app: "Coming soon in the app.",
+};
+
+/** A benefit's rules in plain words. */
+export function ruleLines(r: BenefitPage["rules"]): string[] {
+  return [
+    r.oncePerVenuePerDay ? "Once per venue per day" : null,
+    r.oncePerVenuePerMonth ? "Once per venue per month" : null,
+    r.onePerPerson ? "Each person in your party uses one" : null,
+    r.sharedByCrew ? "Shared by everyone in your Crew" : null,
+    r.topTierVenues ? "Includes top-tier venues" : null,
+  ].filter((l): l is string => l !== null);
+}
+
+/** "Arriving on BA75 at 15:20". */
+export const tripText = (t: Trip | null) => (t ? `${t.direction === "arrival" ? "Arriving" : "Departing"} on ${t.flightNumber} at ${t.time}` : null);
+
+/** Whether a booking at a venue needs flight details: the chosen offer, or every offer, is an airport service. */
+export function needsFlight(offers: readonly { id: string; usageMode: UsageMode }[], offerId: string | null): boolean {
+  const asked = offerId ? offers.filter((o) => o.id === offerId) : offers;
+  return asked.length > 0 && asked.every((o) => o.usageMode === "airport");
 }

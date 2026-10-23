@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ReasonPanel } from "@/components/reason-panel";
 import { api, errorMessage, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
+import { tripText } from "@/lib/labels";
 import type { QueuedBooking } from "@/lib/types";
 
 export default function BookingsPage() {
@@ -54,7 +55,7 @@ export default function BookingsPage() {
                   ) : (
                     "–"
                   )}
-                  <span className="block text-xs text-muted">{[b.offerName, b.notes].filter(Boolean).join(" · ") || null}</span>
+                  <span className="block text-xs text-muted">{[b.offerName, tripText(b.trip), b.notes].filter(Boolean).join(" · ") || null}</span>
                 </Td>
                 <Td className="tabular-nums">{b.partySize}</Td>
                 {answering ? (

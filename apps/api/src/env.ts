@@ -26,9 +26,8 @@ const Env = z.object({
   SUPABASE_SMS_HOOK_SECRET: z.string().min(1).optional(),
   // Who delivers sign-in codes. Only "test" (deliver nothing; TEST numbers use a fixed code) for now.
   CODE_SENDER: z.enum(["test"]).default("test"),
-  // The concierge's WhatsApp number and the medical partner's line, in E.164 (+234…).
+  // The concierge's WhatsApp number, in E.164 (+234…). The doctor's line is the medical partner's, set in the console.
   CONCIERGE_WHATSAPP: z.string().regex(/^\+\d{8,15}$/).optional(),
-  DOCTOR_ON_CALL_PHONE: z.string().regex(/^\+\d{8,15}$/).optional(),
   // Where member photos are kept: Supabase Storage, or in memory for local development.
   PHOTO_STORE: z.enum(["supabase", "memory"]).default("supabase"),
 });

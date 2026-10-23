@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowanceLabel, discoverSections, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
+import { allowanceLabel, discoverSections, needsFlight, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
 import type { Hours, Membership, StoredPass } from "../src/lib/types";
 
 const pass = (id: string, startsOn: string, endsOn: string, status: Membership["status"] = "active"): Membership => ({ id, plan: { id: "p", name: "TEST Plan" }, passNumber: null, status, startsOn, endsOn, arrivesOn: null, departsOn: null, crew: false, allowances: [] });
@@ -104,5 +104,24 @@ describe("discoverSections", () => {
   it("groups venues saved before the API sent sections by their own category", () => {
     const { section: _section, ...old } = venue("TEST Old", "C04", "Wellness & Fitness", { kind: "Spa & Massage" });
     expect(discoverSections([old], all).map((r) => r.section)).toEqual([{ code: "C04", name: "Spa & Massage" }]);
+  });
+});
+
+describe("benefit pages", () => {
+  it("puts the rules in plain words", () => {
+    expect(ruleLines({ oncePerVenuePerDay: true, oncePerVenuePerMonth: false, onePerPerson: true, sharedByCrew: true, topTierVenues: false })).toEqual(["Once per venue per day", "Each person in your party uses one", "Shared by everyone in your Crew"]);
+    expect(ruleLines({ oncePerVenuePerDay: false, oncePerVenuePerMonth: false, onePerPerson: false, sharedByCrew: false, topTierVenues: true })).toEqual(["Includes top-tier venues"]);
+  });
+  it("asks for the flight when the offer, or every offer, is an airport service", () => {
+    const offers = [{ id: "meet", usageMode: "airport" as const }, { id: "lounge", usageMode: "door" as const }];
+    expect(needsFlight(offers, "meet")).toBe(true);
+    expect(needsFlight(offers, "lounge")).toBe(false);
+    expect(needsFlight(offers, null)).toBe(false);
+    expect(needsFlight([offers[0]!], null)).toBe(true);
+    expect(needsFlight([], null)).toBe(false);
+  });
+  it("describes the flight", () => {
+    expect(tripText({ direction: "arrival", flightNumber: "BA75", time: "15:20" })).toBe("Arriving on BA75 at 15:20");
+    expect(tripText(null)).toBeNull();
   });
 });

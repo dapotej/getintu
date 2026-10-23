@@ -1,6 +1,7 @@
 // What's left on each pass, benefit by benefit; and, in its own tab, the visits that used it.
+import { Link } from "expo-router";
 import { useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Card, Loading, Segment, T, styles as ui } from "@/components/ui";
 import { useCached } from "@/lib/data";
@@ -61,28 +62,39 @@ export default function Benefits() {
   );
 }
 
+const MODE_HINT: Record<Allowance["usageMode"], string> = { door: "Show your pass", booking: "Book it", airport: "Request with your flight", call: "Call", concierge: "Ask the concierge", in_app: "In the app" };
+
 function AllowanceCard({ a }: { a: Allowance }) {
   const accent = a.night ? colors.night : colors.day;
   const share = a.granted ? Math.min(1, a.used / a.granted) : 0;
   return (
-    <Card accent={accent}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space(3) }}>
-        <T variant="heading" style={{ flex: 1 }}>
-          {a.name}
-        </T>
-        <T variant="heading" color={a.remaining === 0 ? colors.pop : accent}>
-          {allowanceLabel(a)}
-        </T>
-      </View>
-      {a.granted ? (
-        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.raised, overflow: "hidden" }}>
-          <View style={{ width: `${(1 - share) * 100}%`, height: 6, backgroundColor: accent }} />
-        </View>
-      ) : null}
-      <T variant="small" color={colors.muted}>
-        {periodLabel(a)}
-        {a.sharedByCrew ? " · shared by your Crew" : ""}
-      </T>
-    </Card>
+    <Link href={`/benefit/${a.id}`} asChild>
+      <Pressable accessibilityRole="link" accessibilityLabel={a.name}>
+        <Card accent={accent}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space(3) }}>
+            <T variant="heading" style={{ flex: 1 }}>
+              {a.name}
+            </T>
+            <T variant="heading" color={a.remaining === 0 ? colors.pop : accent}>
+              {allowanceLabel(a)}
+            </T>
+          </View>
+          {a.granted ? (
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.raised, overflow: "hidden" }}>
+              <View style={{ width: `${(1 - share) * 100}%`, height: 6, backgroundColor: accent }} />
+            </View>
+          ) : null}
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: space(2) }}>
+            <T variant="small" color={colors.muted} style={{ flex: 1 }}>
+              {a.usageMode === "call" ? "Not counted" : periodLabel(a)}
+              {a.sharedByCrew ? " · shared by your Crew" : ""}
+            </T>
+            <T variant="small" color={accent} style={{ fontFamily: fonts.semibold }}>
+              {MODE_HINT[a.usageMode]} ›
+            </T>
+          </View>
+        </Card>
+      </Pressable>
+    </Link>
   );
 }

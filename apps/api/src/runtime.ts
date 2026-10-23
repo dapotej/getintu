@@ -38,7 +38,7 @@ export function apiFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSe
     passKeys: passKeysFrom(signingKey, env.QR_PUBLIC_KEYS),
     partnerSessionSecret,
     photos: env.PHOTO_STORE === "memory" ? memoryPhotoStore() : supabasePhotoStore({ supabaseUrl: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }),
-    memberApp: { conciergeWhatsApp: env.CONCIERGE_WHATSAPP ?? null, doctorOnCallPhone: env.DOCTOR_ON_CALL_PHONE ?? null, newMembersAreTest: env.NODE_ENV !== "production" },
+    memberApp: { conciergeWhatsApp: env.CONCIERGE_WHATSAPP ?? null, newMembersAreTest: env.NODE_ENV !== "production" },
     smsHook: { secret: env.SUPABASE_SMS_HOOK_SECRET },
   });
   return { app, close: () => sql.end({ timeout: 0 }) };

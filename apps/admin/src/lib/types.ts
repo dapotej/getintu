@@ -1,5 +1,6 @@
 import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
+export type UsageMode = "door" | "booking" | "airport" | "call" | "concierge" | "in_app";
 export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
 
@@ -25,6 +26,8 @@ export interface Category {
   sortOrder: number;
   customerVisible: boolean;
   active: boolean;
+  /** How members use it; null means the same as the entry above. */
+  usageMode: UsageMode | null;
 }
 
 /** One catalogue entry's page: who offers it and which plans include it. */
@@ -39,7 +42,7 @@ export interface CategoryDetail {
     pricesArePlaceholders: boolean;
     active: boolean;
     service: { id: string; code: string; name: string };
-    venue: { id: string; name: string; area: string; tier: "standard" | "top"; kind: "place" | "visiting"; active: boolean };
+    venue: { id: string; name: string; area: string; tier: "standard" | "top"; kind: "place" | "visiting" | "remote"; active: boolean };
     partner: { id: string; tradingName: string };
   }[];
   benefits: { id: string; quantity: number | null; period: "per_pass" | "per_month" | "per_year"; name: string; covers: "all" | "part"; plan: { id: string; name: string; active: boolean } }[];
@@ -117,8 +120,8 @@ export interface Venue {
   id: string;
   partnerId: string;
   name: string;
-  /** A place members visit, or a service that comes to them and is only used against a booking. */
-  kind: "place" | "visiting";
+  /** A place members visit, a service that comes to them (only used against a booking), or a service by phone or video. */
+  kind: "place" | "visiting" | "remote";
   area: string;
   city: "lagos" | "abuja";
   /** A catalogue category or subcategory. */
@@ -132,6 +135,8 @@ export interface Venue {
   isTest: boolean;
   latitude: number | null;
   longitude: number | null;
+  /** The number members call, for a service by phone or video. */
+  servicePhone: string | null;
 }
 
 export interface Offer {
@@ -210,7 +215,9 @@ export interface Booking {
   status: "requested" | "confirmed" | "declined" | "cancelled" | "completed" | "no_show";
   notes: string | null;
   redemptionId: string | null;
-  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" } | null;
+  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" | "remote" } | null;
+  /** Airport services: the flight to meet. */
+  trip?: { direction: "arrival" | "departure"; flightNumber: string; time: string } | null;
   offerName: string | null;
 }
 
@@ -253,6 +260,8 @@ export interface QueuedBooking {
   notes: string | null;
   createdAt: string;
   member: { id: string; fullName: string; phone: string };
-  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" } | null;
+  venue: { id: string; name: string; partnerId: string; kind: "place" | "visiting" | "remote" } | null;
+  /** Airport services: the flight to meet. */
+  trip?: { direction: "arrival" | "departure"; flightNumber: string; time: string } | null;
   offerName: string | null;
 }

@@ -25,5 +25,21 @@ export function includes<B extends { categoryCode: string; allowedVenueTiers: re
   return benefit !== null && benefit.allowedVenueTiers.includes(venueTier);
 }
 
+export const USAGE_MODES = ["door", "booking", "airport", "call", "concierge", "in_app"] as const;
+export type UsageMode = (typeof USAGE_MODES)[number];
+
+/**
+ * How members use a catalogue entry: its own setting, else the nearest one above it, else the door.
+ * `modes` holds the settings by code; entries without one are left out or null.
+ */
+export function usageModeOf(code: string, modes: ReadonlyMap<string, UsageMode | null>): UsageMode {
+  const parts = code.split("-");
+  for (let i = parts.length; i > 0; i--) {
+    const mode = modes.get(parts.slice(0, i).join("-"));
+    if (mode) return mode;
+  }
+  return "door";
+}
+
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => covers("C06", code);
