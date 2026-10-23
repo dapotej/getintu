@@ -1,4 +1,5 @@
-// A booking request: which pass, which day, how many people. The concierge confirms it with the
+// A booking request for what's booked ahead (a cabana, a club table, an airport service): which
+// pass, which day, how many people. The concierge confirms it with the
 // venue; until then it shows as requested.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -42,16 +43,21 @@ export default function Book() {
   if (!v || !ms.data) return <Screen><Loading /></Screen>;
   if (!pass) return <Screen><Notice>You need an active pass to book.</Notice></Screen>;
   const dates = bookableDates(pass, new Date());
+  // Only what's booked ahead; entry is a scan at the door.
+  const bookable = v.offers.filter((o) => o.booked);
+  if (!bookable.length) return <Screen><Notice tone="day">No booking needed here: show your pass at the door.</Notice></Screen>;
   // Airport services are met at a flight.
-  const airport = needsFlight(v.offers, offerId);
+  const chosen = bookable.length === 1 ? (bookable[0]?.id ?? null) : offerId;
+  const airport = needsFlight(v.offers, chosen);
 
   const send = async () => {
     if (!date) return setError("Choose a day");
+    if (!chosen) return setError("Choose what to book");
     if (airport && (!flight.trim() || !/^\d{1,2}:\d{2}$/.test(time.trim()))) return setError("Add your flight number and its time, e.g. BA75 at 15:20");
     setBusy(true);
     setError(null);
     try {
-      await api("/bookings", { body: { membershipId: pass.id, venueId: v.id, offerId, bookingDate: date, partySize: party, notes: notes.trim() || null, trip: airport ? { direction, flightNumber: flight.trim(), time: time.trim().padStart(5, "0") } : null } });
+      await api("/bookings", { body: { membershipId: pass.id, venueId: v.id, offerId: chosen, bookingDate: date, partySize: party, notes: notes.trim() || null, trip: airport ? { direction, flightNumber: flight.trim(), time: time.trim().padStart(5, "0") } : null } });
       router.dismissTo("/bookings");
     } catch (err) {
       setError(errorText(err));
@@ -76,15 +82,19 @@ export default function Book() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityRole="radiogroup" accessibilityLabel="Day" contentContainerStyle={{ gap: space(2) }}>
         {dates.map((d) => <Chip key={d} label={formatDate(d, { weekday: true, year: false })} selected={d === date} onPress={() => setDate(d)} />)}
       </ScrollView>
-      {v.offers.length > 1 ? (
+      {bookable.length > 1 ? (
         <>
           <T variant="label" color={colors.muted}>What for</T>
           <View accessibilityRole="radiogroup" accessibilityLabel="What for" style={{ flexDirection: "row", gap: space(2), flexWrap: "wrap" }}>
-            <Chip label="Anything" selected={offerId === null} onPress={() => setOfferId(null)} />
-            {v.offers.map((o) => <Chip key={o.id} label={o.name} selected={o.id === offerId} onPress={() => setOfferId(o.id)} />)}
+            {bookable.map((o) => <Chip key={o.id} label={o.name} selected={o.id === chosen} onPress={() => setOfferId(o.id)} />)}
           </View>
         </>
-      ) : null}
+      ) : (
+        <>
+          <T variant="label" color={colors.muted}>What for</T>
+          <T>{bookable[0]?.name}</T>
+        </>
+      )}
       {airport ? (
         <>
           <T variant="label" color={colors.muted}>Flight</T>
@@ -109,7 +119,7 @@ export default function Book() {
         <Button label="More" tone="secondary" onPress={() => setParty((n) => Math.min(20, n + 1))} style={{ minHeight: 44, width: 90 }} />
       </View>
       <Field label="Anything the venue should know" value={notes} onChangeText={setNotes} placeholder="e.g. Arriving at 8pm, a birthday" multiline />
-      <Button label="Send request" onPress={send} busy={busy} disabled={!date || (airport && (!flight.trim() || !time.trim()))} />
+      <Button label="Send request" onPress={send} busy={busy} disabled={!date || !chosen || (airport && (!flight.trim() || !time.trim()))} />
       <T variant="small" color={colors.muted}>The concierge confirms it with the venue and lets you know.</T>
     </Screen>
   );

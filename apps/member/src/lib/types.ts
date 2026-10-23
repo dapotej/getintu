@@ -54,6 +54,8 @@ export interface VenueOffer {
   code: string;
   description: string | null;
   usageMode: UsageMode;
+  /** Booked ahead for the concierge to arrange (a cabana, a club table, an airport service), decided by the API. */
+  booked: boolean;
   included: boolean;
 }
 

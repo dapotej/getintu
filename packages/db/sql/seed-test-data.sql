@@ -1,7 +1,7 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
--- Needs migrations 0000-0018: the catalogue (categories) comes from migration 0009.
+-- Needs migrations 0000-0019: the catalogue (categories) comes from migration 0009.
 -- To replace older TEST data first, run sql/reset-test-data.sql.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
@@ -105,7 +105,9 @@ FROM (VALUES
   ('00000000-0000-4000-8000-000000001515', '00000000-0000-4000-8000-000000001212', 'C06-S01-T03', 0, 30),
   ('00000000-0000-4000-8000-000000001516', '00000000-0000-4000-8000-000000001213', 'C02-S01-T01', 0, 10),
   ('00000000-0000-4000-8000-000000001517', '00000000-0000-4000-8000-000000001214', 'C02-S01-T01', 0, 10),
-  ('00000000-0000-4000-8000-000000001518', '00000000-0000-4000-8000-000000001215', 'C08-S02-T01', 0, NULL)
+  ('00000000-0000-4000-8000-000000001518', '00000000-0000-4000-8000-000000001215', 'C08-S02-T01', 0, NULL),
+  ('00000000-0000-4000-8000-000000001519', '00000000-0000-4000-8000-000000001205', 'C03-S01-T03', 6000000, 4),
+  ('00000000-0000-4000-8000-000000001520', '00000000-0000-4000-8000-000000001211', 'C06-S01-T02', 15000000, 3)
 ) AS o(id, venue_id, code, rate, cap)
 JOIN categories c ON c.code = o.code
 ON CONFLICT DO NOTHING;

@@ -184,13 +184,40 @@ describe.runIf(url)("member app API", () => {
     expect((await client.post("/bookings", { ...request, trip: { direction: "arrival", flightNumber: "BA75", time: "15:20" } })).json.error.code).toBe("call_instead");
   });
 
-  it("takes booking requests for dates on my pass, for the concierge to confirm", async () => {
+  it("needs no booking for entry at the door, a service line or the concierge", async () => {
+    // The world's beach club offers entry only: a scan at the door.
     const world = await createWorld(db);
+    const client = await signedIn(world);
+    const request = { membershipId: world.first.membership.id, venueId: world.venue.id, bookingDate: "2026-12-20", partySize: 2 };
+    expect((await client.post("/bookings", { ...request, offerId: world.offer.id })).json.error.code).toBe("no_booking_needed");
+    expect((await client.post("/bookings", request)).json.error.code).toBe("no_booking_needed");
+    // Add a cabana: that can be booked, while entry still can't.
+    const [cabana] = await db.insert(schema.offers).values({ venueId: world.venue.id, categoryId: await categoryIdOf(db, "C03-S01-T03"), rateMinor: 1_000_000, isTest: true }).returning();
+    const venue = (await client.get(`/venues/${world.venue.id}`)).json.venue;
+    expect(venue.offers.map((o: { usageMode: string; booked: boolean }) => `${o.usageMode} ${o.booked}`).sort()).toEqual(["booking true", "door false"]);
+    expect((await client.post("/bookings", { ...request, offerId: cabana!.id })).status).toBe(201);
+    expect((await client.post("/bookings", request)).status).toBe(201);
+    expect((await client.post("/bookings", { ...request, offerId: world.offer.id })).json.error.code).toBe("no_booking_needed");
+  });
+
+  it("calls a doctor line set up as a place, rather than booking it", async () => {
+    const world = await createWorld(db, { benefitCode: "C08-S02", offerCode: "C08-S02-T01" });
+    await db.update(schema.venues).set({ servicePhone: "+9990000000004" }).where(eq(schema.venues.id, world.venue.id));
+    const client = await signedIn(world);
+    expect((await client.get(`/venues/${world.venue.id}`)).json.venue).toMatchObject({ kind: "place", servicePhone: "+9990000000004" });
+    expect((await client.get("/me")).json.doctorOnCall).toEqual({ name: expect.any(String), phone: expect.stringMatching(/^\+999/) });
+    const request = { membershipId: world.first.membership.id, venueId: world.venue.id, bookingDate: "2026-12-20", partySize: 1 };
+    expect((await client.post("/bookings", request)).json.error.code).toBe("call_instead");
+  });
+
+  it("takes booking requests for dates on my pass, for the concierge to confirm", async () => {
+    // A cabana is a package, booked ahead.
+    const world = await createWorld(db, { offerCode: "C03-S01-T03" });
     const client = await signedIn(world);
     const request = { membershipId: world.first.membership.id, venueId: world.venue.id, offerId: world.offer.id, bookingDate: "2026-12-20", partySize: 4, notes: "TEST birthday" };
     const res = await client.post("/bookings", request);
     expect(res.status).toBe(201);
-    expect(res.json.booking).toMatchObject({ status: "requested", bookingDate: "2026-12-20", partySize: 4, offerName: "Entry only", venue: expect.objectContaining({ id: world.venue.id }) });
+    expect(res.json.booking).toMatchObject({ status: "requested", bookingDate: "2026-12-20", partySize: 4, offerName: "Cabana/daybed", venue: expect.objectContaining({ id: world.venue.id }) });
     const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, res.json.booking.id), eq(schema.auditLog.action, "booking.requested")));
     expect(audit?.actorType).toBe("member");
     expect((await client.get("/bookings")).json.bookings.map((b: { id: string }) => b.id)).toEqual([res.json.booking.id]);
@@ -205,7 +232,7 @@ describe.runIf(url)("member app API", () => {
   });
 
   it("puts requests in the concierge's queue to confirm or decline, once", async () => {
-    const world = await createWorld(db);
+    const world = await createWorld(db, { offerCode: "C03-S01-T03" });
     const client = await signedIn(world);
     const base = { membershipId: world.first.membership.id, venueId: world.venue.id, partySize: 2 };
     const first = (await client.post("/bookings", { ...base, bookingDate: "2026-12-18" })).json.booking;

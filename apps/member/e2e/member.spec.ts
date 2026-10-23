@@ -85,8 +85,14 @@ test("benefits show what's left; discover marks what the plan includes; a bookin
 
   await beach.click();
   await expect(page.getByRole("heading", { name: world.beach.name })).toBeVisible();
-  await expect(page.getByText("Included", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Request a booking" }).click();
+  await expect(page.getByText("Included", { exact: true }).first()).toBeVisible();
+  // Entry is a scan at the door; only the cabana is booked ahead.
+  await expect(page.getByText("Show your pass at the door")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show my pass" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Request a booking" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Book ahead" }).click();
+  // The venue page stays loaded behind the form.
+  await expect(page.getByText("Cabana/daybed").last()).toBeVisible();
   await page.getByRole("radiogroup", { name: "Day" }).getByRole("radio").nth(1).click();
   await page.getByRole("button", { name: "More" }).click();
   await page.getByLabel("Anything the venue should know").fill("TEST e2e: a birthday");
@@ -98,6 +104,7 @@ test("benefits show what's left; discover marks what the plan includes; a bookin
   await expect(page.getByText("Requested")).toBeVisible();
   const [booking] = await db.select().from(schema.bookings).where(eq(schema.bookings.memberId, world.member.id));
   expect(booking).toMatchObject({ status: "requested", partySize: 2, notes: "TEST e2e: a birthday", venueId: world.beach.id });
+  expect(booking?.offerId).not.toBe(world.beachOffer.id);
 });
 
 test("someone new signs up with their details and the terms, then sees they have no pass yet", async ({ page }) => {

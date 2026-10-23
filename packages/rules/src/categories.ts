@@ -41,5 +41,12 @@ export function usageModeOf(code: string, modes: ReadonlyMap<string, UsageMode |
   return "door";
 }
 
+/**
+ * Whether members request this ahead for the concierge to arrange: packages (a cabana, a club
+ * table), services that come to them, and airport services. Entry at the door, calls, concierge
+ * requests and in-app services are never booked.
+ */
+export const isBooked = (mode: UsageMode) => mode === "booking" || mode === "airport";
+
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => covers("C06", code);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benefitFor, covers, includes, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
+import { benefitFor, covers, includes, isBooked, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
 
 describe("covers", () => {
   it("matches a code, and every code beneath it", () => {
@@ -80,5 +80,13 @@ describe("usageModeOf", () => {
   it("defaults to the door", () => {
     expect(usageModeOf("C03-S01", modes)).toBe("door");
     expect(usageModeOf("C09", new Map())).toBe("door");
+  });
+});
+
+describe("isBooked", () => {
+  it("is only for packages, visiting services and airport services", () => {
+    expect(isBooked("booking")).toBe(true);
+    expect(isBooked("airport")).toBe(true);
+    for (const mode of ["door", "call", "concierge", "in_app"] as const) expect(isBooked(mode)).toBe(false);
   });
 });

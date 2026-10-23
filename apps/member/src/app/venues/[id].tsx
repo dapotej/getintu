@@ -1,9 +1,11 @@
-// One venue: what it offers, whether the member's plan includes it, hours, directions and booking.
+// One venue: what it offers and how each is used, whether the member's plan includes it, hours,
+// directions, and the right action: show the pass for entry, call, or book a package ahead.
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Linking, Platform, View } from "react-native";
 import { Badge, Button, Card, Loading, Screen, T } from "@/components/ui";
 import { useCached } from "@/lib/data";
-import { hoursToday } from "@/lib/logic";
+import { hoursToday, OFFER_HINT, venueActions, whatsappLink } from "@/lib/logic";
+import { useSession } from "@/lib/session";
 import { colors, space } from "@/lib/theme";
 import type { Venue } from "@/lib/types";
 
@@ -16,11 +18,13 @@ const directions = (v: Venue) => {
 export default function VenuePage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { me } = useSession();
   const list = useCached<{ venues: Venue[] }>("venues", null);
   const one = useCached<{ venue: Venue }>(`venue.${id}`, `/venues/${id}`);
   const v = one.data?.venue ?? list.data?.venues.find((x) => x.id === id);
   if (!v) return <Screen>{one.error ? <T color={colors.pop}>{one.error}</T> : <Loading />}</Screen>;
   const accent = v.night ? colors.night : colors.day;
+  const act = venueActions(v);
 
   return (
     <Screen>
@@ -52,6 +56,9 @@ export default function VenuePage() {
             <T style={{ flex: 1 }}>{o.name}</T>
             <Badge label={o.included ? "Included" : "Not included"} tone={o.included ? (v.night ? "night" : "day") : "muted"} />
           </View>
+          <T variant="small" color={colors.muted}>
+            {OFFER_HINT[o.usageMode]}
+          </T>
           {o.description ? (
             <T variant="small" color={colors.muted}>
               {o.description}
@@ -60,11 +67,11 @@ export default function VenuePage() {
         </Card>
       ))}
 
-      {v.kind === "remote" ? (
-        v.servicePhone && v.included ? <Button label="Call now" onPress={() => Linking.openURL(`tel:${v.servicePhone ?? ""}`)} /> : <T color={colors.muted}>A service by phone, for members whose plan includes it.</T>
-      ) : (
-        <Button label={v.offers.length > 0 && v.offers.every((o) => o.usageMode === "airport") ? "Request it with your flight" : "Request a booking"} onPress={() => router.push(`/book/${v.id}`)} />
-      )}
+      {act.call ? <Button label="Call now" onPress={() => Linking.openURL(`tel:${act.call ?? ""}`)} /> : null}
+      {v.kind === "remote" && !act.call ? <T color={colors.muted}>A service by phone, for members whose plan includes it.</T> : null}
+      {act.showPass ? <Button label="Show my pass" tone={act.call ? "secondary" : "primary"} onPress={() => router.navigate("/")} /> : null}
+      {act.book ? <Button label={act.book} tone={act.showPass || act.call ? "secondary" : "primary"} onPress={() => router.push(`/book/${v.id}`)} /> : null}
+      {act.concierge && me?.concierge ? <Button label="Message the concierge" tone="secondary" onPress={() => Linking.openURL(`${whatsappLink(me.concierge?.whatsapp ?? "", { fullName: me.member?.fullName ?? "", passNumber: null })}${encodeURIComponent(`About ${v.name}.`)}`)} /> : null}
       {v.latitude !== null && v.longitude !== null ? <Button label="Directions" tone="secondary" onPress={() => Linking.openURL(directions(v))} /> : null}
     </Screen>
   );

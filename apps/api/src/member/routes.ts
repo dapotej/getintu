@@ -7,7 +7,7 @@ import { createMiddleware } from "hono/factory";
 import { and, asc, desc, eq, gte, inArray, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { audit, one, schema, type Db } from "@intu/db";
-import { benefitFor, covers, includes, isNight, openWindowDate, toLagos, usageModeOf } from "@intu/rules";
+import { benefitFor, covers, includes, isBooked, isNight, openWindowDate, toLagos, usageModeOf } from "@intu/rules";
 import { InvalidTokenError, type TokenVerifier } from "../auth/tokens.ts";
 import { body, fail } from "../http.ts";
 import { issuePass, renewPass, type PassKeys } from "../passes.ts";
@@ -148,8 +148,8 @@ export function memberAppRoutes(deps: MemberDeps) {
   const usageModes = async () => new Map((await db.select({ code: categories.code, mode: categories.usageMode }).from(categories)).map((c) => [c.code, c.mode]));
 
   /**
-   * Services by phone or video (doctor on call) under a catalogue entry that the plan's benefits
-   * include, with the number to call: the partner's service line, set in the console.
+   * Service lines (doctor on call) under a catalogue entry that the plan's benefits include, with
+   * the number to call: the partner's service line, set on its venue in the console.
    */
   const callLines = async (planBenefits: Awaited<ReturnType<typeof activeBenefits>>, underCode: string) => {
     if (!planBenefits.length) return [];
@@ -159,7 +159,7 @@ export function memberAppRoutes(deps: MemberDeps) {
       .innerJoin(venues, eq(venues.id, offers.venueId))
       .innerJoin(partners, eq(partners.id, venues.partnerId))
       .innerJoin(categories, eq(categories.id, offers.categoryId))
-      .where(and(eq(venues.kind, "remote"), eq(venues.active, true), isNull(venues.deletedAt), eq(offers.active, true), isNull(offers.deletedAt), eq(partners.active, true), or(eq(categories.code, underCode), like(categories.code, `${underCode}-%`))))
+      .where(and(eq(venues.active, true), isNull(venues.deletedAt), eq(offers.active, true), isNull(offers.deletedAt), eq(partners.active, true), or(eq(categories.code, underCode), like(categories.code, `${underCode}-%`))))
       .orderBy(asc(venues.name));
     const lines = new Map<string, { venueId: string; name: string; phone: string }>();
     for (const r of rows) if (r.phone && includes(planBenefits, r.code, r.tier) && !lines.has(r.venueId)) lines.set(r.venueId, { venueId: r.venueId, name: r.name, phone: r.phone });
@@ -319,7 +319,7 @@ export function memberAppRoutes(deps: MemberDeps) {
     for (const o of offerRows) {
       const applies = benefitFor(planBenefits, o.code);
       if (applies?.id !== row.benefit.id || !covers(row.code, o.code) || !applies.allowedVenueTiers.includes(o.venue.tier)) continue;
-      const v = where.get(o.venue.id) ?? { id: o.venue.id, name: o.venue.name, area: o.venue.area, kind: o.venue.kind, night: isNight(o.code), openNow: o.venue.kind === "place" && openWindowDate(o.venue.openingHours, now) !== null, servicePhone: o.venue.kind === "remote" ? o.venue.servicePhone : null, services: [] };
+      const v = where.get(o.venue.id) ?? { id: o.venue.id, name: o.venue.name, area: o.venue.area, kind: o.venue.kind, night: isNight(o.code), openNow: o.venue.kind === "place" && openWindowDate(o.venue.openingHours, now) !== null, servicePhone: o.venue.kind === "remote" || usageModeOf(o.code, modes) === "call" ? o.venue.servicePhone : null, services: [] };
       v.services.push(o.service);
       where.set(o.venue.id, v);
     }
@@ -411,7 +411,10 @@ export function memberAppRoutes(deps: MemberDeps) {
     return rows.map(({ venue: v, category }) => {
       const venueOffers = offerRows
         .filter((o) => o.venueId === v.id)
-        .map((o) => ({ id: o.id, name: o.name, code: o.code, description: o.description, usageMode: usageModeOf(o.code, modes), included: includes(planBenefits, o.code, v.tier) }));
+        .map((o) => {
+          const usageMode = usageModeOf(o.code, modes);
+          return { id: o.id, name: o.name, code: o.code, description: o.description, usageMode, booked: v.kind !== "remote" && isBooked(usageMode), included: includes(planBenefits, o.code, v.tier) };
+        });
       return {
         id: v.id,
         name: v.name,
@@ -424,7 +427,8 @@ export function memberAppRoutes(deps: MemberDeps) {
         description: v.description,
         latitude: v.latitude,
         longitude: v.longitude,
-        servicePhone: v.kind === "remote" ? v.servicePhone : null,
+        // The line to call, for a service by phone or one members use by calling.
+        servicePhone: v.kind === "remote" || venueOffers.some((o) => o.usageMode === "call") ? v.servicePhone : null,
         openingHours: v.openingHours,
         openNow: v.kind === "place" && openWindowDate(v.openingHours, now) !== null,
         included: venueOffers.some((o) => o.included),
@@ -485,8 +489,16 @@ export function memberAppRoutes(deps: MemberDeps) {
     if (!venue) fail(422, "unknown_venue", "Venue not found");
     if (venue.kind === "remote") fail(422, "call_instead", "Call this service instead: it's by phone or video");
     if (input.offerId && !venue.offers.some((o) => o.id === input.offerId)) fail(422, "unknown_offer", "That isn't one of this venue's offers");
-    // An airport service needs the flight: the offer asked for, or the venue's only kind of offer.
-    const asked = input.offerId ? venue.offers.filter((o) => o.id === input.offerId) : venue.offers;
+    // Only packages, visiting services and airport services are booked. Entry is a scan at the
+    // door, and a service line is called.
+    const named = input.offerId ? venue.offers.filter((o) => o.id === input.offerId) : venue.offers;
+    const asked = named.filter((o) => isBooked(o.usageMode));
+    if (!asked.length) {
+      if (named.some((o) => o.usageMode === "call")) fail(422, "call_instead", "Call this service instead: it's by phone or video");
+      if (named.some((o) => o.usageMode === "concierge")) fail(422, "ask_concierge", "Message the concierge for this");
+      fail(422, "no_booking_needed", "No booking needed: show your pass at the door");
+    }
+    // An airport service needs the flight: the offer asked for, or the venue's only kind of booked offer.
     if (asked.length > 0 && asked.every((o) => o.usageMode === "airport") && !input.trip) fail(422, "flight_needed", "Add your flight number and time");
     const created = await db.transaction(async (tx) => {
       const row = one(await tx.insert(bookings).values({ memberId: member.id, membershipId: ms.id, venueId: venue.id, offerId: input.offerId, bookingDate: input.bookingDate, partySize: input.partySize, notes: input.notes, trip: input.trip, status: "requested" }).returning());

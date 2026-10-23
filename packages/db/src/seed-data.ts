@@ -191,6 +191,9 @@ export const testOffers: SeedOffer[] = (
     { venueId: venueId(14), categoryCode: "C02-S01-T01", rateMinor: 0, dailyCap: 10 },
     // Paid as a flat fee per member (the plans' doctor-on-call benefit), not per call.
     { venueId: venueId(15), categoryCode: "C08-S02-T01", rateMinor: 0, dailyCap: null },
+    // Packages, booked ahead: entry is still a scan at the door.
+    { venueId: venueId(5), categoryCode: "C03-S01-T03", rateMinor: 6_000_000, dailyCap: 4 },
+    { venueId: venueId(11), categoryCode: "C06-S01-T02", rateMinor: 15_000_000, dailyCap: 3 },
   ] satisfies Omit<SeedOffer, "rateCurrency" | "isTest">[]
 ).map((o, i) => ({ id: offerId(i + 1), ...o, retailMinor: Math.round((o.rateMinor * 3) / 2), rateCurrency: "NGN" as const, pricesArePlaceholders: true, isTest: true }));
 

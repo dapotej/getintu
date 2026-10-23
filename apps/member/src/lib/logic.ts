@@ -1,6 +1,6 @@
 // The app's small decisions, kept free of React Native so they're unit-tested. None of them is an
 // entitlement decision: the API and the scan decide what a member may use.
-import type { Allowance, BenefitPage, BookingStatus, Hours, Membership, StoredPass, Trip, UsageMode } from "./types";
+import type { Allowance, BenefitPage, BookingStatus, Hours, Membership, StoredPass, Trip, UsageMode, Venue } from "./types";
 
 /** Lagos has no daylight saving: it's always UTC+1. */
 export const lagosDate = (now: Date) => new Date(now.getTime() + 3_600_000).toISOString().slice(0, 10);
@@ -136,7 +136,7 @@ export function discoverSections<V extends { name: string; area: string; night: 
 /** How to use a benefit, in a line, by how it's used. */
 export const HOW_TO_USE: Record<UsageMode, string> = {
   door: "Show your pass at the door. The venue scans it, and it's counted here.",
-  booking: "Request a booking. On the day the provider comes to you and scans your pass.",
+  booking: "Book it ahead and the concierge confirms it with the venue or provider. On the day, show your pass.",
   airport: "Request it with your flight. We confirm with the airport team; on the day, show your pass.",
   call: "Call any time, day or night. Calls aren't counted.",
   concierge: "Message the concierge and they'll arrange it for you.",
@@ -157,8 +157,32 @@ export function ruleLines(r: BenefitPage["rules"]): string[] {
 /** "Arriving on BA75 at 15:20". */
 export const tripText = (t: Trip | null) => (t ? `${t.direction === "arrival" ? "Arriving" : "Departing"} on ${t.flightNumber} at ${t.time}` : null);
 
-/** Whether a booking at a venue needs flight details: the chosen offer, or every offer, is an airport service. */
-export function needsFlight(offers: readonly { id: string; usageMode: UsageMode }[], offerId: string | null): boolean {
-  const asked = offerId ? offers.filter((o) => o.id === offerId) : offers;
+/** Whether a booking at a venue needs flight details: the chosen offer, or every bookable offer, is an airport service. */
+export function needsFlight(offers: readonly { id: string; usageMode: UsageMode; booked: boolean }[], offerId: string | null): boolean {
+  const asked = offerId ? offers.filter((o) => o.id === offerId) : offers.filter((o) => o.booked);
   return asked.length > 0 && asked.every((o) => o.usageMode === "airport");
+}
+
+/** A line under each of a venue's offers saying how it's used. */
+export const OFFER_HINT: Record<UsageMode, string> = {
+  door: "Show your pass at the door",
+  booking: "Book ahead",
+  airport: "Request it with your flight",
+  call: "Call any time",
+  concierge: "Through the concierge",
+  in_app: "In the app",
+};
+
+/**
+ * What a venue page offers to do: show the pass for entry, call a service line, book the offers
+ * that are booked ahead (only those), or message the concierge.
+ */
+export function venueActions(v: { kind: Venue["kind"]; servicePhone: string | null; offers: readonly { usageMode: UsageMode; booked: boolean; included: boolean }[] }) {
+  const booked = v.offers.filter((o) => o.booked);
+  return {
+    showPass: v.kind !== "remote" && v.offers.some((o) => o.usageMode === "door" && o.included),
+    call: v.servicePhone && (v.kind === "remote" || v.offers.some((o) => o.usageMode === "call")) && v.offers.some((o) => o.included) ? v.servicePhone : null,
+    book: booked.length === 0 ? null : booked.every((o) => o.usageMode === "airport") ? "Request it with your flight" : "Book ahead",
+    concierge: v.offers.some((o) => o.usageMode === "concierge"),
+  };
 }

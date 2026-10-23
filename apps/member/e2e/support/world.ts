@@ -20,6 +20,8 @@ export async function createWorld() {
   const beach = one(await db.insert(schema.venues).values({ partnerId: partner.id, name: `TEST E2E Beach ${tag}`, area: "Oniru", city: "lagos", categoryId: await categoryId("C03-S01"), openingHours: allDay, latitude: 6.43, longitude: 3.45, isTest: true }).returning());
   const spa = one(await db.insert(schema.venues).values({ partnerId: partner.id, name: `TEST E2E Spa ${tag}`, area: "Ikoyi", city: "lagos", categoryId: await categoryId("C04-S05"), openingHours: allDay, isTest: true }).returning());
   const beachOffer = one(await db.insert(schema.offers).values({ venueId: beach.id, categoryId: await categoryId("C03-S01-T01"), rateMinor: 1_500_000, isTest: true }).returning());
+  // A cabana: a package members book ahead (entry is a scan at the door).
+  await db.insert(schema.offers).values({ venueId: beach.id, categoryId: await categoryId("C03-S01-T03"), rateMinor: 6_000_000, isTest: true });
   await db.insert(schema.offers).values({ venueId: spa.id, categoryId: await categoryId("C04-S05-T01"), rateMinor: 2_500_000, isTest: true });
   const plan = one(await db.insert(schema.plans).values({ code: `TEST-E2E-${tag}`, name: `TEST E2E Pass ${tag}`, seasonStartsOn: isoDay(-2), seasonEndsOn: isoDay(30), isTest: true }).returning());
   await db.insert(schema.benefits).values({ planId: plan.id, categoryId: await categoryId("C03-S01"), quantity: 4, period: "per_pass" });

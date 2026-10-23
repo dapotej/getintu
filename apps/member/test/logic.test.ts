@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowanceLabel, discoverSections, needsFlight, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
+import { allowanceLabel, discoverSections, needsFlight, venueActions, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
 import type { Hours, Membership, StoredPass } from "../src/lib/types";
 
 const pass = (id: string, startsOn: string, endsOn: string, status: Membership["status"] = "active"): Membership => ({ id, plan: { id: "p", name: "TEST Plan" }, passNumber: null, status, startsOn, endsOn, arrivesOn: null, departsOn: null, crew: false, allowances: [] });
@@ -113,15 +113,34 @@ describe("benefit pages", () => {
     expect(ruleLines({ oncePerVenuePerDay: false, oncePerVenuePerMonth: false, onePerPerson: false, sharedByCrew: false, topTierVenues: true })).toEqual(["Includes top-tier venues"]);
   });
   it("asks for the flight when the offer, or every offer, is an airport service", () => {
-    const offers = [{ id: "meet", usageMode: "airport" as const }, { id: "lounge", usageMode: "door" as const }];
+    const offers = [{ id: "meet", usageMode: "airport" as const, booked: true }, { id: "lounge", usageMode: "door" as const, booked: false }];
     expect(needsFlight(offers, "meet")).toBe(true);
     expect(needsFlight(offers, "lounge")).toBe(false);
-    expect(needsFlight(offers, null)).toBe(false);
+    // With nothing chosen, only what's booked ahead counts: the meet-and-greet.
+    expect(needsFlight(offers, null)).toBe(true);
     expect(needsFlight([offers[0]!], null)).toBe(true);
     expect(needsFlight([], null)).toBe(false);
   });
   it("describes the flight", () => {
     expect(tripText({ direction: "arrival", flightNumber: "BA75", time: "15:20" })).toBe("Arriving on BA75 at 15:20");
     expect(tripText(null)).toBeNull();
+  });
+});
+
+describe("venueActions", () => {
+  const offer = (usageMode: "door" | "booking" | "airport" | "call" | "concierge", included = true) => ({ usageMode, booked: usageMode === "booking" || usageMode === "airport", included });
+  it("shows the pass for entry, with no booking", () => {
+    expect(venueActions({ kind: "place", servicePhone: null, offers: [offer("door")] })).toEqual({ showPass: true, call: null, book: null, concierge: false });
+  });
+  it("books only the packages, alongside entry at the door", () => {
+    expect(venueActions({ kind: "place", servicePhone: null, offers: [offer("door"), offer("booking", false)] })).toMatchObject({ showPass: true, book: "Book ahead" });
+  });
+  it("asks for the flight when everything booked is an airport service", () => {
+    expect(venueActions({ kind: "place", servicePhone: null, offers: [offer("airport")] })).toMatchObject({ showPass: false, book: "Request it with your flight" });
+  });
+  it("calls a service line, whether it's set up as a phone service or a place", () => {
+    expect(venueActions({ kind: "remote", servicePhone: "+9990000000002", offers: [offer("call")] })).toEqual({ showPass: false, call: "+9990000000002", book: null, concierge: false });
+    expect(venueActions({ kind: "place", servicePhone: "+9990000000002", offers: [offer("call")] })).toMatchObject({ call: "+9990000000002", book: null });
+    expect(venueActions({ kind: "remote", servicePhone: "+9990000000002", offers: [offer("call", false)] }).call).toBeNull();
   });
 });

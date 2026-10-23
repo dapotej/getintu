@@ -30,7 +30,7 @@ export function useCatalogue() {
 
 export const USAGE_LABELS: Record<UsageMode, string> = {
   door: "Show the pass at the door",
-  booking: "Book a visit (the service comes to them)",
+  booking: "Book ahead (a package like a cabana or table, or a service that comes to them)",
   airport: "Airport service, requested with flight details",
   call: "Call (doctor on call)",
   concierge: "Ask the concierge",
