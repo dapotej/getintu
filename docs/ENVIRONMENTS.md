@@ -58,9 +58,9 @@ To connect the real providers in **test mode** (Dapo does this; never paste keys
 
 1. **Stripe** (pounds and dollars): create the account, stay in Test mode.
    - Developers → API keys: copy the **secret key** (`sk_test_…`).
-   - Developers → Webhooks → Add endpoint: URL `https://intu-api-staging.vercel.app/webhooks/stripe`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `refund.updated`, `charge.refund.updated`. Copy its **signing secret** (`whsec_…`).
+   - Developers → Webhooks → Add endpoint: URL `https://intu-api-staging.vercel.app/webhooks/stripe`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `refund.updated`, `charge.refund.updated`. Set the endpoint's **API version to 2024-06-20** (the API reads events in that shape). Copy its **signing secret** (`whsec_…`).
 2. **Paystack** (naira): create the account, stay in Test Mode.
    - Settings → API Keys & Webhooks: copy the **test secret key** (`sk_test_…`) and set the **test webhook URL** to `https://intu-api-staging.vercel.app/webhooks/paystack`.
 3. In Vercel → the API project → Settings → Environment Variables (staging), add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `PAYSTACK_SECRET_KEY` as sensitive values, then redeploy. (`API_PUBLIC_URL` is optional: without it the API uses the address members reach it on.)
 
-Test cards: Stripe `4242 4242 4242 4242`, any future date and CVC; Paystack's test card is shown on its checkout page in test mode.
+Test cards: Stripe `4242 4242 4242 4242`, any future date and CVC. Paystack `4084 0840 8408 4081`, CVV `408`, any future date, PIN `0000`, OTP `123456`. A plan only shows a Paystack (naira) option once it has an NGN price.
