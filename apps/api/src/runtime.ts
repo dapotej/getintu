@@ -10,6 +10,7 @@ import { createTokenVerifier } from "./auth/tokens.ts";
 import type { Env } from "./env.ts";
 import { memoryPhotoStore, supabasePhotoStore } from "./member/photos.ts";
 import { passKeysFrom } from "./passes.ts";
+import { createPayments } from "./payments/setup.ts";
 
 export function appFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSeconds?: number } = {}) {
   return apiFromEnv(env, opts).app;
@@ -40,6 +41,12 @@ export function apiFromEnv(env: Env, opts: { poolSize?: number; connectTimeoutSe
     photos: env.PHOTO_STORE === "memory" ? memoryPhotoStore() : supabasePhotoStore({ supabaseUrl: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }),
     memberApp: { conciergeWhatsApp: env.CONCIERGE_WHATSAPP ?? null, newMembersAreTest: env.NODE_ENV !== "production" },
     smsHook: { secret: env.SUPABASE_SMS_HOOK_SECRET },
+    payments: createPayments({
+      apiUrl: env.API_PUBLIC_URL?.replace(/\/$/, "") ?? null,
+      stripe: env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET ? { secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET } : undefined,
+      paystack: env.PAYSTACK_SECRET_KEY ? { secretKey: env.PAYSTACK_SECRET_KEY } : undefined,
+      allowTest: env.NODE_ENV !== "production",
+    }),
   });
   return { app, close: () => sql.end({ timeout: 0 }) };
 }

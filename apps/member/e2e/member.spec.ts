@@ -1,5 +1,6 @@
+import { randomInt, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { schema } from "@intu/db";
+import { one, schema } from "@intu/db";
 import { parseSecretKey, verifyCode } from "@intu/qr";
 import { eq } from "drizzle-orm";
 import { fakeSupabase, TEST_CODE } from "./support/fake-supabase";
@@ -189,4 +190,48 @@ test("a benefit's page says how to use it: show the pass, request an airport ser
   await expect(page.getByText("Arriving on BA75 at 15:20")).toBeVisible();
   const [booking] = await db.select().from(schema.bookings).where(eq(schema.bookings.venueId, desk.id));
   expect(booking).toMatchObject({ status: "requested", trip: { direction: "arrival", flightNumber: "BA75", time: "15:20" } });
+});
+
+test("someone with no pass buys one: pays on the payment page, and the pass appears", async ({ page }) => {
+  const tag = randomUUID().slice(0, 6).toUpperCase();
+  const isoDay = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+  const plan = one(await db.insert(schema.plans).values({ code: `TEST-E2E-BUY-${tag}`, name: `TEST E2E Buy ${tag}`, seasonStartsOn: isoDay(-1), seasonEndsOn: isoDay(40), isTest: true }).returning());
+  // A price no other TEST plan has (earlier runs leave theirs on sale), so its button is this plan's.
+  // Never a whole number of pounds: the app would show "£500" where the payment page shows "£500.00".
+  const pence = randomInt(100, 999) * 100 + randomInt(1, 99);
+  const price = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
+  await db.insert(schema.planPrices).values([{ planId: plan.id, currency: "GBP", amountMinor: pence }, { planId: plan.id, currency: "NGN", amountMinor: 9_876_500 }]);
+  const [beach] = await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, "C03-S01"));
+  await db.insert(schema.benefits).values({ planId: plan.id, categoryId: beach?.id ?? "", quantity: 4, period: "per_pass" });
+  const member = one(await db.insert(schema.members).values({ fullName: `TEST E2E Buyer ${tag}`, phone: fakePhone(), photoPath: `e2e/${tag}.jpg`, isTest: true }).returning());
+
+  await signIn(page, member.phone);
+  await expect(page.getByRole("heading", { name: "No pass yet" })).toBeVisible();
+  await page.getByRole("button", { name: "Get a pass" }).first().click();
+  await expect(page.getByRole("heading", { name: "Get a pass" })).toBeVisible();
+  await page.getByRole("radio", { name: "Pounds" }).click();
+  await expect(page.getByText(`TEST E2E Buy ${tag}`)).toBeVisible();
+  await page.getByRole("button", { name: `Buy for ${price}` }).click();
+
+  await page.getByLabel("Email for your receipt").fill("buyer@example.com");
+  const popup = page.waitForEvent("popup");
+  await page.getByRole("button", { name: `Pay ${price}` }).click();
+  // The payment page: the API's TEST page stands in for Stripe here.
+  const pay = await popup;
+  await expect(pay.getByText("TEST: no money moves")).toBeVisible();
+  await pay.getByRole("button", { name: `Pay ${price} (TEST)` }).click();
+  await expect(pay.getByRole("heading", { name: "Thank you" })).toBeVisible();
+  await pay.close();
+
+  await expect(page.getByRole("heading", { name: "You're in" })).toBeVisible({ timeout: 20_000 });
+  const [order] = await db.select().from(schema.orders).where(eq(schema.orders.memberId, member.id));
+  expect(order).toMatchObject({ status: "paid", amountMinor: pence, currency: "GBP", provider: "test" });
+  const [pass] = await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, member.id));
+  expect(pass).toMatchObject({ planId: plan.id, status: "active" });
+  await page.getByRole("button", { name: "Show my pass" }).click();
+  await expect(page.getByLabel("Pass QR code")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Payments and receipts" }).click();
+  await expect(page.getByText("Paid", { exact: true })).toBeVisible();
 });

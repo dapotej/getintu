@@ -49,6 +49,14 @@ DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_par
 UPDATE staff_users SET partner_id = NULL WHERE partner_id IN (SELECT id FROM test_partners);
 DELETE FROM settlements WHERE partner_id IN (SELECT id FROM test_partners);
 
+-- Payments of TEST members, passes or plans: refunds, then orders, subscriptions and crew invites.
+CREATE TEMP TABLE test_orders ON COMMIT DROP AS
+  SELECT id FROM orders WHERE member_id IN (SELECT id FROM test_members) OR plan_id IN (SELECT id FROM test_plans) OR membership_id IN (SELECT id FROM test_memberships);
+DELETE FROM refunds WHERE order_id IN (SELECT id FROM test_orders);
+DELETE FROM orders WHERE id IN (SELECT id FROM test_orders);
+DELETE FROM subscriptions WHERE member_id IN (SELECT id FROM test_members) OR plan_id IN (SELECT id FROM test_plans) OR current_membership_id IN (SELECT id FROM test_memberships);
+DELETE FROM crew_invites WHERE membership_id IN (SELECT id FROM test_memberships) OR accepted_membership_id IN (SELECT id FROM test_memberships) OR invited_by_member_id IN (SELECT id FROM test_members);
+
 -- TEST clients go with their passes and invoices; a real client's seat held by a TEST member opens again.
 CREATE TEMP TABLE test_clients ON COMMIT DROP AS SELECT id FROM client_accounts WHERE is_test;
 DELETE FROM client_seats WHERE client_account_id IN (SELECT id FROM test_clients);

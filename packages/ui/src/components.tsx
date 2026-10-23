@@ -235,6 +235,7 @@ const ICONS = {
   edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
   sliders: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4",
   briefcase: "M3 7h18v13H3zM8 7V4h8v3M3 13h18",
+  card: "M2 6h20v13H2zM2 10h20M6 15h4",
   eyeOff: "M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-3 4.2M6.6 6.6A17 17 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.4-1.6M3 3l18 18M9.9 9.9a3 3 0 0 0 4.2 4.2",
 } as const;
 export type IconName = keyof typeof ICONS;

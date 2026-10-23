@@ -44,6 +44,10 @@ function Gate() {
       <Stack.Screen name="venues/[id]" options={{ title: "" }} />
       <Stack.Screen name="benefit/[id]" options={{ title: "" }} />
       <Stack.Screen name="book/[venueId]" options={{ title: "Request a booking", presentation: "modal" }} />
+      <Stack.Screen name="plans" options={{ title: "" }} />
+      <Stack.Screen name="checkout/[planId]" options={{ title: "Checkout" }} />
+      <Stack.Screen name="receipts" options={{ title: "" }} />
+      <Stack.Screen name="crew/[id]" options={{ title: "" }} />
     </Stack>
   );
 }

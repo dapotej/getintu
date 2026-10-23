@@ -30,6 +30,16 @@ const Env = z.object({
   CONCIERGE_WHATSAPP: z.string().regex(/^\+\d{8,15}$/).optional(),
   // Where member photos are kept: Supabase Storage, or in memory for local development.
   PHOTO_STORE: z.enum(["supabase", "memory"]).default("supabase"),
+  // The API's own public address: payment pages send members back here, and TEST payments live here.
+  // Optional: without it, each checkout uses the address its request came in on.
+  API_PUBLIC_URL: z.url().optional(),
+  // Stripe (pounds and dollars): the secret key and the webhook's signing secret, both from the Stripe dashboard.
+  STRIPE_SECRET_KEY: z.string().min(1).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Paystack (naira): the secret key, which also checks its webhooks.
+  PAYSTACK_SECRET_KEY: z.string().min(1).optional(),
+  // Live keys are refused unless this is "yes": payments stay in test mode until Dapo says otherwise.
+  PAYMENTS_LIVE: z.enum(["yes", "no"]).default("no"),
 });
 
 export type Env = z.infer<typeof Env>;
@@ -40,5 +50,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if ((env.NODE_ENV === "staging" || env.NODE_ENV === "production") && (!env.QR_SIGNING_KEY || !env.PARTNER_SESSION_SECRET)) {
     throw new Error("QR_SIGNING_KEY and PARTNER_SESSION_SECRET are required in staging and production");
   }
+  if (Boolean(env.STRIPE_SECRET_KEY) !== Boolean(env.STRIPE_WEBHOOK_SECRET)) throw new Error("Set both STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET, or neither");
+  const live = [env.STRIPE_SECRET_KEY, env.PAYSTACK_SECRET_KEY].some((k) => k?.startsWith("sk_live_"));
+  if (live && env.PAYMENTS_LIVE !== "yes") throw new Error("Live payment keys are set but PAYMENTS_LIVE isn't yes: use test keys until going live");
+  if (env.NODE_ENV === "production" && (!env.STRIPE_SECRET_KEY || !env.PAYSTACK_SECRET_KEY)) throw new Error("Stripe and Paystack keys are required in production");
   return env;
 }

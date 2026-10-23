@@ -2,5 +2,6 @@
 export const ACCOUNTS = {
   founder: { authUserId: "00000000-0000-4000-8000-00000000e2e1", email: "e2e-founder@example.com", password: "TEST-password-founder", role: "founder", fullName: "TEST Founder Eze" },
   concierge: { authUserId: "00000000-0000-4000-8000-00000000e2e2", email: "e2e-concierge@example.com", password: "TEST-password-concierge", role: "concierge", fullName: "TEST Concierge Bisi" },
+  finance: { authUserId: "00000000-0000-4000-8000-00000000e2e4", email: "e2e-finance@example.com", password: "TEST-password-finance", role: "finance", fullName: "TEST Finance Funmi" },
   outsider: { authUserId: "00000000-0000-4000-8000-00000000e2e3", email: "e2e-outsider@example.com", password: "TEST-password-outsider", role: null, fullName: "TEST Not Staff" },
 } as const;

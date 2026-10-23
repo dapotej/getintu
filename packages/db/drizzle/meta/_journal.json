@@ -155,6 +155,13 @@
       "when": 1792771019724,
       "tag": "0021_clients",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792778891275,
+      "tag": "0022_payments",
+      "breakpoints": true
     }
   ]
 }

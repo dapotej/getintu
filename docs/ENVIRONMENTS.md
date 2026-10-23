@@ -49,3 +49,18 @@ The scanner (`apps/partner`) is a static site built with `NEXT_PUBLIC_API_URL` s
 **Concierge button:** set `CONCIERGE_WHATSAPP` (E.164) on the API; left blank, the app hides it. **Doctor on call** uses the medical partner's service line: a venue of kind "A service by phone or video" with the doctor-on-call offer (TEST CareLine doctor line in TEST data).
 
 **Expo Go:** create the `intu` project under intu's Expo account, then in GitHub → Settings → Environments → staging add the secret `EXPO_TOKEN` (expo.dev → Access tokens) and the variables `EXPO_PROJECT_ID`, `EXPO_OWNER` and `SUPABASE_PUBLISHABLE_KEY` (the `sb_publishable_…` key). The **Member app to Expo Go (staging)** workflow then publishes every change; open it in the Expo Go app from the project's page on expo.dev.
+
+## Payments (Stripe and Paystack, test mode)
+
+Until the keys are added, staging takes every payment on the API's own **TEST payment page**: the member app opens it, "Pay (TEST)" makes the pass, and no money moves. Production refuses to start without real keys, and live keys (`sk_live_…`) are refused unless `PAYMENTS_LIVE=yes`.
+
+To connect the real providers in **test mode** (Dapo does this; never paste keys into chat):
+
+1. **Stripe** (pounds and dollars): create the account, stay in Test mode.
+   - Developers → API keys: copy the **secret key** (`sk_test_…`).
+   - Developers → Webhooks → Add endpoint: URL `https://intu-api-staging.vercel.app/webhooks/stripe`, events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `refund.updated`, `charge.refund.updated`. Copy its **signing secret** (`whsec_…`).
+2. **Paystack** (naira): create the account, stay in Test Mode.
+   - Settings → API Keys & Webhooks: copy the **test secret key** (`sk_test_…`) and set the **test webhook URL** to `https://intu-api-staging.vercel.app/webhooks/paystack`.
+3. In Vercel → the API project → Settings → Environment Variables (staging), add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `PAYSTACK_SECRET_KEY` as sensitive values, then redeploy. (`API_PUBLIC_URL` is optional: without it the API uses the address members reach it on.)
+
+Test cards: Stripe `4242 4242 4242 4242`, any future date and CVC; Paystack's test card is shown on its checkout page in test mode.

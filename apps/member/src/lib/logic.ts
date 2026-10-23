@@ -189,3 +189,20 @@ export function venueActions(v: { kind: Venue["kind"]; servicePhone: string | nu
     concierge: v.offers.some((o) => o.usageMode === "concierge"),
   };
 }
+
+/** "£250", "₦500,000", "$99.50": whole amounts without pennies. */
+export function formatMoney(amountMinor: number, currency: string) {
+  const whole = amountMinor % 100 === 0;
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency, currencyDisplay: "narrowSymbol", minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: whole ? 0 : 2 }).format(amountMinor / 100);
+}
+
+export const CURRENCY_LABELS: Record<string, string> = { NGN: "Naira", GBP: "Pounds", USD: "Dollars" };
+
+export const RECEIPT_STATUS: Record<string, { label: string; tone: "day" | "night" | "pop" | "muted" }> = {
+  pending: { label: "Waiting for payment", tone: "day" },
+  paid: { label: "Paid", tone: "night" },
+  failed: { label: "Not taken", tone: "pop" },
+  expired: { label: "Not finished", tone: "muted" },
+  refunded: { label: "Refunded", tone: "muted" },
+  partially_refunded: { label: "Part refunded", tone: "night" },
+};

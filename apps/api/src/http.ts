@@ -3,7 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import type { z } from "zod";
 
 /** A JSON error body every endpoint shares: `{ error: { code, message, issues? } }`. */
-export function fail(status: 400 | 401 | 403 | 404 | 409 | 422 | 429, code: string, message: string, issues?: unknown): never {
+export function fail(status: 400 | 401 | 403 | 404 | 409 | 422 | 429 | 502 | 503, code: string, message: string, issues?: unknown): never {
   throw new HTTPException(status, {
     res: new Response(JSON.stringify({ error: issues === undefined ? { code, message } : { code, message, issues } }), {
       status,

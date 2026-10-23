@@ -77,7 +77,7 @@ const NewBooking = z.object({
  * A Supabase phone sign-in. Sets the member when there is one, linking it by phone the first time.
  * Staff accounts (email sign-in) have no phone and are refused.
  */
-function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
+export function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
   return createMiddleware<MemberEnv>(async (c, next) => {
     const header = c.req.header("authorization") ?? "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : "";
@@ -109,7 +109,7 @@ function requireMember(deps: Pick<MemberDeps, "db" | "verify">) {
   });
 }
 
-const needMember = (c: { get: (k: "member") => Member | null }) => {
+export const needMember = (c: { get: (k: "member") => Member | null }) => {
   const member = c.get("member");
   if (!member) fail(404, "no_profile", "Finish setting up your profile first");
   return member;

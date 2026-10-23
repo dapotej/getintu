@@ -36,6 +36,8 @@ export const planPrices = pgTable(
       .references(() => plans.id),
     currency: currencyEnum().notNull(),
     amountMinor: integer().notNull(),
+    // Paystack's yearly plan for this price, made the first time a renewing plan is sold in naira.
+    paystackPlanCode: text(),
     ...timestamps,
   },
   (t) => [unique().on(t.planId, t.currency)],

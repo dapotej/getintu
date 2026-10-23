@@ -515,3 +515,48 @@ test("a bank client: add people, give out and take back passes, upload a list, a
   await invoice.getByRole("button", { name: "Mark paid" }).click();
   await expect(invoice).toContainText("Paid");
 });
+
+test("finance refunds a payment; over the limit, a second person approves it and the pass ends", async ({ page, browser }) => {
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/intu", { max: 1 });
+  const tag = randomUUID().slice(0, 4).toUpperCase();
+  const plan = one(await db.select().from(schema.plans).where(eq(schema.plans.name, "TEST December Pass Plus")));
+  const member = one(await db.insert(schema.members).values({ fullName: `TEST Payer ${tag}`, phone: `+999${randomInt(10 ** 9, 10 ** 10)}`, isTest: true }).returning());
+  const membership = one(await db.insert(schema.memberships).values({ memberId: member.id, planId: plan.id, startsOn: "2026-12-01", endsOn: "2027-01-10", status: "active" }).returning());
+  await db.insert(schema.orders).values({ memberId: member.id, planId: plan.id, currency: "NGN", amountMinor: 50_000_000, provider: "test", status: "paid", providerRef: `test_e2e_${tag}`, providerPaymentId: `test_pay_${tag}`, membershipId: membership.id, paidAt: new Date(), isTest: true });
+
+  // Finance asks for ₦300,000 back, ending the pass: over ₦150,000, so it waits.
+  await page.context().clearCookies();
+  await signIn(page, "finance");
+  await expect(page.getByRole("heading", { name: /^Hello/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Payments" }).click();
+  await page.getByLabel("Search payments").fill(`TEST Payer ${tag}`);
+  await page.getByRole("button", { name: "Search" }).click();
+  const row = cardOf(page, "Orders").getByRole("row", { name: new RegExp(`TEST Payer ${tag}`) });
+  await expect(row).toContainText("₦500,000");
+  await row.getByRole("button", { name: "Refund" }).click();
+  const panel = panelOf(page);
+  await panel.getByLabel("Amount (NGN)").fill("300,000");
+  await panel.getByLabel("Reason").fill("TEST e2e: flight cancelled");
+  // Ticked by default for a full refund; kept for this one.
+  await expect(panel.getByLabel("End the pass")).toBeChecked();
+  await panel.getByRole("button", { name: "Refund" }).click();
+  await expect(row).toContainText("Waiting for approval");
+  const waiting = cardOf(page, "Refunds waiting for approval").getByRole("row", { name: new RegExp(`TEST Payer ${tag}`) });
+  await expect(waiting.getByRole("button", { name: "Approve and send" })).toBeDisabled();
+
+  // The founder approves it in their own session.
+  const other = await browser.newContext();
+  const founder = await other.newPage();
+  await signIn(founder, "founder");
+  await expect(founder.getByRole("heading", { name: /^Hello/ })).toBeVisible();
+  await founder.goto("/payments");
+  await cardOf(founder, "Refunds waiting for approval").getByRole("row", { name: new RegExp(`TEST Payer ${tag}`) }).getByRole("button", { name: "Approve and send" }).click();
+  await founder.getByLabel("Search payments").fill(`TEST Payer ${tag}`);
+  await founder.getByRole("button", { name: "Search" }).click();
+  await expect(cardOf(founder, "Orders").getByRole("row", { name: new RegExp(`TEST Payer ${tag}`) })).toContainText("Part refunded");
+  await other.close();
+
+  const [ended] = await db.select().from(schema.memberships).where(eq(schema.memberships.id, membership.id));
+  expect(ended?.status).toBe("cancelled");
+  await sql.end();
+});

@@ -18,6 +18,11 @@ import { memberAppRoutes } from "./member/routes.ts";
 import type { PhotoStore } from "./member/photos.ts";
 import { smsHookRoutes, testSender, type CodeSender } from "./member/sms-hook.ts";
 import { scannerRoutes } from "./partner/routes.ts";
+import { paymentAdminRoutes } from "./admin/payments.ts";
+import { paymentRoutes } from "./payments/routes.ts";
+import { paymentService } from "./payments/service.ts";
+import { createPayments } from "./payments/setup.ts";
+import type { Payments } from "./payments/providers.ts";
 import type { PassKeys } from "./passes.ts";
 import type { AuthAdmin } from "./auth/supabase-admin.ts";
 import type { TokenVerifier } from "./auth/tokens.ts";
@@ -40,6 +45,8 @@ export interface AppDeps {
   memberApp?: { conciergeWhatsApp: string | null; newMembersAreTest: boolean };
   /** Supabase's Send SMS hook: its signing secret, and who delivers sign-in codes. */
   smsHook?: { secret: string | undefined; sender?: CodeSender };
+  /** Stripe and Paystack (or TEST payments outside production). */
+  payments?: Payments;
   /** The time, replaceable in tests. */
   clock?: () => Date;
 }
@@ -83,6 +90,10 @@ export function createApp(deps: AppDeps) {
       newMembersAreTest: deps.memberApp?.newMembersAreTest ?? true,
     }),
   );
+  // Without settings (local tools, tests that don't pay), payments are TEST only.
+  const payments = deps.payments ?? createPayments({ allowTest: true });
+  const service = paymentService({ db: deps.db, payments, clock });
+  app.route("/", paymentRoutes({ db: deps.db, verify: deps.verify, payments, service, clock, allowTestPayments: payments.byName("test") !== null }));
 
   const admin = new Hono<AdminEnv>();
   admin.use("*", requireStaff(deps));
@@ -95,6 +106,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", scannerAdminRoutes({ db: deps.db, passKeys: deps.passKeys, clock }));
   admin.route("/", bookingRoutes({ db: deps.db, clock }));
   admin.route("/", clientRoutes({ db: deps.db, clock }));
+  admin.route("/", paymentAdminRoutes({ db: deps.db, service, clock }));
   app.route("/admin", admin);
 
   return app;

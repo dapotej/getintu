@@ -1,7 +1,7 @@
 import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
 export type UsageMode = "door" | "booking" | "airport" | "call" | "concierge" | "in_app";
-export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage" | "clients.read" | "clients.write" | "clients.invoices";
+export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage" | "clients.read" | "clients.write" | "clients.invoices" | "payments.read" | "payments.refund";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
 
 export interface Me {
@@ -347,4 +347,56 @@ export interface ClientDetail {
     peopleThisMonth: number;
     byService: { name: string; visits: number; thisMonth: number }[];
   };
+}
+
+export interface Refund {
+  id: string;
+  orderId: string;
+  amountMinor: number;
+  currency: "GBP" | "USD" | "NGN";
+  reason: string;
+  endsPass: boolean;
+  status: "awaiting_approval" | "rejected" | "processing" | "succeeded" | "failed";
+  requestedBy: string;
+  decidedBy?: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+/** A payment for a pass, with its refunds. */
+export interface Order {
+  id: string;
+  kind: "new" | "renewal";
+  status: "pending" | "paid" | "failed" | "expired" | "refunded" | "partially_refunded";
+  currency: "GBP" | "USD" | "NGN";
+  amountMinor: number;
+  provider: "stripe" | "paystack" | "test";
+  providerRef: string | null;
+  paidAt: string | null;
+  failureReason: string | null;
+  membershipId: string | null;
+  isTest: boolean;
+  createdAt: string;
+  member: { id: string; fullName: string; phone: string };
+  plan: { id: string; name: string };
+  /** What can still be refunded, in minor units. */
+  refundable: number;
+  refunds: Refund[];
+}
+
+export interface PaymentsOverview {
+  orders: Order[];
+  totals: { currency: "GBP" | "USD" | "NGN"; paid: number; paidThisMonth: number; count: number; refunded: number }[];
+  /** The same for TEST payments, which the real totals leave out. */
+  testTotals: PaymentsOverview["totals"];
+  failedRenewals: { id: string; member: { id: string; fullName: string; phone: string }; plan: { id: string; name: string }; currency: "GBP" | "USD" | "NGN"; amountMinor: number; failedAt: string | null; reason: string | null }[];
+  approvalOver: Record<"GBP" | "USD" | "NGN", number>;
+}
+
+export interface RefundToApprove extends Refund {
+  order: { id: string; amountMinor: number; currency: "GBP" | "USD" | "NGN"; paidAt: string | null };
+  member: { id: string; fullName: string };
+  plan: { name: string };
 }

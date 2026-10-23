@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, Card, Checkbox, cx, DECLINE_LABELS, EmptyState, Field, formatDate, formatLagosDateTime, Icon, Input, PageHeader, Select, SidePanel, Table, Td, Textarea } from "@intu/ui";
+import { Badge, Button, Card, Checkbox, cx, DECLINE_LABELS, EmptyState, Field, formatDate, formatLagosDateTime, formatMoney, Icon, Input, PageHeader, Select, SidePanel, Table, Td, Textarea } from "@intu/ui";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -8,8 +8,9 @@ import { ReasonPanel } from "@/components/reason-panel";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import { isNight } from "@/lib/catalogue";
+import { ORDER_STATUS, PROVIDER_LABELS, RefundLines, RefundPanel } from "@/components/refunds";
 import { PAID_BY, STATUS_LABELS, statusTone, tripText, vehicleText } from "@/lib/labels";
-import type { Allowance, Booking, MemberDetail, Membership, Plan, Venue } from "@/lib/types";
+import type { Allowance, Booking, MemberDetail, Membership, Order, PaymentsOverview, Plan, Venue } from "@/lib/types";
 
 const METHOD: Record<string, string> = { online: "Scan", offline: "Scan (offline)", manual: "Manual" };
 
@@ -115,6 +116,7 @@ export default function MemberPage() {
         <DevicesCard memberId={id} canWrite={can("members.write")} />
 
         <BookingsCard memberId={id} memberships={memberships} canWrite={can("members.write")} />
+        {can("payments.read") ? <PaymentsCard memberId={id} canRefund={can("payments.refund")} /> : null}
 
         <Card title="Visits" description="The last 50 scans at venues, in Lagos time." flush>
           {visits.length === 0 ? (
@@ -536,5 +538,38 @@ function BookingForm({ memberId, memberships, onBooked }: { memberId: string; me
         </>
       )}
     </ActionForm>
+  );
+}
+
+/** The member's payments, with refunds for finance. */
+function PaymentsCard({ memberId, canRefund }: { memberId: string; canRefund: boolean }) {
+  const { data, reload } = useApi<{ orders: Order[]; approvalOver: PaymentsOverview["approvalOver"] }>(`/admin/members/${memberId}/orders`);
+  const paidOrTried = (data?.orders ?? []).filter((o) => o.status !== "pending" && o.status !== "expired");
+  return (
+    <Card title="Payments" flush>
+      {paidOrTried.length === 0 ? (
+        <EmptyState title="No payments" />
+      ) : (
+        <Table head={["Plan", "Amount", "Status", "When", ""]}>
+          {paidOrTried.map((o) => (
+            <tr key={o.id}>
+              <Td>
+                {o.plan.name}
+                <span className="block text-xs text-muted">{[o.kind === "renewal" ? "Renewal" : null, PROVIDER_LABELS[o.provider]].filter(Boolean).join(" · ")}</span>
+              </Td>
+              <Td className="tabular-nums">{formatMoney(o.amountMinor, o.currency)}</Td>
+              <Td>
+                <Badge dot tone={ORDER_STATUS[o.status].tone}>
+                  {ORDER_STATUS[o.status].label}
+                </Badge>
+                <RefundLines order={o} />
+              </Td>
+              <Td className="whitespace-nowrap text-muted">{formatLagosDateTime(o.paidAt ?? o.createdAt)}</Td>
+              <Td className="text-right">{canRefund && o.refundable > 0 && data ? <RefundPanel order={o} approvalOver={data.approvalOver[o.currency]} onDone={reload} /> : null}</Td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </Card>
   );
 }

@@ -41,6 +41,8 @@ export default defineConfig({
         QR_SIGNING_KEY: E2E_QR_SIGNING_KEY,
         PHOTO_STORE: "memory",
         CONCIERGE_WHATSAPP: "+2348000000001",
+        // No provider keys: payments use the API's own TEST page.
+        API_PUBLIC_URL: `http://localhost:${API_PORT}`,
       },
     },
     {

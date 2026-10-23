@@ -1,24 +1,62 @@
 // The pass: the member's photo beside a QR code that changes every 30 seconds. It keeps working
 // with no signal for a day after it was last renewed, and the screen stays on while it's open.
 import { useKeepAwake } from "expo-keep-awake";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Linking, useWindowDimensions, View } from "react-native";
 import { Qr } from "@/components/qr";
 import { Badge, Button, Card, Loading, Notice, Screen, T, Wordmark } from "@/components/ui";
-import { errorText } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { useCached } from "@/lib/data";
 import { backupCodeFor, currentPass, formatDate, formatLagosTime, lagosDate, passUsable, whatsappLink } from "@/lib/logic";
 import { currentCode, ensurePass } from "@/lib/pass";
 import { photoForPass } from "@/lib/photo";
 import { useSession } from "@/lib/session";
 import { colors, space } from "@/lib/theme";
-import type { Membership, StoredPass } from "@/lib/types";
+import type { CrewInvite, Membership, StoredPass } from "@/lib/types";
 import { secondsUntilNextCode } from "@intu/qr";
+
+/** Crew invites waiting for this member's number: accepting gives them a pass in the crew. */
+function Invites({ onJoined }: { onJoined: () => void }) {
+  const { data, reload } = useCached<{ invites: CrewInvite[] }>("invites", "/me/invites");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      {error ? <Notice>{error}</Notice> : null}
+      {(data?.invites ?? []).map((i) => (
+        <Card key={i.id} accent={colors.night}>
+          <T variant="heading">{`${i.invitedBy} invited you to their Crew`}</T>
+          <T color={colors.muted}>{`${i.plan}, ${formatDate(i.startsOn)} – ${formatDate(i.endsOn)}`}</T>
+          <Button
+            label="Join the crew"
+            tone="night"
+            busy={busy === i.id}
+            onPress={async () => {
+              setBusy(i.id);
+              setError(null);
+              try {
+                await api(`/me/invites/${i.id}/accept`, { body: {} });
+                await reload();
+                onJoined();
+              } catch (err) {
+                setError(errorText(err));
+              } finally {
+                setBusy(null);
+              }
+            }}
+          />
+        </Card>
+      ))}
+    </>
+  );
+}
 
 export default function PassScreen() {
   useKeepAwake();
+  const router = useRouter();
   const { me } = useSession();
-  const { data, offline, loading } = useCached<{ memberships: Membership[] }>("memberships", "/me/memberships");
+  const { data, offline, loading, reload } = useCached<{ memberships: Membership[] }>("memberships", "/me/memberships");
   const [now, setNow] = useState(() => new Date());
   const [chosen, setChosen] = useState<string | null>(null);
 
@@ -37,10 +75,12 @@ export default function PassScreen() {
         <Wordmark />
         {offline ? <Badge label="Offline" tone="day" /> : null}
       </View>
+      <Invites onJoined={() => void reload()} />
       {!shown ? (
         <Card>
           <T variant="heading" accessibilityRole="header">No pass yet</T>
-          <T color={colors.muted}>When you buy a pass at getintu.com, or the concierge sets one up for you, it appears here.</T>
+          <T color={colors.muted}>Buy one here, or if someone invited you to their Crew, accept below. Passes the concierge sets up for you appear here too.</T>
+          <Button label="Get a pass" tone="day" onPress={() => router.push("/plans")} />
         </Card>
       ) : (
         <>

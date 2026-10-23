@@ -16,6 +16,8 @@ export const PERMISSIONS = [
   "clients.read",
   "clients.write",
   "clients.invoices",
+  "payments.read",
+  "payments.refund",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -31,10 +33,12 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   founder: PERMISSIONS,
   ops_lead: PERMISSIONS,
   // Clients (spec: main role Partnerships): ops add and remove a client's people; finance keeps invoices.
-  ops: [...TEAM_READ, "members.write", "bookings.manage", "clients.read", "clients.write"],
+  ops: [...TEAM_READ, "members.write", "bookings.manage", "clients.read", "clients.write", "payments.read"],
   // Bookings are the concierge's (spec: Bookings queue, main role Concierge).
   concierge: [...TEAM_READ, "bookings.manage"],
-  finance: [...TEAM_READ, "clients.read", "clients.invoices"],
+  // Payments (spec: main role Finance): finance refunds; founder and ops lead too. A refund over the
+  // set amount needs a second of them to approve.
+  finance: [...TEAM_READ, "clients.read", "clients.invoices", "payments.read", "payments.refund"],
   partnerships: [...TEAM_READ, "partners.write", "clients.read", "clients.write", "clients.invoices"],
   door_staff: [],
   venue_manager: [],

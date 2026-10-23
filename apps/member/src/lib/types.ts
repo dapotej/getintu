@@ -124,3 +124,61 @@ export interface BenefitPage {
   venues: { id: string; name: string; area: string; kind: "place" | "visiting" | "remote"; night: boolean; openNow: boolean; servicePhone: string | null; services: string[] }[];
   visits: { id: string; occurredAt: string; partySize: number; venue: { id: string; name: string; area: string }; service: string }[];
 }
+
+export type Currency = "NGN" | "GBP" | "USD";
+
+/** A plan on sale, as the API offers it today. */
+export interface PlanOffer {
+  id: string;
+  name: string;
+  description: string | null;
+  crewSize: number;
+  startsOn: string;
+  endsOn: string;
+  /** A yearly pass that renews automatically. */
+  renews: boolean;
+  prices: { currency: Currency; amountMinor: number }[];
+  benefits: { name: string; code: string; quantity: number | null; period: Allowance["period"] }[];
+}
+
+/** A payment, as a receipt. */
+export interface Receipt {
+  id: string;
+  kind: "new" | "renewal";
+  status: "pending" | "paid" | "failed" | "expired" | "refunded" | "partially_refunded";
+  plan: { id: string; name: string };
+  currency: Currency;
+  amountMinor: number;
+  paidAt: string | null;
+  createdAt: string;
+  membershipId: string | null;
+  refundedMinor: number;
+}
+
+export interface Subscription {
+  id: string;
+  plan: { id: string; name: string };
+  status: "active" | "past_due" | "cancelled";
+  autoRenew: boolean;
+  currency: Currency;
+  amountMinor: number;
+  currentMembershipId: string | null;
+  lastFailureReason: string | null;
+}
+
+export interface CrewView {
+  plan: { id: string; name: string; crewSize: number };
+  isBuyer: boolean;
+  seatsLeft: number;
+  crew: { fullName: string; isMe: boolean }[];
+  invites: { id: string; fullName: string; phone: string }[];
+}
+
+export interface CrewInvite {
+  id: string;
+  fullName: string;
+  invitedBy: string;
+  plan: string;
+  startsOn: string;
+  endsOn: string;
+}

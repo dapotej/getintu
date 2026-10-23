@@ -40,3 +40,11 @@ export const staffRoleEnum = pgEnum("staff_role", [
 ]);
 export const esimInstallStatusEnum = pgEnum("esim_install_status", ["ordered", "ready", "installed", "failed", "refunded"]);
 export const actorTypeEnum = pgEnum("actor_type", ["member", "staff", "system"]);
+
+// Payments (milestone 6).
+export const paymentProviderEnum = pgEnum("payment_provider", ["stripe", "paystack", "test"]);
+export const orderKindEnum = pgEnum("order_kind", ["new", "renewal"]);
+export const orderStatusEnum = pgEnum("order_status", ["pending", "paid", "failed", "expired", "refunded", "partially_refunded"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "cancelled"]);
+export const refundStatusEnum = pgEnum("refund_status", ["awaiting_approval", "rejected", "processing", "succeeded", "failed"]);
+export const crewInviteStatusEnum = pgEnum("crew_invite_status", ["pending", "accepted", "cancelled"]);
