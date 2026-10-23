@@ -16,18 +16,29 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     environment: staging
+    # Each setting may be saved as a secret or a variable, on the staging environment or the repository.
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EXPO_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID }}
-      EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN || vars.EXPO_TOKEN }}
+      EXPO_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID || secrets.EXPO_PROJECT_ID }}
+      EXPO_OWNER: ${{ vars.EXPO_OWNER || secrets.EXPO_OWNER }}
       EXPO_PUBLIC_API_URL: https://intu-api-staging.vercel.app
       EXPO_PUBLIC_SUPABASE_URL: https://xokexyqjlydjqquownvw.supabase.co
-      # Publishable, so not a secret, but kept with the environment's settings.
-      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - name: Check Expo is set up
         id: expo
-        run: echo "ready=$([ -n "$EXPO_TOKEN" ] && [ -n "$EXPO_PROJECT_ID" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        run: |
+          missing=""
+          for name in EXPO_TOKEN EXPO_PROJECT_ID EXPO_OWNER EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Not publishing: missing$missing (add them under Settings → Environments → staging)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "All Expo settings found."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v6
         if: steps.expo.outputs.ready == 'true'
       - uses: pnpm/action-setup@v5
