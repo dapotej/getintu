@@ -11,3 +11,24 @@ export const tripText = (t: { direction: "arrival" | "departure"; flightNumber: 
 /** "Black Toyota Land Cruiser (2022) · LND 123 AB". */
 export const vehicleText = (v: { plate: string; makeModel: string; year: number | null; colour: string | null } | null | undefined) =>
   v ? `${[v.colour, v.makeModel].filter(Boolean).join(" ")}${v.year ? ` (${v.year})` : ""} · ${v.plate}` : null;
+
+/** Today's date in Lagos, YYYY-MM-DD. */
+export const lagosToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
+
+/**
+ * A pass's allowances, one per benefit: a benefit that resets (monthly, yearly) has a row for each
+ * period, and only the current one (or the next, before the pass starts) is shown, with a count of
+ * the periods still to come.
+ */
+export function currentAllowances<A extends { category: { code: string }; shared: boolean; periodStart: string; periodEnd: string }>(rows: readonly A[], today: string) {
+  const groups = new Map<string, A[]>();
+  for (const a of rows) {
+    const key = `${a.category.code}:${a.shared}`;
+    groups.set(key, [...(groups.get(key) ?? []), a]);
+  }
+  return [...groups.values()].map((list) => {
+    const sorted = [...list].sort((x, y) => x.periodStart.localeCompare(y.periodStart));
+    const current = sorted.find((a) => a.periodStart <= today && a.periodEnd >= today) ?? sorted.find((a) => a.periodStart > today) ?? sorted[sorted.length - 1];
+    return { allowance: current as A, periods: sorted.length, ahead: sorted.filter((a) => a.periodStart > (current?.periodStart ?? "")).length };
+  });
+}

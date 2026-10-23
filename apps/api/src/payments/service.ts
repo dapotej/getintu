@@ -1,8 +1,8 @@
 // Money in and out: starting a checkout, turning a provider's events into passes (exactly once),
 // yearly renewals, Crew invites, and refunds with a second approver above a set amount. Each change
 // to an order, membership, subscription or refund commits with its audit row.
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { passTerms, providerFor, refundable, refundNeedsApproval, renewalTerms, saleStatus, toLagos, type Currency } from "@intu/rules";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { holdsPlan, passTerms, providerFor, refundable, refundNeedsApproval, renewalTerms, saleStatus, toLagos, type Currency } from "@intu/rules";
 import { audit, grantAllowances, one, schema, type Db, type Tx } from "@intu/db";
 import { fail } from "../http.ts";
 import type { PaymentEvent, Payments, SubscriptionMatch } from "./providers.ts";
@@ -32,6 +32,7 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
     if (!plan) fail(404, "not_found", "Plan not found");
     const sale = saleStatus(plan, today());
     if (!sale.onSale) fail(422, sale.reason, NOT_ON_SALE[sale.reason]);
+    if (holdsPlan(await passesOf(db, memberId), plan.id, today())) fail(409, "already_have_plan", "You already have this pass");
     const [price] = await db.select().from(planPrices).where(and(eq(planPrices.planId, plan.id), eq(planPrices.currency, input.currency)));
     if (!price) fail(422, "no_price", `This plan isn't sold in ${input.currency}`);
     const terms = passTerms(plan, today());
@@ -90,6 +91,13 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
       return;
     }
     const plan = one(await tx.select().from(plans).where(eq(plans.id, order.planId)));
+    // Paid twice for the same plan (two checkouts open at once): the money is taken but no second
+    // pass is made, and finance sees it to refund.
+    if (holdsPlan(await passesOf(tx, order.memberId), plan.id, today())) {
+      const after = one(await tx.update(orders).set({ status: "paid", paidAt: deps.clock(), providerPaymentId: event.providerPaymentId, failureReason: "Already had this pass when this payment arrived: refund it" }).where(eq(orders.id, order.id)).returning());
+      await audit(tx, SYSTEM, { action: "order.paid_duplicate", entity: "order", entityId: order.id, before: order, after });
+      return;
+    }
     const terms = passTerms(plan, today());
     const membership = await createPass(tx, order, plan, terms, plan.groupSize > 1 ? crypto.randomUUID() : null);
     let subscriptionId: string | null = null;
@@ -319,6 +327,7 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
       if (inv.status !== "pending") fail(409, "not_pending", "This invite has already been answered");
       const buyer = one(await tx.select().from(memberships).where(eq(memberships.id, inv.membershipId)));
       if (buyer.status !== "active" || buyer.endsOn < today()) fail(422, "pass_inactive", "This Crew pass has ended");
+      if (holdsPlan(await passesOf(tx, member.id), buyer.planId, today())) fail(409, "already_have_plan", "You already have this pass");
       const membership = one(
         await tx
           .insert(memberships)
@@ -429,3 +438,7 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
 }
 
 export type PaymentService = ReturnType<typeof paymentService>;
+
+/** A member's passes, as holdsPlan reads them. */
+export const passesOf = (db: Db | Tx, memberId: string) =>
+  db.select({ planId: memberships.planId, status: memberships.status, endsOn: memberships.endsOn }).from(memberships).where(and(eq(memberships.memberId, memberId), isNull(memberships.deletedAt)));

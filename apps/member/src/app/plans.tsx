@@ -51,7 +51,7 @@ export default function Plans() {
                 </T>
               ))}
             </View>
-            {price ? <Button label={`Buy for ${formatMoney(price.amountMinor, price.currency)}`} tone="day" disabled={offline} onPress={() => router.push(`/checkout/${p.id}?currency=${price.currency}`)} /> : <T variant="small" color={colors.muted}>Not sold in {CURRENCY_LABELS[shown] ?? shown}.</T>}
+            {p.held ? <Badge label="You have this pass" tone="night" /> : price ? <Button label={`Buy for ${formatMoney(price.amountMinor, price.currency)}`} tone="day" disabled={offline} onPress={() => router.push(`/checkout/${p.id}?currency=${price.currency}`)} /> : <T variant="small" color={colors.muted}>Not sold in {CURRENCY_LABELS[shown] ?? shown}.</T>}
           </Card>
         );
       })}

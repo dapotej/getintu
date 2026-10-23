@@ -67,3 +67,10 @@ export function refundable(paidMinor: number, refunds: readonly { amountMinor: n
   const taken = refunds.filter((r) => r.status !== "rejected" && r.status !== "failed").reduce((n, r) => n + r.amountMinor, 0);
   return Math.max(0, paidMinor - taken);
 }
+
+/**
+ * Whether the member already holds this plan: a pass on it that is active, suspended or still to
+ * start, and not yet ended. A member can hold different plans at once, but not the same one twice.
+ */
+export const holdsPlan = (passes: readonly { planId: string; status: string; endsOn: string }[], planId: string, today: string) =>
+  passes.some((p) => p.planId === planId && (p.status === "active" || p.status === "suspended" || p.status === "pending") && p.endsOn >= today);

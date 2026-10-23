@@ -5,11 +5,11 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { ActionForm, checked, text, textOrNull } from "@/components/forms";
 import { ReasonPanel } from "@/components/reason-panel";
-import { api, useApi } from "@/lib/api";
+import { api, ApiError, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import { isNight } from "@/lib/catalogue";
 import { ORDER_STATUS, PROVIDER_LABELS, RefundLines, RefundPanel } from "@/components/refunds";
-import { PAID_BY, STATUS_LABELS, statusTone, tripText, vehicleText } from "@/lib/labels";
+import { currentAllowances, lagosToday, PAID_BY, STATUS_LABELS, statusTone, tripText, vehicleText } from "@/lib/labels";
 import type { Allowance, Booking, MemberDetail, Membership, Order, PaymentsOverview, Plan, Venue } from "@/lib/types";
 
 const METHOD: Record<string, string> = { online: "Scan", offline: "Scan (offline)", manual: "Manual" };
@@ -175,7 +175,8 @@ export default function MemberPage() {
   );
 }
 
-function AllowanceBar({ a }: { a: Allowance }) {
+/** One benefit's current period; one that resets says when, and how many periods are still to come. */
+function AllowanceBar({ a, periods = 1, ahead = 0 }: { a: Allowance; periods?: number; ahead?: number }) {
   const night = isNight(a.category.code);
   const left = a.granted === null ? null : a.granted - a.used;
   const pct = a.granted ? Math.min(100, Math.round((a.used / a.granted) * 100)) : 0;
@@ -200,6 +201,11 @@ function AllowanceBar({ a }: { a: Allowance }) {
         )}
         <span className="text-muted"> · {a.used} used</span>
       </p>
+      {periods > 1 ? (
+        <p className="mt-1 text-xs text-muted">
+          {formatDate(a.periodStart)} – {formatDate(a.periodEnd)} · resets {ahead === 0 ? "no more" : `${ahead} more ${ahead === 1 ? "time" : "times"}`}
+        </p>
+      ) : null}
       {a.granted ? (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-subtle" role="presentation">
           <div className={cx("h-full rounded-full", left === 0 ? "bg-danger" : night ? "bg-night" : "bg-day")} style={{ width: `${pct}%` }} />
@@ -270,8 +276,8 @@ function MembershipCard({ ms, canWrite, onChange, testPassHref }: { ms: Membersh
         <p className="text-sm text-muted">This plan has no benefits.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {ms.allowances.map((a) => (
-            <AllowanceBar key={a.id} a={a} />
+          {currentAllowances(ms.allowances, lagosToday()).map(({ allowance: a, periods, ahead }) => (
+            <AllowanceBar key={a.id} a={a} periods={periods} ahead={ahead} />
           ))}
         </div>
       )}
@@ -284,20 +290,24 @@ function AddMembershipForm({ memberId, onChange }: { memberId: string; onChange:
   return (
     <ActionForm
       action={async (form) => {
-        onChange(
-          await api<MemberDetail>(`/admin/members/${memberId}/memberships`, {
-            method: "POST",
-            body: {
-              planId: text(form, "planId"),
-              paymentSource: text(form, "paymentSource"),
-              ...(text(form, "startsOn") ? { startsOn: text(form, "startsOn") } : {}),
-              ...(text(form, "endsOn") ? { endsOn: text(form, "endsOn") } : {}),
-              arrivesOn: textOrNull(form, "arrivesOn"),
-              departsOn: textOrNull(form, "departsOn"),
-              note: text(form, "note") || undefined,
-            },
-          }),
-        );
+        const body = {
+          planId: text(form, "planId"),
+          paymentSource: text(form, "paymentSource"),
+          ...(text(form, "startsOn") ? { startsOn: text(form, "startsOn") } : {}),
+          ...(text(form, "endsOn") ? { endsOn: text(form, "endsOn") } : {}),
+          arrivesOn: textOrNull(form, "arrivesOn"),
+          departsOn: textOrNull(form, "departsOn"),
+          note: text(form, "note") || undefined,
+        };
+        const add = (allowSamePlan: boolean) => api<MemberDetail>(`/admin/members/${memberId}/memberships`, { method: "POST", body: { ...body, ...(allowSamePlan ? { allowSamePlan } : {}) } });
+        try {
+          onChange(await add(false));
+        } catch (err) {
+          // A second current pass on the same plan only on purpose.
+          if (!(err instanceof ApiError && err.code === "already_have_plan")) throw err;
+          if (!window.confirm("This member already has a current pass on this plan. Add a second one anyway?")) return;
+          onChange(await add(true));
+        }
       }}
     >
       {(busy) => (

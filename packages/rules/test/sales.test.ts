@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultCurrency, passTerms, providerFor, refundable, refundNeedsApproval, renewalTerms, saleStatus } from "../src/index.ts";
+import { defaultCurrency, holdsPlan, passTerms, providerFor, refundable, refundNeedsApproval, renewalTerms, saleStatus } from "../src/index.ts";
 
 const december = { active: true, seasonStartsOn: "2026-12-01", seasonEndsOn: "2027-01-10", durationDays: null, onSaleFrom: "2026-10-01", onSaleTo: "2027-01-05" };
 const annual = { active: true, seasonStartsOn: null, seasonEndsOn: null, durationDays: 365, onSaleFrom: null, onSaleTo: null };
@@ -57,5 +57,16 @@ describe("refunds", () => {
     expect(refundable(10_000, [{ amountMinor: 4_000, status: "succeeded" }, { amountMinor: 1_000, status: "awaiting_approval" }])).toBe(5_000);
     expect(refundable(10_000, [{ amountMinor: 4_000, status: "rejected" }, { amountMinor: 4_000, status: "failed" }])).toBe(10_000);
     expect(refundable(10_000, [{ amountMinor: 12_000, status: "succeeded" }])).toBe(0);
+  });
+});
+
+describe("holdsPlan", () => {
+  const pass = (planId: string, status: string, endsOn: string) => ({ planId, status, endsOn });
+  it("counts a current or upcoming pass on the same plan, not other plans or ended ones", () => {
+    expect(holdsPlan([pass("gold", "active", "2027-10-22")], "gold", "2026-10-23")).toBe(true);
+    expect(holdsPlan([pass("gold", "suspended", "2027-10-22")], "gold", "2026-10-23")).toBe(true);
+    expect(holdsPlan([pass("dec", "active", "2027-01-10")], "gold", "2026-10-23")).toBe(false);
+    expect(holdsPlan([pass("gold", "active", "2026-10-22")], "gold", "2026-10-23")).toBe(false);
+    expect(holdsPlan([pass("gold", "cancelled", "2027-10-22"), pass("gold", "ended", "2027-10-22")], "gold", "2026-10-23")).toBe(false);
   });
 });

@@ -4,13 +4,13 @@ import { Hono } from "hono";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { schema, type Db } from "@intu/db";
-import { CURRENCIES, defaultCurrency, passTerms, saleStatus, toLagos } from "@intu/rules";
+import { CURRENCIES, defaultCurrency, holdsPlan, passTerms, saleStatus, toLagos } from "@intu/rules";
 import type { TokenVerifier } from "../auth/tokens.ts";
 import { idParam, uuid } from "../admin/validation.ts";
 import { body, fail } from "../http.ts";
 import { needMember, requireMember, type MemberEnv } from "../member/routes.ts";
 import { InvalidSignature, type Payments } from "./providers.ts";
-import type { PaymentService } from "./service.ts";
+import { passesOf, type PaymentService } from "./service.ts";
 
 const { benefits, categories, orders, planPrices, plans, refunds, subscriptions } = schema;
 const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format, e.g. +2348012345678");
@@ -36,6 +36,7 @@ export function paymentRoutes(deps: { db: Db; verify: TokenVerifier; payments: P
     const rows = (await db.select().from(plans).where(eq(plans.active, true)).orderBy(asc(plans.name))).filter((p) => saleStatus(p, today()).onSale && (member.isTest || !p.isTest));
     if (!rows.length) return c.json({ plans: [], currency: defaultCurrency(member) });
     const ids = rows.map((p) => p.id);
+    const mine = await passesOf(db, member.id);
     const prices = await db.select().from(planPrices).where(inArray(planPrices.planId, ids));
     const included = await db
       .select({ planId: benefits.planId, name: categories.name, code: categories.code, quantity: benefits.quantity, period: benefits.period })
@@ -51,6 +52,8 @@ export function paymentRoutes(deps: { db: Db; verify: TokenVerifier; payments: P
           name: p.name,
           description: p.description,
           crewSize: p.groupSize,
+          // Already holding this plan: it can't be bought again until that pass ends.
+          held: holdsPlan(mine, p.id, today()),
           ...passTerms(p, today()),
           prices: prices.filter((x) => x.planId === p.id).map((x) => ({ currency: x.currency, amountMinor: x.amountMinor })),
           benefits: included.filter((b) => b.planId === p.id).map(({ planId: _p, ...b }) => b),

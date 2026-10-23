@@ -133,6 +133,8 @@ export interface PlanOffer {
   name: string;
   description: string | null;
   crewSize: number;
+  /** The member already has a current pass on this plan, so it can't be bought again yet. */
+  held: boolean;
   startsOn: string;
   endsOn: string;
   /** A yearly pass that renews automatically. */

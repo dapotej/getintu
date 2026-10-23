@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { and, asc, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { grantAllowances, one, schema, type Db } from "@intu/db";
+import { holdsPlan, toLagos } from "@intu/rules";
+import { passesOf } from "../payments/service.ts";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
@@ -28,6 +30,8 @@ const CreateMembership = z.object({
   paymentSource: z.enum(["direct", "client", "gift"]),
   groupId: uuid.nullable().optional(),
   note: z.string().max(500).optional(),
+  /** Ops confirmed a second pass on a plan the member already holds. */
+  allowSamePlan: z.boolean().optional(),
 });
 
 const StatusChange = z.object({ reason: z.string().min(3).max(500) });
@@ -169,6 +173,7 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
       if (!member) fail(404, "not_found", "Member not found");
       const [plan] = await tx.select().from(plans).where(eq(plans.id, input.planId));
       if (!plan) fail(422, "unknown_plan", "Plan not found");
+      if (!input.allowSamePlan && holdsPlan(await passesOf(tx, id), plan.id, toLagos(new Date()).date)) fail(409, "already_have_plan", "This member already has a current pass on this plan");
       const startsOn = input.startsOn ?? plan.seasonStartsOn;
       const endsOn = input.endsOn ?? plan.seasonEndsOn;
       if (!startsOn || !endsOn) fail(400, "dates_required", "This plan has no season dates; give startsOn and endsOn");

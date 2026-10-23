@@ -177,6 +177,29 @@ describe.runIf(url)("payments", () => {
     expect((await third.client.get(`/me/orders/${left.orderId}`)).json.order.status).toBe("pending");
   });
 
+  it("won't sell a plan the member already holds; a second payment for it is flagged for refund", async () => {
+    const { row, client } = await member();
+    // Two checkouts opened before either is paid.
+    const first = (await client.post("/checkout", { planId: season.id, currency: "GBP" })).json.orderId;
+    const second = (await client.post("/checkout", { planId: season.id, currency: "GBP" })).json.orderId;
+    for (const orderId of [first, second]) {
+      const order = await orderOf(orderId);
+      await stripeEvent("checkout.session.completed", { id: order.providerRef, client_reference_id: orderId, payment_status: "paid", amount_total: 25_000, currency: "gbp", payment_intent: `pi_${orderId}` });
+    }
+    expect(await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, row.id))).toHaveLength(1);
+    expect(await orderOf(second)).toMatchObject({ status: "paid", membershipId: null, failureReason: expect.stringContaining("refund") });
+    // Now it's held: not offered, and not sold again.
+    expect((await client.get("/plans")).json.plans.find((p: { id: string }) => p.id === season.id).held).toBe(true);
+    expect((await client.get("/plans")).json.plans.find((p: { id: string }) => p.id === annual.id).held).toBe(false);
+    expect((await client.post("/checkout", { planId: season.id, currency: "GBP" })).json.error.code).toBe("already_have_plan");
+    // A different plan is fine.
+    expect((await client.post("/checkout", { planId: annual.id, currency: "GBP" })).status).toBe(201);
+    // Ops can add a second one only on purpose.
+    const ops = as(await createStaff(db, "ops"));
+    expect((await ops.post(`/admin/members/${row.id}/memberships`, { planId: season.id, paymentSource: "gift" })).json.error.code).toBe("already_have_plan");
+    expect((await ops.post(`/admin/members/${row.id}/memberships`, { planId: season.id, paymentSource: "gift", allowSamePlan: true })).status).toBe(201);
+  });
+
   it("doesn't activate a payment for the wrong amount", async () => {
     const { row, client } = await member();
     const { orderId } = (await client.post("/checkout", { planId: season.id, currency: "GBP" })).json;
