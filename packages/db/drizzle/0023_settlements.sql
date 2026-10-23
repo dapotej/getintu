@@ -36,3 +36,6 @@ CREATE UNIQUE INDEX "settlements_partner_period_live" ON "settlements" USING btr
 ALTER TABLE "settlements" ADD CONSTRAINT "settlements_transferReference_unique" UNIQUE("transfer_reference");--> statement-breakpoint
 -- Founders approve payouts from the start; anyone else is switched on in the console.
 UPDATE "staff_users" SET "can_approve_payouts" = true WHERE "role" = 'founder';
+--> statement-breakpoint
+-- Like every table: Supabase's public API must not reach it.
+ALTER TABLE "settlement_adjustments" ENABLE ROW LEVEL SECURITY;
