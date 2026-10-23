@@ -93,8 +93,12 @@ export function paymentRoutes(deps: { db: Db; verify: TokenVerifier; payments: P
 
   app.get("/me/orders", signedIn, async (c) => c.json({ orders: await receipts(needMember(c).id) }));
 
+  // The app checks this while it waits after the payment page: a pending order is also checked
+  // with the provider, in case the webhook is late.
   app.get("/me/orders/:id", signedIn, async (c) => {
     const { id } = idParam.parse(c.req.param());
+    const [pending] = await receipts(needMember(c).id, id);
+    if (pending?.status === "pending") await service.reconcile(id);
     const [order] = await receipts(needMember(c).id, id);
     if (!order) fail(404, "not_found", "Order not found");
     return c.json({ order });

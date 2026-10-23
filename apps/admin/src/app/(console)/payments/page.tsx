@@ -179,7 +179,26 @@ export default function PaymentsPage() {
                   <RefundLines order={o} />
                 </Td>
                 <Td className="whitespace-nowrap text-muted">{formatLagosDateTime(o.paidAt ?? o.createdAt)}</Td>
-                <Td className="text-right">{refunding && o.refundable > 0 && data ? <RefundPanel order={o} approvalOver={data.approvalOver[o.currency]} onDone={refresh} /> : null}</Td>
+                <Td className="whitespace-nowrap text-right">
+                  {refunding && o.refundable > 0 && data ? <RefundPanel order={o} approvalOver={data.approvalOver[o.currency]} onDone={refresh} /> : null}
+                  {o.status === "pending" && o.provider !== "test" ? (
+                    <Button
+                      size="sm"
+                      tone="ghost"
+                      onClick={async () => {
+                        try {
+                          const res = await api<{ changed: boolean; order: Order }>(`/admin/orders/${o.id}/check`, { method: "POST", body: {} });
+                          if (!res.changed) alert(`${PROVIDER_LABELS[o.provider]} says this hasn't been paid yet.`);
+                          refresh();
+                        } catch (err) {
+                          alert(errorMessage(err));
+                        }
+                      }}
+                    >
+                      Check with {PROVIDER_LABELS[o.provider]}
+                    </Button>
+                  ) : null}
+                </Td>
               </tr>
             ))}
           </Table>

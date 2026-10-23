@@ -66,3 +66,4 @@ Rules Dapo has settled where the spec was silent or ambiguous. The code follows 
 | 23 Oct 2026 | Refund approval | Finance, founder and ops lead can refund. Over ₦150,000, £75 or $100 a different one of them must approve first. A refund can end the pass (a Crew pass for the whole crew) and stops auto-renew. | `refundNeedsApproval` |
 | 23 Oct 2026 | Crew passes | The buyer pays for the crew and invites the others by phone after paying; each joins with the buyer's dates and the crew's shared allowances. | `crew_invites` |
 | 23 Oct 2026 | Email at checkout | Checkout asks for an email if the member hasn't given one: Paystack needs it, and receipts go there (from milestone 8). | `POST /checkout` |
+| 23 Oct 2026 | Checking payments directly | Besides webhooks, the API asks the provider about a pending order while the app waits, and from the console on request, so a late or lost webhook never leaves a member without their pass. | `reconcile()`, `lookup()` |

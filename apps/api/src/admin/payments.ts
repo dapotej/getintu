@@ -111,6 +111,15 @@ export function paymentAdminRoutes(deps: { db: Db; service: PaymentService; cloc
     return c.json({ orders: await withRefunds(await orderRows(and(eq(orders.memberId, id)))), approvalOver: REFUND_APPROVAL_OVER });
   });
 
+  // A pending order checked with Stripe or Paystack now, e.g. when a member says they paid.
+  app.post("/orders/:id/check", requirePermission("payments.read"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const changed = await service.reconcile(id, { force: true });
+    const [order] = await withRefunds(await orderRows(and(eq(orders.id, id)), 1));
+    if (!order) fail(404, "not_found", "Order not found");
+    return c.json({ order, changed });
+  });
+
   app.post("/orders/:id/refunds", requirePermission("payments.refund"), async (c) => {
     const { id } = idParam.parse(c.req.param());
     const input = await body(c, z.object({ amountMinor: minorUnits.refine((n) => n > 0, "More than nothing"), reason: z.string().trim().min(3).max(500), endsPass: z.boolean() }));

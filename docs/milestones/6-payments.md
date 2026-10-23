@@ -11,6 +11,8 @@
 
 **Webhooks** (`POST /webhooks/stripe`, `POST /webhooks/paystack`): signatures checked; each event recorded with the change it makes, in one transaction, so the same event twice changes nothing. Renewals make the next year's pass from the day after the current one ends; failed renewals mark the subscription past due; a cancelled subscription is recorded; refunds are settled when the provider confirms them.
 
+**Safety net for late webhooks**: while the app waits after the payment page, the API also asks Stripe (the checkout session) or Paystack (verify transaction) whether the order is paid, at most every 8 seconds, and applies the answer exactly as the webhook would. Whichever arrives first makes the pass; the other changes nothing. In the console, a pending order has **Check with Stripe / Paystack**.
+
 **Console → Payments** (finance, founder, ops lead; ops can look)
 - Money taken this month and in all, by currency, after refunds (TEST payments shown apart until there is real money).
 - Every order, searchable and filtered by status, with its refunds; **failed renewals**.

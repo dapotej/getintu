@@ -206,6 +206,36 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
     });
   }
 
+  // ------------------------------------------------------------------ Asking the provider
+
+  /** When each pending order was last checked with its provider, so a waiting app doesn't flood it. */
+  const lastChecked = new Map<string, number>();
+  const CHECK_EVERY_MS = 8_000;
+
+  /**
+   * The safety net for a late or lost webhook: asks the provider how a pending order's checkout
+   * went and applies the answer exactly as the webhook would. Returns whether anything changed.
+   */
+  async function reconcile(orderId: string, opts: { force?: boolean } = {}) {
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!order || order.status !== "pending" || !order.providerRef) return false;
+    const client = payments.byName(order.provider);
+    if (!client || client.name === "test") return false;
+    const now = deps.clock().getTime();
+    if (!opts.force && now - (lastChecked.get(orderId) ?? 0) < CHECK_EVERY_MS) return false;
+    if (lastChecked.size > 5_000) lastChecked.clear();
+    lastChecked.set(orderId, now);
+    let event: PaymentEvent | null;
+    try {
+      event = await client.lookup(order.providerRef);
+    } catch {
+      // The provider is unreachable, or never saw the checkout: the webhook (or a later check) settles it.
+      return false;
+    }
+    if (!event) return false;
+    return (await applyEvent(order.provider, event)) === "applied";
+  }
+
   // ------------------------------------------------------------------ Auto-renew
 
   async function setAutoRenew(memberId: string, subscriptionId: string, on: boolean) {
@@ -395,7 +425,7 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
     return approve ? sendRefund(refundId, { type: "staff", id: staffId }) : one(await db.select().from(refunds).where(eq(refunds.id, refundId)));
   }
 
-  return { startCheckout, applyEvent, setAutoRenew, crewOf, invite, cancelInvite, invitesFor, acceptInvite, requestRefund, decideRefund, providerFor };
+  return { startCheckout, applyEvent, reconcile, setAutoRenew, crewOf, invite, cancelInvite, invitesFor, acceptInvite, requestRefund, decideRefund, providerFor };
 }
 
 export type PaymentService = ReturnType<typeof paymentService>;

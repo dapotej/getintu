@@ -62,6 +62,11 @@ export interface PaymentProviderClient {
   setAutoRenew(sub: { providerSubscriptionId: string; data: Record<string, string> | null }, on: boolean): Promise<void>;
   /** Checks the signature and reads the events; throws InvalidSignature if it isn't the provider's. */
   parseWebhook(rawBody: string, headers: Headers): Promise<PaymentEvent[]>;
+  /**
+   * Asks the provider directly how a checkout went, in case its webhook is late or lost: the same
+   * event a webhook would bring when it's paid (or has expired), else null while it's still open.
+   */
+  lookup(providerRef: string): Promise<PaymentEvent | null>;
 }
 
 export class InvalidSignature extends Error {}
@@ -128,6 +133,21 @@ export function stripeProvider(opts: { secretKey: string; webhookSecret: string;
     return json;
   };
   const subMatch = (id: string): SubscriptionMatch => ({ providerSubscriptionId: id });
+  /** A paid checkout session as the event that makes the pass. */
+  const sessionPaid = async (o: Json, eventId: string): Promise<PaymentEvent> => {
+    let paymentId: string | null = typeof o.payment_intent === "string" ? o.payment_intent : null;
+    if (!paymentId && o.invoice) paymentId = (await call("GET", `/v1/invoices/${o.invoice}`)).payment_intent ?? null;
+    return {
+      kind: "paid",
+      eventId,
+      orderId: o.client_reference_id ?? o.metadata?.orderId ?? null,
+      providerRef: o.id,
+      providerPaymentId: paymentId,
+      amountMinor: o.amount_total,
+      currency: String(o.currency).toUpperCase(),
+      subscription: o.subscription ? { providerSubscriptionId: o.subscription, providerCustomerId: o.customer ?? null } : null,
+    };
+  };
 
   return {
     name: "stripe",
@@ -160,6 +180,12 @@ export function stripeProvider(opts: { secretKey: string; webhookSecret: string;
     async setAutoRenew(sub, on) {
       await call("POST", `/v1/subscriptions/${sub.providerSubscriptionId}`, { cancel_at_period_end: on ? "false" : "true" });
     },
+    async lookup(providerRef) {
+      const o = await call("GET", `/v1/checkout/sessions/${providerRef}`);
+      if (o.payment_status === "paid") return sessionPaid(o, `lookup:${o.id}`);
+      if (o.status === "expired") return { kind: "checkout_expired", eventId: `lookup:expired:${o.id}`, providerRef: o.id };
+      return null;
+    },
     async parseWebhook(rawBody, headers) {
       const header = headers.get("stripe-signature") ?? "";
       const parts = Object.fromEntries(header.split(",").map((p) => p.split("=") as [string, string]));
@@ -179,20 +205,7 @@ export function stripeProvider(opts: { secretKey: string; webhookSecret: string;
         case "checkout.session.async_payment_succeeded": {
           // A bank debit can complete before the money arrives; that comes later as async_payment_succeeded.
           if (o.payment_status !== "paid") return [{ kind: "ignored", eventId, type: `${event.type}:${o.payment_status}` }];
-          let paymentId: string | null = typeof o.payment_intent === "string" ? o.payment_intent : null;
-          if (!paymentId && o.invoice) paymentId = (await call("GET", `/v1/invoices/${o.invoice}`)).payment_intent ?? null;
-          return [
-            {
-              kind: "paid",
-              eventId,
-              orderId: o.client_reference_id ?? o.metadata?.orderId ?? null,
-              providerRef: o.id,
-              providerPaymentId: paymentId,
-              amountMinor: o.amount_total,
-              currency: String(o.currency).toUpperCase(),
-              subscription: o.subscription ? { providerSubscriptionId: o.subscription, providerCustomerId: o.customer ?? null } : null,
-            },
-          ];
+          return [await sessionPaid(o, eventId)];
         }
         case "checkout.session.expired":
           return [{ kind: "checkout_expired", eventId, providerRef: o.id }];
@@ -221,6 +234,21 @@ export function stripeProvider(opts: { secretKey: string; webhookSecret: string;
 // Paystack
 
 export const paystackSignature = (secretKey: string, payload: string) => createHmac("sha512", secretKey).update(payload).digest("hex");
+
+/** A successful Paystack charge (from a webhook or a verify call) as the event that makes the pass. */
+function chargePaid(d: Json, eventId: string): PaymentEvent {
+  const planCode: string | null = d.plan?.plan_code ?? (typeof d.plan === "string" && d.plan ? d.plan : null);
+  return {
+    kind: "paid",
+    eventId,
+    orderId: d.metadata?.orderId ?? null,
+    providerRef: d.reference,
+    providerPaymentId: String(d.id),
+    amountMinor: d.amount,
+    currency: d.currency,
+    subscription: planCode ? { providerSubscriptionId: null, providerCustomerId: d.customer?.customer_code ?? null, data: { planCode } } : null,
+  };
+}
 
 export function paystackProvider(opts: { secretKey: string; fetch?: Fetch; baseUrl?: string }): PaymentProviderClient {
   const f = opts.fetch ?? fetch;
@@ -260,6 +288,11 @@ export function paystackProvider(opts: { secretKey: string; fetch?: Fetch; baseU
       const r = await call("POST", "/refund", { transaction: req.providerPaymentId, amount: req.amountMinor, merchant_note: `intu refund ${req.reference}` });
       return { providerRefundId: String(r.id), status: r.status === "processed" ? "succeeded" : "processing" };
     },
+    async lookup(providerRef) {
+      // "abandoned" only means not paid yet: the member may still finish on the same page.
+      const d = await call("GET", `/transaction/verify/${encodeURIComponent(providerRef)}`);
+      return d.status === "success" ? chargePaid(d, `charge.success:${d.id}`) : null;
+    },
     async setAutoRenew(sub, on) {
       const token = sub.data?.["emailToken"];
       if (!token) throw new ProviderError("Paystack: this subscription has no email token yet", 409);
@@ -279,18 +312,7 @@ export function paystackProvider(opts: { secretKey: string; fetch?: Fetch; baseU
           const orderId = d.metadata?.orderId ?? null;
           // A renewal charge is Paystack's own, with the plan but none of our order's details.
           if (!orderId && planCode && customer) return [{ kind: "renewed", eventId, match: { providerCustomerId: customer, planCode }, providerPaymentId: String(d.id), amountMinor: d.amount, currency: d.currency }];
-          return [
-            {
-              kind: "paid",
-              eventId,
-              orderId,
-              providerRef: d.reference,
-              providerPaymentId: String(d.id),
-              amountMinor: d.amount,
-              currency: d.currency,
-              subscription: planCode ? { providerSubscriptionId: null, providerCustomerId: customer, data: { planCode } } : null,
-            },
-          ];
+          return [chargePaid(d, eventId)];
         }
         case "subscription.create":
           if (!customer || !planCode) return [{ kind: "ignored", eventId, type: event.event }];
@@ -327,6 +349,9 @@ export function testProvider(): PaymentProviderClient {
       return { providerRefundId: `test_refund_${Date.now()}_${refunds}`, status: "succeeded" };
     },
     async setAutoRenew() {},
+    async lookup() {
+      return null;
+    },
     async parseWebhook() {
       throw new InvalidSignature("The TEST provider has no webhooks");
     },

@@ -81,6 +81,14 @@ describe("Stripe", () => {
     expect((await deliver(stripe, { id: "evt_8", type: "customer.created", data: { object: {} } }))[0]).toEqual({ kind: "ignored", eventId: "evt_8", type: "customer.created" });
   });
 
+  it("asks Stripe how a checkout went: paid, expired, or still open", async () => {
+    const paid = make({ "/v1/checkout/sessions/cs_9": { id: "cs_9", status: "complete", payment_status: "paid", client_reference_id: "ord-9", amount_total: 25_000, currency: "gbp", payment_intent: "pi_9" } });
+    expect(await paid.stripe.lookup("cs_9")).toMatchObject({ kind: "paid", orderId: "ord-9", providerPaymentId: "pi_9", amountMinor: 25_000, currency: "GBP" });
+    expect(paid.sent[0]).toMatchObject({ method: "GET", url: "https://api.stripe.com/v1/checkout/sessions/cs_9" });
+    expect(await make({ "/v1/checkout/sessions/cs_8": { id: "cs_8", status: "expired", payment_status: "unpaid" } }).stripe.lookup("cs_8")).toEqual({ kind: "checkout_expired", eventId: "lookup:expired:cs_8", providerRef: "cs_8" });
+    expect(await make({ "/v1/checkout/sessions/cs_7": { id: "cs_7", status: "open", payment_status: "unpaid" } }).stripe.lookup("cs_7")).toBeNull();
+  });
+
   it("refuses a forged or stale signature", async () => {
     const { stripe } = make();
     const event = { id: "evt_9", type: "customer.created", data: { object: {} } };
@@ -136,6 +144,14 @@ describe("Paystack", () => {
     });
     expect((await deliver(paystack, { event: "invoice.payment_failed", data: { id: 3, subscription: { subscription_code: "SUB_1" } } }))[0]).toMatchObject({ kind: "renewal_failed", match: { providerSubscriptionId: "SUB_1" } });
     expect((await deliver(paystack, { event: "refund.processed", data: { id: 77 } }))[0]).toEqual({ kind: "refund_succeeded", eventId: "refund.processed:77", providerRefundId: "77" });
+  });
+
+  it("verifies a transaction with Paystack, under the same event id as its webhook", async () => {
+    const { paystack, sent } = make({ "/transaction/verify/ord-5": { id: 555, status: "success", reference: "ord-5", amount: 300_000_000, currency: "NGN", metadata: { orderId: "ord-5" } } });
+    expect(await paystack.lookup("ord-5")).toEqual({ kind: "paid", eventId: "charge.success:555", orderId: "ord-5", providerRef: "ord-5", providerPaymentId: "555", amountMinor: 300_000_000, currency: "NGN", subscription: null });
+    expect(sent[0]).toMatchObject({ method: "GET" });
+    // Not paid yet: the member may still finish on the same page.
+    expect(await make({ "/transaction/verify/ord-6": { id: 6, status: "abandoned", reference: "ord-6" } }).paystack.lookup("ord-6")).toBeNull();
   });
 
   it("refuses a forged signature", async () => {

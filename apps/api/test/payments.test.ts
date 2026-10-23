@@ -21,6 +21,9 @@ function fakeProviders() {
   // Ids stay unique across test runs, which share a database.
   const run = randomUUID().slice(0, 8);
   const refundStatus = { stripe: "succeeded" };
+  // What Stripe's checkout sessions and Paystack's transactions look like when asked about directly.
+  const sessions = new Map<string, Record<string, unknown>>();
+  const transactions = new Map<string, Record<string, unknown>>();
   const reply = (data: unknown, paystack = false) => new Response(JSON.stringify(paystack ? { status: true, message: "ok", data } : data), { status: 200, headers: { "content-type": "application/json" } });
   const f = (async (input: string | URL | Request, init?: RequestInit) => {
     const u = new URL(String(input));
@@ -32,6 +35,10 @@ function fakeProviders() {
         const ref = new URLSearchParams(body).get("client_reference_id");
         return reply({ id: `cs_test_${run}_${n}`, url: `https://checkout.stripe.com/c/pay/cs_test_${run}_${n}?order=${ref}` });
       }
+      if (u.pathname.startsWith("/v1/checkout/sessions/")) {
+        const id = u.pathname.split("/").pop() ?? "";
+        return reply(sessions.get(id) ?? { id, status: "open", payment_status: "unpaid" });
+      }
       if (u.pathname.startsWith("/v1/invoices/")) return reply({ id: u.pathname.split("/").pop(), payment_intent: `pi_test_${run}_${n}` });
       if (u.pathname === "/v1/refunds") return reply({ id: `re_test_${run}_${n}`, status: refundStatus.stripe });
       if (u.pathname.startsWith("/v1/subscriptions/")) return reply({ id: u.pathname.split("/").pop() });
@@ -39,12 +46,16 @@ function fakeProviders() {
     if (u.host === "api.paystack.co") {
       if (u.pathname === "/plan") return reply({ plan_code: `PLN_test_${run}_${n}` }, true);
       if (u.pathname === "/transaction/initialize") return reply({ authorization_url: `https://checkout.paystack.com/${n}`, reference: JSON.parse(body).reference }, true);
+      if (u.pathname.startsWith("/transaction/verify/")) {
+        const t = transactions.get(decodeURIComponent(u.pathname.split("/").pop() ?? ""));
+        return t ? reply(t, true) : new Response(JSON.stringify({ status: false, message: "Transaction reference not found" }), { status: 400 });
+      }
       if (u.pathname === "/refund") return reply({ id: `${run}${n}`, status: "pending" }, true);
       if (u.pathname.startsWith("/subscription/")) return reply({}, true);
     }
     return new Response(JSON.stringify({ error: { message: "unexpected" } }), { status: 404 });
   }) as typeof fetch;
-  return { f, sent, refundStatus };
+  return { f, sent, refundStatus, sessions, transactions };
 }
 
 describe.runIf(url)("payments", () => {
@@ -135,6 +146,35 @@ describe.runIf(url)("payments", () => {
     // A forged event is refused.
     const raw = JSON.stringify({ id: "evt_forged", type: "checkout.session.completed", data: { object: paid } });
     expect((await app.request("/webhooks/stripe", { method: "POST", headers: { "stripe-signature": stripeSignature("whsec_wrong", raw, Math.floor(now.getTime() / 1000)) }, body: raw })).status).toBe(400);
+  });
+
+  it("asks the provider when the webhook hasn't come, and still makes only one pass", async () => {
+    // Stripe: paid, but its webhook is late. The app's check while it waits finds out.
+    const { row, client } = await member();
+    const { orderId } = (await client.post("/checkout", { planId: season.id, currency: "GBP" })).json;
+    const order = await orderOf(orderId);
+    expect((await client.get(`/me/orders/${orderId}`)).json.order.status).toBe("pending");
+    const session = { id: order.providerRef, status: "complete", payment_status: "paid", client_reference_id: orderId, amount_total: 25_000, currency: "gbp", payment_intent: "pi_late" };
+    fake.sessions.set(order.providerRef ?? "", session);
+    // Checked at most every few seconds: the first answer stands until then.
+    expect((await client.get(`/me/orders/${orderId}`)).json.order.status).toBe("pending");
+    const finance = as(await createStaff(db, "finance"));
+    expect((await finance.post(`/admin/orders/${orderId}/check`)).json).toMatchObject({ changed: true, order: { status: "paid" } });
+    // The webhook arrives after all: nothing more happens.
+    await stripeEvent("checkout.session.completed", session);
+    expect(await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, row.id))).toHaveLength(1);
+
+    // Paystack: verified while the app waits, under the same event id as the webhook's.
+    const buyer = await member();
+    const start = (await buyer.client.post("/checkout", { planId: season.id, currency: "NGN" })).json;
+    fake.transactions.set(start.orderId, { id: `${tag}9001`, status: "success", reference: start.orderId, amount: 50_000_000, currency: "NGN", metadata: { orderId: start.orderId } });
+    expect((await buyer.client.get(`/me/orders/${start.orderId}`)).json.order).toMatchObject({ status: "paid", membershipId: expect.any(String) });
+    expect(await paystackEvent("charge.success", { id: `${tag}9001`, reference: start.orderId, amount: 50_000_000, currency: "NGN", metadata: { orderId: start.orderId } })).toBe(200);
+    expect(await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, buyer.row.id))).toHaveLength(1);
+    // A checkout Paystack never saw stays pending, without an error.
+    const third = await member();
+    const left = (await third.client.post("/checkout", { planId: season.id, currency: "NGN" })).json;
+    expect((await third.client.get(`/me/orders/${left.orderId}`)).json.order.status).toBe("pending");
   });
 
   it("doesn't activate a payment for the wrong amount", async () => {
