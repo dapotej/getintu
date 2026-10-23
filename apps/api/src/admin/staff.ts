@@ -14,7 +14,7 @@ const { staffUsers } = schema;
 // Admin console roles. Venue staff and managers are added from the partner portal (milestone 4).
 const teamRole = z.enum(["founder", "ops_lead", "ops", "concierge", "finance", "partnerships"]);
 const Invite = z.object({ email: z.email().toLowerCase(), fullName: z.string().min(2).max(200), role: teamRole });
-const Update = z.object({ role: teamRole, active: z.boolean(), fullName: z.string().min(2).max(200) }).partial();
+const Update = z.object({ role: teamRole, active: z.boolean(), fullName: z.string().min(2).max(200), canApprovePayouts: z.boolean() }).partial();
 
 const publicStaff = ({ pinHash: _p, totpSecretEncrypted: _t, ...s }: typeof staffUsers.$inferSelect) => s;
 
@@ -51,7 +51,7 @@ export function staffRoutes(deps: { db: Db; authAdmin: AuthAdmin; inviteRedirect
     const { id } = idParam.parse(c.req.param());
     const input = await body(c, Update);
     const staff = c.get("staff");
-    if (id === staff.id && (input.active === false || (input.role && input.role !== staff.role))) {
+    if (id === staff.id && (input.active === false || (input.role && input.role !== staff.role) || (input.canApprovePayouts !== undefined && input.canApprovePayouts !== staff.canApprovePayouts))) {
       fail(409, "cannot_change_self", "Ask another team lead to change your own role or access");
     }
     const row = await db.transaction(async (tx) => {

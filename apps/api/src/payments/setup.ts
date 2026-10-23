@@ -1,7 +1,7 @@
 // Which payment client takes each currency, from the environment. Real Stripe or Paystack when
 // their keys are set; otherwise the TEST provider, which is refused in production.
 import { providerFor, type Currency } from "@intu/rules";
-import { paystackProvider, stripeProvider, testProvider, type PaymentProviderClient, type Payments, type ProviderName } from "./providers.ts";
+import { paystackPayouts, paystackProvider, stripeProvider, testPayouts, testProvider, type PaymentProviderClient, type Payments, type ProviderName } from "./providers.ts";
 
 export interface PaymentSettings {
   apiUrl?: string | null;
@@ -26,5 +26,6 @@ export function createPayments(s: PaymentSettings): Payments {
       return client;
     },
     byName: (name) => clients[name] ?? null,
+    payouts: s.paystack ? paystackPayouts({ ...s.paystack, ...(s.fetch ? { fetch: s.fetch } : {}) }) : s.allowTest ? testPayouts() : null,
   };
 }

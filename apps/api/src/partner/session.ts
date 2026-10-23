@@ -15,6 +15,9 @@ export interface DoorContext {
   staffId: string;
   fullName: string;
   venueId: string;
+  /** Door staff scan; venue managers also see the business side (statements). */
+  role: "door_staff" | "venue_manager";
+  partnerId: string;
 }
 
 export type PartnerEnv = { Variables: { door: DoorContext } };
@@ -34,9 +37,10 @@ export function signSession(secret: string, door: { staffId: string; venueId: st
 /** Staff still active and still assigned to the venue, checked on every request. */
 async function doorStaffAt(db: Db, staffId: string, venueId: string) {
   const [row] = await db
-    .select({ id: staffUsers.id, fullName: staffUsers.fullName })
+    .select({ id: staffUsers.id, fullName: staffUsers.fullName, role: staffUsers.role, partnerId: venues.partnerId })
     .from(staffUsers)
     .innerJoin(staffUserVenues, and(eq(staffUserVenues.staffUserId, staffUsers.id), eq(staffUserVenues.venueId, venueId)))
+    .innerJoin(venues, eq(venues.id, staffUserVenues.venueId))
     .where(and(eq(staffUsers.id, staffId), eq(staffUsers.active, true), isNull(staffUsers.deletedAt)));
   return row;
 }
@@ -57,7 +61,7 @@ export function requireDoorStaff(deps: { db: Db; partnerSessionSecret: string; c
     }
     const staff = await doorStaffAt(deps.db, staffId, venueId);
     if (!staff) fail(401, "invalid_session", "This PIN no longer works here. Ask your manager.");
-    c.set("door", { staffId: staff.id, fullName: staff.fullName, venueId });
+    c.set("door", { staffId: staff.id, fullName: staff.fullName, venueId, role: staff.role === "venue_manager" ? "venue_manager" : "door_staff", partnerId: staff.partnerId });
     await next();
   });
 }

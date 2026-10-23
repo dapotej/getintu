@@ -59,7 +59,7 @@ describe.runIf(url)("admin authentication", () => {
     const res = await as(staff).get("/admin/me");
     expect(res.status).toBe(200);
     expect(res.json).toEqual({
-      staff: { id: staff.id, role: "concierge", fullName: staff.fullName, email: staff.email },
+      staff: { id: staff.id, role: "concierge", fullName: staff.fullName, email: staff.email, canApprovePayouts: false },
       permissions: ["members.read", "plans.read", "partners.read", "bookings.manage"],
     });
   });

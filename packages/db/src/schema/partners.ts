@@ -12,7 +12,14 @@ export const partners = pgTable("partners", {
   contactName: text(),
   contactEmail: text(),
   contactPhone: text(),
+  // The payout account (bank code and account number), encrypted with BANK_DETAILS_KEY. Only the
+  // bank name, the last four digits and the account name the bank confirmed are kept in the clear.
   bankDetailsEncrypted: text(),
+  payoutBankName: text(),
+  payoutAccountLast4: text(),
+  payoutAccountName: text(),
+  // Paystack's transfer recipient for that account.
+  payoutRecipientCode: text(),
   settlementTerms: text(),
   active: boolean().notNull().default(true),
   isTest: boolean().notNull().default(false),

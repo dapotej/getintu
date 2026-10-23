@@ -75,7 +75,7 @@ export async function createWorld(db: Db, opts: WorldOptions = {}) {
     people.push({ member: member!, membership: membership! });
   }
 
-  return { venue: venue!, offer: offer!, plan: plan!, people, first: people[0]! };
+  return { partner: partner!, venue: venue!, offer: offer!, plan: plan!, people, first: people[0]! };
 }
 
 /** A catalogue category's id by code, e.g. "C04-S05". */

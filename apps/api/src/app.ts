@@ -19,6 +19,11 @@ import type { PhotoStore } from "./member/photos.ts";
 import { smsHookRoutes, testSender, type CodeSender } from "./member/sms-hook.ts";
 import { scannerRoutes } from "./partner/routes.ts";
 import { paymentAdminRoutes } from "./admin/payments.ts";
+import { settlementAdminRoutes } from "./admin/settlements.ts";
+import { jobRoutes } from "./jobs.ts";
+import { partnerStatementRoutes } from "./partner/statements.ts";
+import type { Sealer } from "./settlements/sealed.ts";
+import { settlementService } from "./settlements/service.ts";
 import { paymentRoutes } from "./payments/routes.ts";
 import { paymentService } from "./payments/service.ts";
 import { createPayments } from "./payments/setup.ts";
@@ -47,6 +52,10 @@ export interface AppDeps {
   smsHook?: { secret: string | undefined; sender?: CodeSender };
   /** Stripe and Paystack (or TEST payments outside production). */
   payments?: Payments;
+  /** Encrypts partners' bank details (BANK_DETAILS_KEY); without it they can't be saved. */
+  bankDetails?: Sealer | null;
+  /** The scheduler's secret for /jobs/* (JOBS_SECRET); without it the jobs are off. */
+  jobsSecret?: string | undefined;
   /** The time, replaceable in tests. */
   clock?: () => Date;
 }
@@ -93,6 +102,9 @@ export function createApp(deps: AppDeps) {
   // Without settings (local tools, tests that don't pay), payments are TEST only.
   const payments = deps.payments ?? createPayments({ allowTest: true });
   const service = paymentService({ db: deps.db, payments, clock });
+  const settlementsService = settlementService({ db: deps.db, payments, sealer: deps.bankDetails ?? null, clock });
+  app.route("/", partnerStatementRoutes({ db: deps.db, partnerSessionSecret: deps.partnerSessionSecret, clock }));
+  app.route("/", jobRoutes({ secret: deps.jobsSecret, settlements: settlementsService, clock }));
   app.route("/", paymentRoutes({ db: deps.db, verify: deps.verify, payments, service, clock, allowTestPayments: payments.byName("test") !== null }));
 
   const admin = new Hono<AdminEnv>();
@@ -107,6 +119,7 @@ export function createApp(deps: AppDeps) {
   admin.route("/", bookingRoutes({ db: deps.db, clock }));
   admin.route("/", clientRoutes({ db: deps.db, clock }));
   admin.route("/", paymentAdminRoutes({ db: deps.db, service, clock }));
+  admin.route("/", settlementAdminRoutes({ db: deps.db, service: settlementsService, payments, clock }));
   app.route("/admin", admin);
 
   return app;

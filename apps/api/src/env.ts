@@ -38,6 +38,11 @@ const Env = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   // Paystack (naira): the secret key, which also checks its webhooks.
   PAYSTACK_SECRET_KEY: z.string().min(1).optional(),
+  // Encrypts partners' bank account numbers: 32 random bytes, base64 (openssl rand -base64 32).
+  // Keep it safe: without it, saved bank details can't be read, only set again.
+  BANK_DETAILS_KEY: z.string().min(40).optional(),
+  // What the scheduler sends to run jobs (monthly statements): at least 32 random characters.
+  JOBS_SECRET: z.string().min(32).optional(),
   // Live keys are refused unless this is "yes": payments stay in test mode until Dapo says otherwise.
   PAYMENTS_LIVE: z.enum(["yes", "no"]).default("no"),
 });

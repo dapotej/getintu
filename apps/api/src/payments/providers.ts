@@ -52,6 +52,8 @@ export type PaymentEvent =
   | { kind: "checkout_expired"; eventId: string; providerRef: string }
   | { kind: "refund_succeeded"; eventId: string; providerRefundId: string }
   | { kind: "refund_failed"; eventId: string; providerRefundId: string; reason: string }
+  | { kind: "transfer_succeeded"; eventId: string; reference: string; transferCode: string | null }
+  | { kind: "transfer_failed"; eventId: string; reference: string; transferCode: string | null; reason: string }
   | { kind: "ignored"; eventId: string; type: string };
 
 export interface PaymentProviderClient {
@@ -323,6 +325,12 @@ export function paystackProvider(opts: { secretKey: string; fetch?: Fetch; baseU
         }
         case "subscription.disable":
           return [{ kind: "subscription_ended", eventId, match: { providerSubscriptionId: d.subscription_code } }];
+        // Payouts to partners (milestone 7): the reference is the statement's transfer reference.
+        case "transfer.success":
+          return [{ kind: "transfer_succeeded", eventId, reference: d.reference, transferCode: d.transfer_code ?? null }];
+        case "transfer.failed":
+        case "transfer.reversed":
+          return [{ kind: "transfer_failed", eventId, reference: d.reference, transferCode: d.transfer_code ?? null, reason: event.event === "transfer.reversed" ? "The bank sent the transfer back" : (d.reason ?? d.gateway_response ?? "The transfer failed") }];
         case "refund.processed":
           return [{ kind: "refund_succeeded", eventId, providerRefundId: String(d.id) }];
         case "refund.failed":
@@ -358,10 +366,98 @@ export function testProvider(): PaymentProviderClient {
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Payouts: naira transfers to partners' bank accounts (Paystack Transfers).
+
+export type TransferStatus = "success" | "pending" | "failed";
+
+export interface PayoutClient {
+  name: "paystack" | "test";
+  banks(): Promise<{ name: string; code: string }[]>;
+  /** The account holder's name as the bank has it; throws ProviderError if there's no such account. */
+  resolveAccount(accountNumber: string, bankCode: string): Promise<{ accountName: string }>;
+  /** Paystack's transfer recipient for the account. */
+  createRecipient(r: { name: string; accountNumber: string; bankCode: string }): Promise<{ recipientCode: string }>;
+  /** Sends naira; the reference is ours and one per attempt, so a retry never pays twice. */
+  transfer(t: { amountMinor: number; recipientCode: string; reference: string; reason: string }): Promise<{ transferCode: string | null; status: TransferStatus; reason?: string }>;
+  /** The transfer's outcome, in case its webhook is late or lost. */
+  verifyTransfer(reference: string): Promise<{ transferCode: string | null; status: TransferStatus; reason?: string }>;
+}
+
+const transferStatus = (d: Json): { transferCode: string | null; status: TransferStatus; reason?: string } => {
+  const code = d.transfer_code ?? null;
+  if (d.status === "success") return { transferCode: code, status: "success" };
+  if (d.status === "failed" || d.status === "reversed" || d.status === "abandoned" || d.status === "rejected") return { transferCode: code, status: "failed", reason: d.reason ?? `Paystack: transfer ${d.status}` };
+  // An OTP stops API transfers: they need turning off in Paystack's settings.
+  if (d.status === "otp") return { transferCode: code, status: "failed", reason: "Paystack is asking for an OTP. Turn off OTP for transfers in Paystack (Settings → Preferences), then send it again." };
+  return { transferCode: code, status: "pending" };
+};
+
+export function paystackPayouts(opts: { secretKey: string; fetch?: Fetch; baseUrl?: string }): PayoutClient {
+  const f = opts.fetch ?? fetch;
+  const base = opts.baseUrl ?? "https://api.paystack.co";
+  const call = async (method: "GET" | "POST", path: string, body?: Record<string, unknown>): Promise<Json> => {
+    const res = await f(`${base}${path}`, {
+      method,
+      headers: { authorization: `Bearer ${opts.secretKey}`, ...(body ? { "content-type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const json = (await res.json().catch(() => ({}))) as Json;
+    if (!res.ok || json?.status === false) throw new ProviderError(`Paystack: ${json?.message ?? res.statusText}`, res.status);
+    return json.data;
+  };
+  return {
+    name: "paystack",
+    async banks() {
+      const list = (await call("GET", "/bank?country=nigeria&currency=NGN&perPage=100")) as Json[];
+      return list.filter((b) => b.active !== false && !b.is_deleted).map((b) => ({ name: String(b.name), code: String(b.code) }));
+    },
+    async resolveAccount(accountNumber, bankCode) {
+      const d = await call("GET", `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+      return { accountName: String(d.account_name) };
+    },
+    async createRecipient(r) {
+      const d = await call("POST", "/transferrecipient", { type: "nuban", name: r.name, account_number: r.accountNumber, bank_code: r.bankCode, currency: "NGN" });
+      return { recipientCode: String(d.recipient_code) };
+    },
+    async transfer(t) {
+      return transferStatus(await call("POST", "/transfer", { source: "balance", amount: t.amountMinor, recipient: t.recipientCode, reference: t.reference, reason: t.reason, currency: "NGN" }));
+    },
+    async verifyTransfer(reference) {
+      return transferStatus(await call("GET", `/transfer/verify/${encodeURIComponent(reference)}`));
+    },
+  };
+}
+
+/** TEST payouts: no money moves. One TEST bank, whose accounts all resolve, and every transfer succeeds. */
+export function testPayouts(): PayoutClient {
+  return {
+    name: "test",
+    async banks() {
+      return [{ name: "TEST Bank", code: "999" }];
+    },
+    async resolveAccount(accountNumber) {
+      if (!/^\d{10}$/.test(accountNumber)) throw new ProviderError("TEST: account numbers have 10 digits", 422);
+      return { accountName: `TEST ACCOUNT ${accountNumber.slice(-4)}` };
+    },
+    async createRecipient(r) {
+      return { recipientCode: `RCP_test_${r.accountNumber.slice(-4)}` };
+    },
+    async transfer(t) {
+      return { transferCode: `TRF_test_${t.reference.slice(-8)}`, status: "success" };
+    },
+    async verifyTransfer(reference) {
+      return { transferCode: `TRF_test_${reference.slice(-8)}`, status: "success" };
+    },
+  };
+}
+
 /** Which client takes a currency: the real provider when its keys are set, else TEST (not in production). */
 export interface Payments {
   forCurrency(currency: Currency): PaymentProviderClient;
   byName(name: ProviderName): PaymentProviderClient | null;
   /** The API's public address, if set; otherwise the address each request came in on. */
   apiUrl: string | null;
+  /** Naira payouts to partners: Paystack Transfers, or TEST outside production; null if neither. */
+  payouts: PayoutClient | null;
 }

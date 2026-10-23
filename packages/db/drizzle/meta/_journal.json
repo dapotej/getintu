@@ -162,6 +162,13 @@
       "when": 1792778891275,
       "tag": "0022_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792798024341,
+      "tag": "0023_settlements",
+      "breakpoints": true
     }
   ]
 }

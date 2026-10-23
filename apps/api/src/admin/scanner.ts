@@ -18,8 +18,10 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newLoginCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(0, CODE_ALPHABET.length)]).join("");
 
 const Pin = z.string().regex(/^\d{6}$/, "A PIN is 6 digits");
-const NewDoorStaff = z.object({ fullName: z.string().trim().min(2).max(120), pin: Pin });
-const UpdateDoorStaff = z.object({ fullName: z.string().trim().min(2).max(120), pin: Pin, active: z.boolean() }).partial();
+// Managers scan too, and also see the venue's statements in the partner app.
+const PartnerRole = z.enum(["door_staff", "venue_manager"]);
+const NewDoorStaff = z.object({ fullName: z.string().trim().min(2).max(120), pin: Pin, role: PartnerRole.default("door_staff") });
+const UpdateDoorStaff = z.object({ fullName: z.string().trim().min(2).max(120), pin: Pin, active: z.boolean(), role: PartnerRole }).partial();
 
 // Never put a PIN hash in an audit row or a response.
 const publicStaff = ({ pinHash: _pin, totpSecretEncrypted: _totp, ...s }: typeof staffUsers.$inferSelect) => s;
@@ -70,12 +72,12 @@ export function scannerAdminRoutes(deps: { db: Db; passKeys: PassKeys; clock: ()
 
   app.post("/venues/:id/door-staff", requirePermission("partners.write"), async (c) => {
     const { id } = idParam.parse(c.req.param());
-    const { fullName, pin } = await body(c, NewDoorStaff);
+    const { fullName, pin, role } = await body(c, NewDoorStaff);
     const venue = await venueOr404(id);
     if (await pinTaken(id, pin)) fail(409, "pin_taken", "Someone at this venue already uses that PIN");
     const staff = c.get("staff");
     const row = await db.transaction(async (tx) => {
-      const created = one(await tx.insert(staffUsers).values({ role: "door_staff", fullName, partnerId: venue.partnerId, pinHash: hashPin(pin), isTest: venue.isTest }).returning());
+      const created = one(await tx.insert(staffUsers).values({ role, fullName, partnerId: venue.partnerId, pinHash: hashPin(pin), isTest: venue.isTest }).returning());
       await tx.insert(staffUserVenues).values({ staffUserId: created.id, venueId: id });
       await staffAudit(tx, staff, "door_staff.created", "staff_user", created.id, null, { ...publicStaff(created), venueId: id });
       return created;
@@ -97,7 +99,7 @@ export function scannerAdminRoutes(deps: { db: Db; passKeys: PassKeys; clock: ()
       const row = one(
         await tx
           .update(staffUsers)
-          .set({ ...(input.fullName ? { fullName: input.fullName } : {}), ...(input.active !== undefined ? { active: input.active } : {}), ...(input.pin ? { pinHash: hashPin(input.pin) } : {}) })
+          .set({ ...(input.fullName ? { fullName: input.fullName } : {}), ...(input.active !== undefined ? { active: input.active } : {}), ...(input.pin ? { pinHash: hashPin(input.pin) } : {}), ...(input.role ? { role: input.role } : {}) })
           .where(eq(staffUsers.id, id))
           .returning(),
       );

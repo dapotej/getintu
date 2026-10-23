@@ -5,6 +5,7 @@ import { one, schema, type Db } from "@intu/db";
 import { createApp } from "../../src/app.ts";
 import { memoryPhotoStore } from "../../src/member/photos.ts";
 import type { Payments } from "../../src/payments/providers.ts";
+import type { Sealer } from "../../src/settlements/sealed.ts";
 import type { StaffRole } from "../../src/auth/permissions.ts";
 import type { AuthAdmin } from "../../src/auth/supabase-admin.ts";
 import { createTokenVerifier } from "../../src/auth/tokens.ts";
@@ -66,7 +67,7 @@ export async function createStaff(db: Db, role: StaffRole, extra: Partial<typeof
 export const TEST_CONCIERGE = "+2348000000001";
 export const SMS_HOOK_SECRET = `v1,whsec_${Buffer.from("test-sms-hook-secret-0123456789ab").toString("base64")}`;
 
-export function testApi(db: Db, opts: { clock?: () => Date; payments?: Payments } = {}) {
+export function testApi(db: Db, opts: { clock?: () => Date; payments?: Payments; bankDetails?: Sealer | null; jobsSecret?: string } = {}) {
   const auth = fakeAuthAdmin();
   const photos = memoryPhotoStore();
   const sent: { phone: string; code: string }[] = [];
@@ -82,6 +83,8 @@ export function testApi(db: Db, opts: { clock?: () => Date; payments?: Payments 
     smsHook: { secret: SMS_HOOK_SECRET, sender: { send: async (phone, code) => void sent.push({ phone, code }) } },
     ...(opts.clock ? { clock: opts.clock } : {}),
     ...(opts.payments ? { payments: opts.payments } : {}),
+    ...(opts.bankDetails !== undefined ? { bankDetails: opts.bankDetails } : {}),
+    ...(opts.jobsSecret ? { jobsSecret: opts.jobsSecret } : {}),
   });
 
   const as = (staff: { authUserId: string | null }, aal: "aal1" | "aal2" = "aal2") => client(() => signToken({ sub: staff.authUserId ?? "", aal }));

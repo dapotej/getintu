@@ -6,6 +6,7 @@ import { holdsPlan, passTerms, providerFor, refundable, refundNeedsApproval, ren
 import { audit, grantAllowances, one, schema, type Db, type Tx } from "@intu/db";
 import { fail } from "../http.ts";
 import type { PaymentEvent, Payments, SubscriptionMatch } from "./providers.ts";
+import { applyTransferResult } from "../settlements/service.ts";
 
 const { crewInvites, memberships, members, orders, planPrices, plans, refunds, subscriptions, webhookEvents } = schema;
 type Actor = { type: "member" | "staff" | "system"; id?: string | null };
@@ -203,6 +204,10 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
           await audit(tx, SYSTEM, { action: "subscription.ended", entity: "subscription", entityId: sub.id, before: sub, after });
           break;
         }
+        case "transfer_succeeded":
+        case "transfer_failed":
+          await applyTransferResult(tx, { reference: event.reference, transferCode: event.transferCode, status: event.kind === "transfer_succeeded" ? "success" : "failed", reason: event.kind === "transfer_failed" ? event.reason : undefined }, deps.clock);
+          break;
         case "refund_succeeded":
         case "refund_failed": {
           const [refund] = await tx.select().from(refunds).where(eq(refunds.providerRefundId, event.providerRefundId)).for("update");

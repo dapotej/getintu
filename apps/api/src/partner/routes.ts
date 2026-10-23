@@ -76,7 +76,7 @@ export function scannerRoutes(deps: PartnerDeps) {
     const venue = await venueByLoginCode(db, venueCode);
     const staff = venue
       ? await db
-          .select({ id: staffUsers.id, fullName: staffUsers.fullName, pinHash: staffUsers.pinHash })
+          .select({ id: staffUsers.id, fullName: staffUsers.fullName, pinHash: staffUsers.pinHash, role: staffUsers.role })
           .from(staffUsers)
           .innerJoin(staffUserVenues, and(eq(staffUserVenues.staffUserId, staffUsers.id), eq(staffUserVenues.venueId, venue.id)))
           .where(and(eq(staffUsers.active, true), isNull(staffUsers.deletedAt)))
@@ -91,7 +91,7 @@ export function scannerRoutes(deps: PartnerDeps) {
     return c.json({
       token: await signSession(deps.partnerSessionSecret, { staffId: match.id, venueId: venue.id }, now),
       expiresAt: new Date(now.getTime() + SHIFT_HOURS * 3600_000).toISOString(),
-      staff: { id: match.id, fullName: match.fullName },
+      staff: { id: match.id, fullName: match.fullName, role: match.role },
       venue: { id: venue.id, name: venue.name },
     });
   });
@@ -101,7 +101,7 @@ export function scannerRoutes(deps: PartnerDeps) {
 
   // Everything the scanner caches to work offline. Refreshed when online, and every 15 minutes.
   app.get("/partner/venue", signedIn, async (c) => {
-    const { venueId, staffId, fullName } = c.get("door");
+    const { venueId, staffId, fullName, role } = c.get("door");
     const [venue] = await db
       .select({ id: venues.id, name: venues.name, kind: venues.kind, area: venues.area, active: venues.active, tier: venues.tier, openingHours: venues.openingHours })
       .from(venues)
@@ -139,7 +139,7 @@ export function scannerRoutes(deps: PartnerDeps) {
       serverTime: now.toISOString(),
       bookings: upcoming,
       vehicles: fleet,
-      staff: { id: staffId, fullName },
+      staff: { id: staffId, fullName, role },
       venue,
       offers: venueOffers.map(({ offer, code, name }) => ({
         id: offer.id,

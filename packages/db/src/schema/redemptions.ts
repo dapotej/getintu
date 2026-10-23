@@ -53,6 +53,11 @@ export const redemptions = pgTable(
     flagReviewedById: uuid().references(() => staffUsers.id),
     flagReviewNote: text(),
     settlementId: uuid().references(() => settlements.id),
+    // What intu owes for it, fixed when it joins a statement (the offer's rate, per person when the
+    // benefit counts per person), so later rate changes don't move a statement.
+    settledAmountMinor: integer(),
+    // Finance kept it off statements (a dispute, say) until the hold is lifted.
+    settlementHoldReason: text(),
     ...timestamps,
     deletedAt: deletedAt(),
   },

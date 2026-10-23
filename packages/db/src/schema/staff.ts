@@ -17,6 +17,8 @@ export const staffUsers = pgTable("staff_users", {
   totpSecretEncrypted: text(),
   // Set for venue staff and managers; null for the intu team.
   partnerId: uuid().references(() => partners.id),
+  // May approve partner statements for payout (set per person in the console).
+  canApprovePayouts: boolean().notNull().default(false),
   active: boolean().notNull().default(true),
   isTest: boolean().notNull().default(false),
   ...timestamps,

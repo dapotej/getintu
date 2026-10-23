@@ -10,6 +10,8 @@ export interface StaffContext {
   role: StaffRole;
   fullName: string;
   email: string | null;
+  /** May approve partner statements for payout (a per-person switch, on top of the role). */
+  canApprovePayouts: boolean;
 }
 
 export type AdminEnv = { Variables: { staff: StaffContext } };
@@ -40,7 +42,7 @@ export function requireStaff(deps: { db: Db; verify: TokenVerifier }) {
     if (!staff || staff.partnerId !== null || staff.role === "door_staff" || staff.role === "venue_manager") {
       fail(403, "not_staff", "This account doesn't have access to the admin console");
     }
-    c.set("staff", { id: staff.id, role: staff.role, fullName: staff.fullName, email: staff.email });
+    c.set("staff", { id: staff.id, role: staff.role, fullName: staff.fullName, email: staff.email, canApprovePayouts: staff.canApprovePayouts });
     await next();
   });
 }

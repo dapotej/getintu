@@ -27,7 +27,8 @@ export const paymentSourceEnum = pgEnum("payment_source", ["direct", "client", "
 export const redemptionResultEnum = pgEnum("redemption_result", ["approved", "declined"]);
 export const redemptionMethodEnum = pgEnum("redemption_method", ["online", "offline", "manual"]);
 export const bookingStatusEnum = pgEnum("booking_status", ["requested", "confirmed", "declined", "cancelled", "completed", "no_show"]);
-export const settlementStatusEnum = pgEnum("settlement_status", ["draft", "approved", "paid", "void"]);
+// draft → approved → paying (a transfer sent) → paid; a failed transfer can be sent again.
+export const settlementStatusEnum = pgEnum("settlement_status", ["draft", "approved", "paying", "paid", "failed", "void"]);
 export const staffRoleEnum = pgEnum("staff_role", [
   "door_staff",
   "venue_manager",
