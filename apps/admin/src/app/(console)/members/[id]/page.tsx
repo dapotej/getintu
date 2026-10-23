@@ -275,6 +275,17 @@ function MembershipCard({ ms, canWrite, onChange, testPassHref }: { ms: Membersh
               )}
             </SidePanel>
           ) : null}
+          {canWrite && (ms.status === "active" || ms.status === "suspended" || ms.status === "pending") ? (
+            <ReasonPanel
+              button="Cancel pass"
+              title="Cancel this pass"
+              description={`${ms.plan.name}: it stops working for good (venues decline it), any auto-renewal stops, and the member can be given this plan again. To return money, refund it from Payments.`}
+              confirm="Cancel pass"
+              hint="Why, e.g. the member asked, or it was set up by mistake. Kept in the audit log."
+              danger
+              onConfirm={async (reason) => onChange(await api<MemberDetail>(`/admin/memberships/${ms.id}/cancel`, { method: "POST", body: { reason } }))}
+            />
+          ) : null}
         </>
       }
     >

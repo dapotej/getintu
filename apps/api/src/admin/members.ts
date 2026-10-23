@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { and, asc, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { grantAllowances, one, schema, type Db } from "@intu/db";
-import { holdsPlan, toLagos } from "@intu/rules";
-import { passesOf } from "../payments/service.ts";
+import { holdsPlan, shiftDate, toLagos } from "@intu/rules";
+import { passesOf, type PaymentService } from "../payments/service.ts";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
 import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
@@ -36,7 +36,7 @@ const CreateMembership = z.object({
 
 const StatusChange = z.object({ reason: z.string().min(3).max(500) });
 
-export function memberRoutes(db: Db, photos: PhotoStore) {
+export function memberRoutes(db: Db, photos: PhotoStore, payments: Pick<PaymentService, "stopRenewalFor">) {
   const app = new Hono<AdminEnv>();
 
   app.get("/members", requirePermission("members.read"), async (c) => {
@@ -174,9 +174,10 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
       const [plan] = await tx.select().from(plans).where(eq(plans.id, input.planId));
       if (!plan) fail(422, "unknown_plan", "Plan not found");
       if (!input.allowSamePlan && holdsPlan(await passesOf(tx, id), plan.id, toLagos(new Date()).date)) fail(409, "already_have_plan", "This member already has a current pass on this plan");
-      const startsOn = input.startsOn ?? plan.seasonStartsOn;
-      const endsOn = input.endsOn ?? plan.seasonEndsOn;
-      if (!startsOn || !endsOn) fail(400, "dates_required", "This plan has no season dates; give startsOn and endsOn");
+      // A season plan runs for its season; a rolling plan (annual) its length from the start, today by default.
+      const startsOn = input.startsOn ?? plan.seasonStartsOn ?? (plan.durationDays ? toLagos(new Date()).date : null);
+      const endsOn = input.endsOn ?? plan.seasonEndsOn ?? (plan.durationDays && startsOn ? shiftDate(startsOn, plan.durationDays - 1) : null);
+      if (!startsOn || !endsOn) fail(400, "dates_required", "This plan has no season dates or length; give startsOn and endsOn");
       if (endsOn < startsOn) fail(400, "invalid_dates", "endsOn is before startsOn");
       const created = one(await tx
         .insert(memberships)
@@ -215,6 +216,24 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
     });
   setStatus("active", "suspended", "suspend");
   setStatus("suspended", "active", "reinstate");
+
+  // Ends a pass for good (unlike a suspension): the scanner declines it, the member can be given the
+  // plan again, and any auto-renewal stops. Money is refunded separately, from Payments.
+  app.post("/memberships/:id/cancel", requirePermission("members.write"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const { reason } = await body(c, StatusChange);
+    const staff = c.get("staff");
+    const memberId = await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(memberships).where(eq(memberships.id, id)).for("update");
+      if (!before) fail(404, "not_found", "Membership not found");
+      if (before.status === "cancelled" || before.status === "ended") fail(409, "invalid_status", "This pass has already ended");
+      const after = one(await tx.update(memberships).set({ status: "cancelled" }).where(eq(memberships.id, id)).returning());
+      await staffAudit(tx, staff, "membership.cancelled", "membership", id, before, { ...after, reason });
+      return before.memberId;
+    });
+    await payments.stopRenewalFor(id, { type: "staff", id: staff.id });
+    return c.json(await loadMember(memberId));
+  });
 
   return app;
 }

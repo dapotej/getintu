@@ -200,6 +200,29 @@ describe.runIf(url)("payments", () => {
     expect((await ops.post(`/admin/members/${row.id}/memberships`, { planId: season.id, paymentSource: "gift", allowSamePlan: true })).status).toBe(201);
   });
 
+  it("cancels a pass by hand: the plan can be given again, and a yearly pass stops renewing", async () => {
+    const { row, client } = await member();
+    const { orderId } = (await client.post("/checkout", { planId: annual.id, currency: "GBP" })).json;
+    const order = await orderOf(orderId);
+    const subId = `sub_cancel_${tag}`;
+    await stripeEvent("checkout.session.completed", { id: order.providerRef, client_reference_id: orderId, payment_status: "paid", amount_total: 49_900, currency: "gbp", subscription: subId, customer: "cus_c", invoice: "in_c" });
+    const pass = (await orderOf(orderId)).membershipId ?? "";
+    const ops = as(await createStaff(db, "ops"));
+    // Suspended still holds the plan.
+    await ops.post(`/admin/memberships/${pass}/suspend`, { reason: "TEST checking" });
+    expect((await ops.post(`/admin/members/${row.id}/memberships`, { planId: annual.id, paymentSource: "gift" })).json.error.code).toBe("already_have_plan");
+    expect((await ops.post(`/admin/memberships/${pass}/cancel`, {})).status).toBe(400);
+    const res = await ops.post(`/admin/memberships/${pass}/cancel`, { reason: "TEST set up by mistake" });
+    expect(res.json.memberships.find((m: { id: string }) => m.id === pass).status).toBe("cancelled");
+    expect(fake.sent.at(-1)).toMatchObject({ path: `api.stripe.com/v1/subscriptions/${subId}`, body: "cancel_at_period_end=true" });
+    expect((await client.get("/me/subscriptions")).json.subscriptions[0]).toMatchObject({ status: "cancelled", autoRenew: false });
+    expect((await ops.post(`/admin/memberships/${pass}/cancel`, { reason: "TEST again" })).json.error.code).toBe("invalid_status");
+    const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, pass), eq(schema.auditLog.action, "membership.cancelled")));
+    expect(audit?.after).toMatchObject({ reason: "TEST set up by mistake" });
+    // The plan can be given again.
+    expect((await ops.post(`/admin/members/${row.id}/memberships`, { planId: annual.id, paymentSource: "gift" })).status).toBe(201);
+  });
+
   it("doesn't activate a payment for the wrong amount", async () => {
     const { row, client } = await member();
     const { orderId } = (await client.post("/checkout", { planId: season.id, currency: "GBP" })).json;

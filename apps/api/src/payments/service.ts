@@ -260,6 +260,18 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
     });
   }
 
+  /** A pass ended by hand: its yearly auto-renewal stops too, so the member isn't charged again. */
+  async function stopRenewalFor(membershipId: string, actor: Actor) {
+    const [sub] = await db.select().from(subscriptions).where(and(eq(subscriptions.currentMembershipId, membershipId), ne(subscriptions.status, "cancelled")));
+    if (!sub) return;
+    const client = payments.byName(sub.provider);
+    if (client && sub.providerSubscriptionId) await client.setAutoRenew({ providerSubscriptionId: sub.providerSubscriptionId, data: sub.providerData }, false).catch(() => null);
+    await db.transaction(async (tx) => {
+      const after = one(await tx.update(subscriptions).set({ status: "cancelled", cancelledAt: deps.clock(), cancelAtPeriodEnd: true }).where(eq(subscriptions.id, sub.id)).returning());
+      await audit(tx, actor, { action: "subscription.cancelled", entity: "subscription", entityId: sub.id, before: sub, after });
+    });
+  }
+
   // ------------------------------------------------------------------ Crew
 
   async function crewOf(memberId: string, membershipId: string) {
@@ -434,7 +446,7 @@ export function paymentService(deps: { db: Db; payments: Payments; clock: () => 
     return approve ? sendRefund(refundId, { type: "staff", id: staffId }) : one(await db.select().from(refunds).where(eq(refunds.id, refundId)));
   }
 
-  return { startCheckout, applyEvent, reconcile, setAutoRenew, crewOf, invite, cancelInvite, invitesFor, acceptInvite, requestRefund, decideRefund, providerFor };
+  return { startCheckout, applyEvent, reconcile, setAutoRenew, stopRenewalFor, crewOf, invite, cancelInvite, invitesFor, acceptInvite, requestRefund, decideRefund, providerFor };
 }
 
 export type PaymentService = ReturnType<typeof paymentService>;
