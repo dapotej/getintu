@@ -8,6 +8,7 @@ import { useCached } from "@/lib/data";
 import { formatDate, formatMoney, whatsappLink } from "@/lib/logic";
 import { EmailSignIn } from "@/components/email-sign-in";
 import { useSession } from "@/lib/session";
+import { config } from "@/lib/config";
 import { colors, space } from "@/lib/theme";
 import type { Membership, Subscription } from "@/lib/types";
 
@@ -95,6 +96,7 @@ export default function Account() {
       {me?.doctorOnCall ? <Button label="Doctor on call" tone="secondary" onPress={() => Linking.openURL(`tel:${me.doctorOnCall?.phone ?? ""}`)} /> : null}
 
       <Button label="Sign out" tone="ghost" onPress={() => void signOut()} style={{ marginTop: space(6) }} />
+      <T variant="small" color={colors.muted} style={{ textAlign: "center" }}>Version {config.version}</T>
     </Screen>
   );
 }

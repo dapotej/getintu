@@ -2,6 +2,7 @@
 import { useRouter } from "expo-router";
 import { View } from "react-native";
 import { Button, Screen, T, Wordmark } from "@/components/ui";
+import { config } from "@/lib/config";
 import { colors, space } from "@/lib/theme";
 
 export default function Welcome() {
@@ -17,6 +18,7 @@ export default function Welcome() {
         <Button label="Join intu" tone="day" onPress={() => router.replace("/sign-in?mode=join")} />
         <Button label="I'm already a member" tone="secondary" onPress={() => router.replace("/sign-in?mode=member")} />
       </View>
+      <T variant="small" color={colors.muted} style={{ textAlign: "center", marginTop: space(6) }}>Version {config.version}</T>
     </Screen>
   );
 }

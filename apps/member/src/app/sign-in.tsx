@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api";
 import { toE164 } from "@/lib/logic";
 import { useSession } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
+import { config } from "@/lib/config";
 import { colors, space } from "@/lib/theme";
 
 type Mode = "join" | "member";
@@ -132,6 +133,7 @@ export default function SignIn() {
           <Button label={via === "phone" ? "Use a different number" : "Use a different email"} tone="ghost" onPress={() => void startOver()} />
         </>
       )}
+      <T variant="small" color={colors.muted} style={{ textAlign: "center", marginTop: space(6) }}>Version {config.version}</T>
     </Screen>
   );
 }

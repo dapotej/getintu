@@ -22,6 +22,7 @@ jobs:
       EXPO_PROJECT_ID: ${{ vars.EXPO_PROJECT_ID || secrets.EXPO_PROJECT_ID }}
       EXPO_OWNER: ${{ vars.EXPO_OWNER || secrets.EXPO_OWNER }}
       EXPO_PUBLIC_API_URL: https://intu-api-staging.vercel.app
+      EXPO_PUBLIC_APP_VERSION: ${{ github.sha }}
       EXPO_PUBLIC_SUPABASE_URL: https://xokexyqjlydjqquownvw.supabase.co
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_PUBLISHABLE_KEY }}
     steps:
