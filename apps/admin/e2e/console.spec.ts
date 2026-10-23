@@ -145,6 +145,8 @@ test("see a plan's cost and margin, and price a benefit no venue offers yet", as
   await panel.getByRole("button", { name: "Add benefit" }).click();
   const cost = page.getByRole("row", { name: /Theatre ticket/ }).last();
   await expect(cost).toContainText("No venue offers it yet: set a planning cost");
+  // Flagged on the benefit too, and still flagged once it has a planning cost.
+  await expect(page.getByRole("row", { name: /Theatre ticket/ }).first()).toContainText("No partner yet");
   await expect(page.getByText("Leaves out 1 unpriced benefit")).toBeVisible();
 
   await page.getByRole("row", { name: /Theatre ticket/ }).first().getByRole("button", { name: "Edit" }).click();
@@ -153,6 +155,7 @@ test("see a plan's cost and margin, and price a benefit no venue offers yet", as
   await panel.getByRole("button", { name: "Save benefit" }).click();
   await expect(cost).toContainText("Planning cost");
   await expect(cost).toContainText("₦40,000");
+  await expect(page.getByRole("row", { name: /Theatre ticket/ }).first()).toContainText("No partner yet");
   await expect(cost).toContainText("₦20,000");
   await expect(page.getByRole("row", { name: /Total cost/ })).toContainText("₦50,000");
   await expect(page.getByRole("row", { name: /Total cost/ })).toContainText("₦30,000");
@@ -169,8 +172,16 @@ test("add a partner and a late-night top-tier venue with a naira offer", async (
   await panel.getByRole("button", { name: "Add partner" }).click();
   await expect(page.getByRole("heading", { name: `TEST Nights ${tag}` })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add venue" }).click();
-  await panel.getByLabel("Venue or service name").fill(`TEST Rooftop ${tag}`);
+  await page.getByRole("button", { name: "Add venue or service" }).click();
+  // The fields follow the type: a phone service has a service line and no map location.
+  await panel.getByLabel("Type").selectOption({ label: "A service by phone or video" });
+  await expect(panel.getByLabel("Kind of service")).toBeVisible();
+  await expect(panel.getByLabel("Service line")).toBeVisible();
+  await expect(panel.getByLabel("Map location")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Add service" })).toBeVisible();
+  await panel.getByLabel("Type").selectOption({ label: "A place members visit" });
+  await expect(panel.getByLabel("Service line")).toHaveCount(0);
+  await panel.getByLabel("Name").fill(`TEST Rooftop ${tag}`);
   await panel.getByLabel("Area").fill("Ikoyi");
   await pickCategory(panel.getByLabel("Kind of place"), "Members' Clubs");
   await panel.getByLabel("Tier").selectOption({ label: "Top tier" });

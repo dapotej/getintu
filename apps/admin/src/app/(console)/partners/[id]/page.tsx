@@ -2,11 +2,12 @@
 import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, Icon, Input, PageHeader, Select, SidePanel, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { ActionForm, checked, readLocation, text, textOrNull } from "@/components/forms";
 import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { CategorySelect } from "@/components/category-select";
+import { VenueTypeFields, venueNoun, type VenueKind } from "@/components/venue-fields";
 import { useCatalogue } from "@/lib/catalogue";
 import type { Partner, Venue } from "@/lib/types";
 
@@ -41,74 +42,21 @@ export default function PartnerPage() {
       <div className="grid items-start gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="flex flex-col gap-6">
           <Card
-            title="Venues"
-            description="Each venue has its own hours, tier and offers. Open one to manage them."
+            title="Venues and services"
+            description="Places members visit, and services that come to them or are by phone. Each has its own hours, tier and offers."
             flush
             actions={
               writable ? (
                 <SidePanel
-                  title="Add a venue"
-                  description="A place members visit, or a service that comes to them."
+                  title="Add a venue or service"
+                  description="A place members visit, a service that comes to them, or a service by phone or video."
                   trigger={(open) => (
                     <Button size="sm" tone="secondary" onClick={open}>
-                      <Icon name="plus" className="size-4" /> Add venue
+                      <Icon name="plus" className="size-4" /> Add venue or service
                     </Button>
                   )}
                 >
-                  {() => (
-                    <ActionForm
-                      action={async (form) => {
-                        const { venue } = await api<{ venue: Venue }>("/admin/venues", {
-                          method: "POST",
-                          body: { partnerId: id, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location"), servicePhone: textOrNull(form, "servicePhone") },
-                        });
-                        router.push(`/partners/${id}/venues/${venue.id}`);
-                      }}
-                    >
-                      {(busy) => (
-                        <>
-                          <Field label="Venue or service name" hint="e.g. Atlantic Shore Oniru, or Coastal Rides chauffeurs">
-                            <Input name="name" required />
-                          </Field>
-                          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking. A phone service (doctor on call) has nothing to scan.">
-                            <Select name="kind" defaultValue="place">
-                              <option value="place">A place members visit</option>
-                              <option value="visiting">A service that comes to them (booked)</option>
-                              <option value="remote">A service by phone or video</option>
-                            </Select>
-                          </Field>
-                          <Field label="Area" hint="Where it is, or where it serves">
-                            <Input name="area" placeholder="Oniru" required />
-                          </Field>
-                          <Field label="City">
-                            <Select name="city">
-                              <option value="lagos">Lagos</option>
-                              <option value="abuja">Abuja</option>
-                            </Select>
-                          </Field>
-                          <Field label="Kind of place" hint="From the catalogue, e.g. Beach Clubs">
-                            <CategorySelect name="categoryId" placesOnly required />
-                          </Field>
-                          <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
-                            <Select name="tier">
-                              <option value="standard">Standard</option>
-                              <option value="top">Top tier</option>
-                            </Select>
-                          </Field>
-                          <Field label="Service line" hint="For a service by phone or video: the number members call, e.g. +2348012345678.">
-                            <Input name="servicePhone" type="tel" />
-                          </Field>
-                          <Field label="Map location" hint="Latitude, longitude, e.g. 6.4262, 3.4486. Leave blank for a service that isn't a place.">
-                            <Input name="location" />
-                          </Field>
-                          <HoursEditor name="hours" />
-                          <Button type="submit" disabled={busy}>
-                            Add venue
-                          </Button>
-                        </>
-                      )}
-                    </ActionForm>
-                  )}
+                  {() => <AddVenueForm partnerId={id} onAdded={(venueId) => router.push(`/partners/${id}/venues/${venueId}`)} />}
                 </SidePanel>
               ) : null
             }
@@ -221,5 +169,49 @@ export default function PartnerPage() {
         </Card>
       </div>
     </>
+  );
+}
+
+/** Adds a venue or service; the fields follow its type. */
+function AddVenueForm({ partnerId, onAdded }: { partnerId: string; onAdded: (venueId: string) => void }) {
+  const [kind, setKind] = useState<VenueKind>("place");
+  return (
+    <ActionForm
+      action={async (form) => {
+        const { venue } = await api<{ venue: Venue }>("/admin/venues", {
+          method: "POST",
+          body: { partnerId, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location"), servicePhone: textOrNull(form, "servicePhone") },
+        });
+        onAdded(venue.id);
+      }}
+    >
+      {(busy) => (
+        <>
+          <Field label="Name" hint={kind === "place" ? "e.g. Atlantic Shore Oniru" : kind === "visiting" ? "e.g. Coastal Rides chauffeurs" : "e.g. CareLine 24/7 doctor line"}>
+            <Input name="name" required />
+          </Field>
+          <VenueTypeFields kind={kind} onKind={setKind} />
+          <Field label="Area" hint={kind === "place" ? "Where it is" : "Where it serves, e.g. Lagos"}>
+            <Input name="area" placeholder={kind === "place" ? "Oniru" : "Lagos"} required />
+          </Field>
+          <Field label="City">
+            <Select name="city">
+              <option value="lagos">Lagos</option>
+              <option value="abuja">Abuja</option>
+            </Select>
+          </Field>
+          <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
+            <Select name="tier">
+              <option value="standard">Standard</option>
+              <option value="top">Top tier</option>
+            </Select>
+          </Field>
+          <HoursEditor name="hours" />
+          <Button type="submit" disabled={busy}>
+            Add {venueNoun(kind)}
+          </Button>
+        </>
+      )}
+    </ActionForm>
   );
 }

@@ -195,7 +195,7 @@ export default function PlanPage() {
           writable ? (
             <SidePanel
               title="Add a benefit"
-              description="A whole category, a subcategory, or one service type. Set its rules and costing after."
+              description="A whole category, a subcategory, or one service type. It can be something no partner offers yet: give it a planning cost, and sign a partner before members need it."
               trigger={(open) => (
                 <Button size="sm" tone="secondary" onClick={open}>
                   <Icon name="plus" className="size-4" /> Add benefit
@@ -243,7 +243,7 @@ export default function PlanPage() {
         ) : (
           <Table head={["Benefit", "Allowance", "Rules", "Venue tiers", ""]}>
             {benefits.map((b) => (
-              <BenefitRow key={b.id} benefit={b} writable={writable} onChange={setData} />
+              <BenefitRow key={b.id} benefit={b} noPartner={plan.costing?.benefits.find((c) => c.benefitId === b.id)?.offerRange === null} writable={writable} onChange={setData} />
             ))}
           </Table>
         )}
@@ -254,7 +254,7 @@ export default function PlanPage() {
   );
 }
 
-function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writable: boolean; onChange: (d: { plan: Plan }) => void }) {
+function BenefitRow({ benefit: b, noPartner, writable, onChange }: { benefit: Benefit; noPartner: boolean; writable: boolean; onChange: (d: { plan: Plan }) => void }) {
   const { path } = useCatalogue();
   const rules = [
     b.capOncePerVenuePerDay && "once per venue per day",
@@ -269,6 +269,8 @@ function BenefitRow({ benefit: b, writable, onChange }: { benefit: Benefit; writ
           <span aria-hidden className={`size-2 shrink-0 rounded-full ${isNight(b.category.code) ? "bg-brand-night" : "bg-brand-day"}`} />
           {b.category.name}
           {b.category.level !== "service" ? <span className="font-normal text-muted">(all)</span> : null}
+          {/* Fine while planning; members can't use it until a venue offers it. */}
+          {noPartner ? <Badge tone="danger">No partner yet</Badge> : null}
         </span>
         <span className="mt-0.5 block text-xs text-muted">{path(b.category.code)}</span>
       </Td>

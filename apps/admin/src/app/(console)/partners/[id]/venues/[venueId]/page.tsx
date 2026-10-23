@@ -1,10 +1,12 @@
 "use client";
 import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, SidePanel, Table, Td, Textarea } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
+import { VENUE_KIND_LABELS, VenueTypeFields, venueNoun, type VenueKind } from "@/components/venue-fields";
 import { PartnerStaffCard } from "@/components/partner-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { ActionForm, checked, intOrNull, locationText, readLocation, text, textOrNull } from "@/components/forms";
 import { HoursEditor, HoursSummary, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
@@ -52,7 +54,7 @@ export default function VenuePage() {
           actions={
             writable ? (
               <SidePanel
-                title="Edit venue"
+                title={`Edit ${venueNoun(venue.kind)}`}
                 trigger={(open) => (
                   <Button size="sm" tone="secondary" onClick={open}>
                     <Icon name="edit" className="size-4" /> Edit
@@ -66,9 +68,9 @@ export default function VenuePage() {
         >
           <DetailList
             items={[
-              ["How members use it", venue.kind === "visiting" ? "A service that comes to them (booked)" : venue.kind === "remote" ? "A service by phone or video" : "A place members visit"],
+              ["Type", VENUE_KIND_LABELS[venue.kind]],
               ...(venue.kind === "remote" ? [["Service line", venue.servicePhone] as [string, string | null]] : []),
-              ["Kind of place", byId.get(venue.categoryId)?.name],
+              [venue.kind === "place" ? "Kind of place" : "Kind of service", byId.get(venue.categoryId)?.name],
               ["Tier", venue.tier === "top" ? "Top tier" : "Standard"],
               ["Status", venue.active ? "Active" : "Inactive: declines every scan"],
               ["Description", venue.description],
@@ -129,6 +131,7 @@ export default function VenuePage() {
 }
 
 function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
+  const [kind, setKind] = useState<VenueKind>(venue.kind);
   return (
     <ActionForm
       action={async (form) => {
@@ -159,27 +162,12 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
           <Field label="Area">
             <Input name="area" defaultValue={venue.area} required />
           </Field>
-          <Field label="How members use it" hint="A visiting service comes to the member and only scans against a booking. A phone service (doctor on call) has nothing to scan.">
-            <Select name="kind" defaultValue={venue.kind}>
-              <option value="place">A place members visit</option>
-              <option value="visiting">A service that comes to them (booked)</option>
-              <option value="remote">A service by phone or video</option>
-            </Select>
-          </Field>
-          <Field label="Kind of place" hint="From the catalogue. The services it gives are its offers.">
-            <CategorySelect name="categoryId" placesOnly required defaultValue={venue.categoryId} />
-          </Field>
+          <VenueTypeFields kind={kind} onKind={setKind} venue={venue} />
           <Field label="Tier" hint="Which plans can use it is set on each plan's benefits.">
             <Select name="tier" defaultValue={venue.tier}>
               <option value="standard">Standard</option>
               <option value="top">Top tier</option>
             </Select>
-          </Field>
-          <Field label="Service line" hint="For a service by phone or video: the number members call, e.g. +2348012345678.">
-            <Input name="servicePhone" type="tel" defaultValue={venue.servicePhone ?? ""} />
-          </Field>
-          <Field label="Map location" hint="Latitude, longitude. In Google Maps, right-click the venue and click the numbers to copy them.">
-            <Input name="location" defaultValue={locationText(venue)} placeholder="6.4262, 3.4486" />
           </Field>
           <Field label="Description">
             <Textarea name="description" defaultValue={venue.description ?? ""} />
@@ -190,7 +178,7 @@ function VenueForm({ venue, onSaved }: { venue: Venue; onSaved: () => void }) {
           <HoursEditor name="hours" value={venue.openingHours} />
           <Checkbox name="active" defaultChecked={venue.active} label="Active" hint="Inactive venues decline every scan." />
           <Button type="submit" disabled={busy}>
-            Save venue
+            Save changes
           </Button>
         </>
       )}
