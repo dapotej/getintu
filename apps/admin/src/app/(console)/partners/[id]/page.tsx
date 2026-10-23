@@ -11,6 +11,7 @@ import { VenueTypeFields, type VenueKind } from "@/components/venue-fields";
 import { NewCarsFields, readCars } from "@/components/vehicles";
 import { usesVehicles } from "@intu/rules";
 import { useCatalogue } from "@/lib/catalogue";
+import { PayoutAccountCard } from "@/components/payout-account";
 import type { Partner, Venue } from "@/lib/types";
 
 export default function PartnerPage() {
@@ -18,7 +19,7 @@ export default function PartnerPage() {
   const { can } = useStaff();
   const writable = can("partners.write");
   const router = useRouter();
-  const { data, error, setData } = useApi<{ partner: Partner; venues: Venue[] }>(`/admin/partners/${id}`);
+  const { data, error, setData, reload } = useApi<{ partner: Partner; venues: Venue[] }>(`/admin/partners/${id}`);
   const { byId } = useCatalogue();
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
@@ -165,10 +166,11 @@ export default function PartnerPage() {
               ["Email", p.contactEmail],
               ["Phone", p.contactPhone],
               ["Settlement terms", p.settlementTerms],
-              ["Bank details", p.hasBankDetails ? "On file" : "Not yet"],
+              ["Payout account", p.payoutRecipientCode ? `${p.payoutBankName ?? ""} •••• ${p.payoutAccountLast4 ?? ""}` : "Not yet"],
             ]}
           />
         </Card>
+        <PayoutAccountCard partner={p} writable={can("settlements.write")} onSaved={() => void reload()} />
       </div>
     </>
   );

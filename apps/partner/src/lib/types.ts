@@ -3,7 +3,8 @@ import type { BenefitInput, Decision, DeclineReason, OfferInput, VenueInput } fr
 export interface Session {
   token: string;
   expiresAt: string;
-  staff: { id: string; fullName: string };
+  /** Older saved sessions have no role: they are door staff. */
+  staff: { id: string; fullName: string; role?: "door_staff" | "venue_manager" };
   venue: { id: string; name: string };
 }
 
@@ -12,7 +13,8 @@ export interface VenueBundle {
   serverTime: string;
   /** When this device fetched it, by its own clock. */
   fetchedAt?: string;
-  staff: { id: string; fullName: string };
+  /** Older saved sessions have no role: they are door staff. */
+  staff: { id: string; fullName: string; role?: "door_staff" | "venue_manager" };
   venue: VenueInput & { name: string; area: string; kind: "place" | "visiting" };
   /** Visiting services: confirmed, unused bookings around today, for offline checks. */
   bookings: { id: string; membershipId: string | null; offerId: string | null; bookingDate: string }[];
@@ -128,4 +130,23 @@ export function outcomeFrom(res: ScanResponse): ScanOutcome {
         ? { result: "declined", serviceDate: res.serviceDate, reason: "DUPLICATE_SCAN", claimedAt: new Date(res.claimedAt ?? Date.now()) }
         : { result: "declined", serviceDate: res.serviceDate, reason: res.reason ?? "MEMBERSHIP_NOT_ACTIVE" };
   return { kind: "decision", decision, member: res.member, offerName: res.offer.name, partySize: res.partySize, offline: false };
+}
+
+/** A statement as a venue manager sees it: approved by intu, and paid or about to be. */
+export interface PartnerStatement {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  totalMinor: number;
+  currency: string;
+  visits: number;
+  status: "approved" | "paid";
+  paidAt: string | null;
+  paymentReference: string | null;
+}
+
+export interface PartnerStatementDetail {
+  statement: Omit<PartnerStatement, "visits"> & { linesMinor: number };
+  lines: { id: string; occurredAt: string; serviceDate: string; partySize: number; amountMinor: number; venue: string; service: string; member: string }[];
+  adjustments: { id: string; amountMinor: number; reason: string }[];
 }

@@ -8,8 +8,9 @@ export default async function globalSetup() {
     if (!a.role) continue;
     await db
       .insert(schema.staffUsers)
-      .values({ role: a.role, fullName: a.fullName, email: a.email, authUserId: a.authUserId, isTest: true })
-      .onConflictDoUpdate({ target: schema.staffUsers.email, set: { role: a.role, active: true, authUserId: a.authUserId } });
+      // The founder approves payouts; finance prepares and pays them.
+      .values({ role: a.role, fullName: a.fullName, email: a.email, authUserId: a.authUserId, isTest: true, canApprovePayouts: a.role === "founder" })
+      .onConflictDoUpdate({ target: schema.staffUsers.email, set: { role: a.role, active: true, authUserId: a.authUserId, canApprovePayouts: a.role === "founder" } });
   }
   await sql.end();
 }

@@ -252,3 +252,37 @@ test("a driver picks today's car once, and each scan records it", async ({ page 
   await expect(page.getByRole("button", { name: /LND 123 AB.*Change car/ })).toBeVisible();
   expect(first?.id).toBeTruthy();
 });
+
+test("a venue manager sees intu's approved statements and the visits behind them; door staff don't", async ({ page, browser }) => {
+  const world = await createWorld({ manager: true });
+  const offer = world.offers[0];
+  if (!offer) throw new Error("No offer");
+  // intu approved September's statement; October's is still a draft, which managers don't see.
+  const statement = (status: "approved" | "draft", month: string, totalMinor: number) =>
+    db.insert(schema.settlements).values({ partnerId: world.partner.id, periodStart: `${month}-01`, periodEnd: `${month}-28`, totalMinor, linesMinor: 1_500_000, lineCount: 1, status, isTest: true }).returning();
+  const [approved] = await statement("approved", "2026-09", 6_500_000);
+  await statement("draft", "2026-10", 1_500_000);
+  await db.insert(schema.redemptions).values({ occurredAt: new Date("2026-09-12T19:00:00Z"), serviceDate: "2026-09-12", memberId: world.member.id, membershipId: world.membership.id, venueId: world.venue.id, offerId: offer.id, categoryId: offer.categoryId, result: "approved", method: "online", partySize: 2, settlementId: approved?.id ?? null, settledAmountMinor: 1_500_000 });
+  await db.insert(schema.settlementAdjustments).values({ settlementId: approved?.id ?? "", amountMinor: 5_000_000, reason: "TEST e2e: September cabana fee", createdById: (await db.select({ id: schema.staffUsers.id }).from(schema.staffUsers).limit(1))[0]?.id ?? "" });
+
+  await signIn(page, world);
+  await page.getByRole("button", { name: "Statements" }).click();
+  await expect(page.getByText("September 2026")).toBeVisible();
+  await expect(page.getByText("October 2026")).toHaveCount(0);
+  await expect(page.getByText("Approved, payment on its way")).toBeVisible();
+  await page.getByRole("button", { name: /September 2026/ }).click();
+  await expect(page.getByText("₦65,000")).toBeVisible();
+  await expect(page.getByText("TEST e2e: September cabana fee")).toBeVisible();
+  await expect(page.getByText(world.member.fullName)).toBeVisible();
+  await expect(page.getByText(/party of 2/)).toBeVisible();
+  await expect(page.getByText(world.member.phone)).toHaveCount(0);
+
+  // Door staff, on their own phone, have no Statements tab.
+  const door = await createWorld();
+  const other = await browser.newContext();
+  const doorPage = await other.newPage();
+  await signIn(doorPage, door);
+  await expect(doorPage.getByRole("button", { name: "Today" })).toBeVisible();
+  await expect(doorPage.getByRole("button", { name: "Statements" })).toHaveCount(0);
+  await other.close();
+});

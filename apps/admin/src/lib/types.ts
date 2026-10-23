@@ -1,11 +1,11 @@
 import type { CostBasis, PlanCosting } from "@intu/rules";
 // Shapes the admin API returns (dates as ISO strings).
 export type UsageMode = "door" | "booking" | "airport" | "call" | "concierge" | "in_app";
-export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage" | "clients.read" | "clients.write" | "clients.invoices" | "payments.read" | "payments.refund";
+export type Permission = "members.read" | "members.write" | "plans.read" | "plans.write" | "partners.read" | "partners.write" | "staff.manage" | "import.pilot" | "audit.read" | "bookings.manage" | "clients.read" | "clients.write" | "clients.invoices" | "payments.read" | "payments.refund" | "settlements.read" | "settlements.write" | "settlements.pay";
 export type StaffRole = "founder" | "ops_lead" | "ops" | "concierge" | "finance" | "partnerships";
 
 export interface Me {
-  staff: { id: string; role: StaffRole; fullName: string; email: string | null };
+  staff: { id: string; role: StaffRole; fullName: string; email: string | null; canApprovePayouts: boolean };
   permissions: Permission[];
 }
 
@@ -110,6 +110,10 @@ export interface Partner {
   active: boolean;
   isTest: boolean;
   hasBankDetails: boolean;
+  payoutBankName: string | null;
+  payoutAccountLast4: string | null;
+  payoutAccountName: string | null;
+  payoutRecipientCode: string | null;
 }
 
 export type OfferModel = "included" | "included_or_add_on" | "add_on" | "member_privilege";
@@ -256,6 +260,7 @@ export interface StaffUser {
   fullName: string;
   email: string | null;
   active: boolean;
+  canApprovePayouts: boolean;
   createdAt: string;
 }
 
@@ -399,4 +404,62 @@ export interface RefundToApprove extends Refund {
   order: { id: string; amountMinor: number; currency: "GBP" | "USD" | "NGN"; paidAt: string | null };
   member: { id: string; fullName: string };
   plan: { name: string };
+}
+
+export type SettlementStatus = "draft" | "approved" | "paying" | "paid" | "failed" | "void";
+
+export interface Settlement {
+  id: string;
+  partnerId: string;
+  periodStart: string;
+  periodEnd: string;
+  totalMinor: number;
+  linesMinor: number;
+  lineCount: number;
+  currency: "NGN";
+  status: SettlementStatus;
+  changedById: string | null;
+  changedBy: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  paidAt: string | null;
+  paymentReference: string | null;
+  transferReference: string | null;
+  transferAttempts: number;
+  failureReason: string | null;
+  voidReason: string | null;
+  isTest: boolean;
+}
+
+export interface SettlementRow extends Settlement {
+  partner: { id: string; tradingName: string };
+}
+
+export interface SettlementLine {
+  id: string;
+  occurredAt: string;
+  serviceDate: string;
+  partySize: number;
+  method: "online" | "offline" | "manual";
+  flagged: boolean;
+  amountMinor: number;
+  venue: string;
+  service: string;
+  member: string;
+}
+
+export interface SettlementDetail {
+  settlement: Settlement & { paidBy: string | null };
+  partner: { id: string; tradingName: string; legalName: string; payoutAccount: PayoutAccount | null };
+  lines: SettlementLine[];
+  adjustments: { id: string; amountMinor: number; reason: string; createdAt: string; createdBy: string }[];
+  held: { id: string; serviceDate: string; reason: string; venue: string; service: string; member: string }[];
+  canApprove: { ok: boolean; reason?: string; message?: string };
+  canPay: { ok: boolean; reason?: string; message?: string };
+}
+
+export interface PayoutAccount {
+  bankName: string | null;
+  accountLast4: string | null;
+  accountName: string | null;
 }

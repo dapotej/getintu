@@ -64,3 +64,16 @@ To connect the real providers in **test mode** (Dapo does this; never paste keys
 3. In Vercel → the API project → Settings → Environment Variables (staging), add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `PAYSTACK_SECRET_KEY` as sensitive values, then redeploy. (`API_PUBLIC_URL` is optional: without it the API uses the address members reach it on.)
 
 Test cards: Stripe `4242 4242 4242 4242`, any future date and CVC. Paystack `4084 0840 8408 4081`, CVV `408`, any future date, PIN `0000`, OTP `123456`. A plan only shows a Paystack (naira) option once it has an NGN price.
+
+## Partner payouts (Paystack Transfers, test mode)
+
+Statements are paid with the same Paystack key as naira payments. Without a Paystack key (and never in production), payouts are **TEST payouts**: one "TEST Bank" whose 10-digit accounts all check out, and every transfer succeeds without money moving.
+
+To set up staging (Dapo does this; never paste keys or secrets into chat):
+
+1. **Paystack**: Settings → Preferences → turn **off** "Confirm transfers before sending" (the OTP for transfers), so the API can send them. In Settings → API Keys & Webhooks the test webhook URL stays `https://intu-api-staging.vercel.app/webhooks/paystack`: transfer results arrive there too. In test mode Paystack only checks a few account numbers a day and may not resolve every real account; if "Check and save" says the bank couldn't find the account, try Paystack's test account details from their docs.
+2. **Bank details key**: on your own computer run `openssl rand -base64 32` and add the result in Vercel → the API project → Environment Variables (staging) as `BANK_DETAILS_KEY` (sensitive). Keep a copy somewhere safe, such as your password manager: without it, saved bank accounts can't be read and must be entered again. Use a different key for production.
+3. **Monthly run**: make another random value (`openssl rand -base64 32`) and add it twice: in Vercel as `JOBS_SECRET` on the API, and in GitHub → Settings → Environments → staging as the secret `JOBS_SECRET`. The **Monthly partner statements (staging)** workflow then builds last month's drafts at 07:17 Lagos time on the 1st; it can also be run by hand from the Actions tab. Without it, finance builds them from Console → Statements.
+4. Redeploy the API.
+
+**Who approves:** founders can approve payouts from the start. Anyone else needs the **Approves payouts** switch in Console → Settings → Team, set by a team lead (never by themselves). Whoever built or last changed a statement can't approve it.

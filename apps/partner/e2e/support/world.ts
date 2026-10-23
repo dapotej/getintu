@@ -14,7 +14,7 @@ export const { db, sql } = createDb(DATABASE_URL, { max: 2 });
 
 const categoryId = async (code: string) => one(await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, code))).id;
 
-export async function createWorld(opts: { quantity?: number; offers?: number; visiting?: boolean } = {}) {
+export async function createWorld(opts: { quantity?: number; offers?: number; visiting?: boolean; manager?: boolean } = {}) {
   const tag = randomUUID().slice(0, 6).toUpperCase();
   const partner = one(await db.insert(schema.partners).values({ legalName: `TEST E2E Partner ${tag}`, tradingName: `TEST E2E ${tag}`, isTest: true }).returning());
   const loginCode = `E${tag.slice(0, 5)}`;
@@ -28,7 +28,7 @@ export async function createWorld(opts: { quantity?: number; offers?: number; vi
   const offers: (typeof schema.offers.$inferSelect)[] = [];
   for (const code of offerCodes) offers.push(one(await db.insert(schema.offers).values({ venueId: venue.id, categoryId: await categoryId(code), rateMinor: 1_500_000, isTest: true }).returning()));
   const pin = String(randomInt(100000, 999999));
-  const staff = one(await db.insert(schema.staffUsers).values({ role: "door_staff", fullName: `TEST Door ${tag}`, partnerId: partner.id, pinHash: hashPin(pin), isTest: true }).returning());
+  const staff = one(await db.insert(schema.staffUsers).values({ role: opts.manager ? "venue_manager" : "door_staff", fullName: `TEST ${opts.manager ? "Manager" : "Door"} ${tag}`, partnerId: partner.id, pinHash: hashPin(pin), isTest: true }).returning());
   await db.insert(schema.staffUserVenues).values({ staffUserId: staff.id, venueId: venue.id });
 
   const plan = one(await db.insert(schema.plans).values({ code: `TEST-E2E-${tag}`, name: `TEST E2E Plan ${tag}`, durationDays: 30, isTest: true }).returning());
@@ -53,5 +53,5 @@ export async function createWorld(opts: { quantity?: number; offers?: number; vi
         .values({ memberId: member.id, membershipId: membership.id, venueId: venue.id, offerId: offers[0]?.id ?? null, bookingDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date()), status: "confirmed", notes: "TEST e2e pickup" })
         .returning(),
     );
-  return { venue, offers, loginCode, pin, member, membership, book, code: (at = new Date()) => signCode(cert, device.secretKey, at) };
+  return { partner, venue, offers, loginCode, pin, member, membership, book, code: (at = new Date()) => signCode(cert, device.secretKey, at) };
 }

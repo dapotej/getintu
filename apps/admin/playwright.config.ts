@@ -33,6 +33,8 @@ export default defineConfig({
         SUPABASE_SERVICE_ROLE_KEY: "e2e-not-a-real-key",
         TEST_JWKS_JSON: JSON.stringify({ keys: [E2E_PUBLIC_JWK] }),
         CORS_ORIGINS: `http://localhost:${ADMIN_PORT}`,
+        // A throwaway key for encrypting TEST bank details (32 bytes of zeros), never a real one.
+        BANK_DETAILS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       },
     },
     {

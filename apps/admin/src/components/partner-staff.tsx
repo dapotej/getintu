@@ -1,5 +1,5 @@
 "use client";
-import { Badge, Button, Card, EmptyState, Field, Icon, Input, SidePanel, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, EmptyState, Field, Icon, Input, Select, SidePanel, Table, Td } from "@intu/ui";
 import { ActionForm, text } from "@/components/forms";
 import { api, useApi } from "@/lib/api";
 
@@ -35,7 +35,7 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
               {(close) => (
                 <ActionForm
                   action={async (form) => {
-                    await api(`/admin/venues/${venueId}/door-staff`, { method: "POST", body: { fullName: text(form, "fullName"), pin: text(form, "pin") } });
+                    await api(`/admin/venues/${venueId}/door-staff`, { method: "POST", body: { fullName: text(form, "fullName"), pin: text(form, "pin"), role: text(form, "role") } });
                     reload();
                     close();
                   }}
@@ -44,6 +44,12 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
                     <>
                       <Field label="Full name" hint="Their name as colleagues know it">
                         <Input name="fullName" required />
+                      </Field>
+                      <Field label="Role" hint="Managers also see the partner's monthly statements and payouts in the app.">
+                        <Select name="role" defaultValue="door_staff">
+                          <option value="door_staff">Door staff (scans members)</option>
+                          <option value="venue_manager">Manager (scans, and sees statements)</option>
+                        </Select>
                       </Field>
                       <Field label="PIN" hint="6 digits, different from colleagues'. Tell them in person.">
                         <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
@@ -83,6 +89,7 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
             <tr key={s.id}>
               <Td>
                 <span className="font-semibold">{s.fullName}</span>
+                {s.role === "venue_manager" ? <span className="block text-xs text-muted">Manager: sees statements</span> : null}
               </Td>
               <Td>
                 <Badge dot tone={s.active ? "night" : "neutral"}>

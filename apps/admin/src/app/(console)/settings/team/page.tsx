@@ -11,7 +11,7 @@ export default function TeamPage() {
   const { staff: me } = useStaff();
   const { data, error, reload } = useApi<{ staff: StaffUser[] }>("/admin/staff");
 
-  async function update(id: string, body: Partial<Pick<StaffUser, "role" | "active">>) {
+  async function update(id: string, body: Partial<Pick<StaffUser, "role" | "active" | "canApprovePayouts">>) {
     try {
       await api(`/admin/staff/${id}`, { method: "PATCH", body });
       reload();
@@ -73,7 +73,7 @@ export default function TeamPage() {
         }
       >
         {error ? <div className="p-5"><p className="text-sm text-danger">{error}</p></div> : null}
-        <Table head={["Name", "Role", "Since", ""]}>
+        <Table head={["Name", "Role", "Approves payouts", "Since", ""]}>
           {data?.staff.map((s) => (
             <tr key={s.id}>
               <Td>
@@ -90,6 +90,20 @@ export default function TeamPage() {
                     </option>
                   ))}
                 </Select>
+              </Td>
+              <Td>
+                {/* A second person approves partner statements; nobody switches this on for themselves. */}
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    aria-label={`${s.fullName} can approve payouts`}
+                    checked={s.canApprovePayouts}
+                    disabled={s.id === me.id || !s.active}
+                    onChange={(e) => update(s.id, { canApprovePayouts: e.target.checked })}
+                    className="size-4 accent-[var(--color-accent)]"
+                  />
+                  <span className="text-muted">{s.canApprovePayouts ? "Yes" : "No"}</span>
+                </label>
               </Td>
               <Td className="whitespace-nowrap text-muted">{formatDate(s.createdAt.slice(0, 10))}</Td>
               <Td className="text-right">

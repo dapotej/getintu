@@ -560,3 +560,64 @@ test("finance refunds a payment; over the limit, a second person approves it and
   expect(ended?.status).toBe("cancelled");
   await sql.end();
 });
+
+test("finance builds last month's partner statements, the founder approves one, and it's paid by (TEST) transfer", async ({ page, browser }) => {
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/intu", { max: 1 });
+  const tag = randomUUID().slice(0, 4).toUpperCase();
+  // The month before this one in Lagos, as the console offers it.
+  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date()).split("-").map(Number) as [number, number];
+  const lastMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  const categoryId = async (code: string) => one(await db.select({ id: schema.categories.id }).from(schema.categories).where(eq(schema.categories.code, code))).id;
+  const partner = one(await db.insert(schema.partners).values({ legalName: `TEST Statement Beach ${tag} Ltd`, tradingName: `TEST Statement Beach ${tag}`, isTest: true }).returning());
+  const allDay = Object.fromEntries(["0", "1", "2", "3", "4", "5", "6"].map((d) => [d, [{ open: "00:00", close: "24:00" }]])) as never;
+  const venue = one(await db.insert(schema.venues).values({ partnerId: partner.id, name: `TEST Statement Beach ${tag}`, area: "Oniru", city: "lagos", categoryId: await categoryId("C03-S01"), openingHours: allDay, isTest: true }).returning());
+  const offer = one(await db.insert(schema.offers).values({ venueId: venue.id, categoryId: await categoryId("C03-S01-T01"), rateMinor: 1_800_000, isTest: true }).returning());
+  const plan = one(await db.select().from(schema.plans).where(eq(schema.plans.name, "TEST December Pass Plus")));
+  const member = one(await db.insert(schema.members).values({ fullName: `TEST Visitor ${tag}`, phone: `+999${randomInt(10 ** 9, 10 ** 10)}`, isTest: true }).returning());
+  const membership = one(await db.insert(schema.memberships).values({ memberId: member.id, planId: plan.id, startsOn: `${lastMonth}-01`, endsOn: `${lastMonth}-28`, status: "active" }).returning());
+  await db.insert(schema.redemptions).values({ occurredAt: new Date(`${lastMonth}-15T20:00:00Z`), serviceDate: `${lastMonth}-15`, memberId: member.id, membershipId: membership.id, venueId: venue.id, offerId: offer.id, categoryId: offer.categoryId, result: "approved", method: "online" });
+
+  // Finance builds the month's statements and adds the partner's flat fee.
+  await page.context().clearCookies();
+  await signIn(page, "finance");
+  await expect(page.getByRole("heading", { name: /^Hello/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Statements" }).click();
+  await page.getByRole("button", { name: /^Build .* statements$/ }).click();
+  await expect(page.getByText(/new statements?, \d+ visits? added/)).toBeVisible();
+  await page.getByRole("link", { name: `TEST Statement Beach ${tag}` }).click();
+  await expect(page.getByRole("heading", { name: new RegExp(`TEST Statement Beach ${tag}`) })).toBeVisible();
+  await expect(cardOf(page, "Visits (1)")).toContainText(`TEST Visitor ${tag}`);
+  await cardOf(page, "Adjustments").getByRole("button", { name: "Add adjustment" }).click();
+  await panelOf(page).getByLabel("Amount (₦)").fill("50000");
+  await panelOf(page).getByLabel("Reason").fill("TEST e2e: monthly cabana fee");
+  await panelOf(page).getByRole("button", { name: "Add adjustment" }).click();
+  await expect(cardOf(page, "Total")).toContainText("₦68,000");
+  // Finance can't approve payouts.
+  await expect(page.getByRole("button", { name: "Approve for payout" })).toBeDisabled();
+  await expect(page.getByText("You can't approve payouts")).toBeVisible();
+
+  // Finance adds where the partner is paid (TEST payouts: no Paystack key, no money).
+  const statementPath = new URL(page.url()).pathname;
+  await page.getByRole("link", { name: "Add it on the partner's page" }).click();
+  await cardOf(page, "Payout account").getByRole("button", { name: "Add account" }).click();
+  await panelOf(page).getByLabel("Bank").selectOption({ label: "TEST Bank" });
+  await panelOf(page).getByLabel("Account number").fill("0123456789");
+  page.once("dialog", (d) => void d.accept());
+  await panelOf(page).getByRole("button", { name: "Check and save" }).click();
+  await expect(cardOf(page, "Payout account")).toContainText("TEST ACCOUNT 6789");
+
+  // The founder approves it in their own session and pays it.
+  const other = await browser.newContext();
+  const founder = await other.newPage();
+  await signIn(founder, "founder");
+  await expect(founder.getByRole("heading", { name: /^Hello/ })).toBeVisible();
+  await founder.goto(statementPath);
+  founder.on("dialog", (d) => void d.accept());
+  await founder.getByRole("button", { name: "Approve for payout" }).click();
+  await expect(founder.getByText("Approved, not paid")).toBeVisible();
+  await founder.getByRole("button", { name: "Pay by Paystack transfer" }).click();
+  await expect(founder.getByText("Paid. Nothing more to do.")).toBeVisible();
+  await expect(cardOf(founder, "Total")).toContainText("TRF_test_");
+  await other.close();
+  await sql.end();
+});

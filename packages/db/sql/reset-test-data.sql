@@ -47,6 +47,9 @@ DELETE FROM staff_user_venues WHERE venue_id IN (SELECT id FROM test_venues);
 -- Venue staff belong to their partner: TEST ones go with it, any others are unlinked.
 DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_partners) AND id NOT IN (SELECT staff_user_id FROM staff_user_venues);
 UPDATE staff_users SET partner_id = NULL WHERE partner_id IN (SELECT id FROM test_partners);
+-- TEST partners' statements, with their adjustments; their visits are already gone.
+DELETE FROM settlement_adjustments WHERE settlement_id IN (SELECT id FROM settlements WHERE partner_id IN (SELECT id FROM test_partners));
+UPDATE redemptions SET settlement_id = NULL, settled_amount_minor = NULL WHERE settlement_id IN (SELECT id FROM settlements WHERE partner_id IN (SELECT id FROM test_partners));
 DELETE FROM settlements WHERE partner_id IN (SELECT id FROM test_partners);
 
 -- Payments of TEST members, passes or plans: refunds, then orders, subscriptions and crew invites.

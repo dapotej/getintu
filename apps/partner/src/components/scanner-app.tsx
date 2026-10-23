@@ -8,6 +8,7 @@ import { allVisits, clearShift, getKv, setKv } from "@/lib/store";
 import { REFRESH_MS, refreshBundle, refreshRevocations, syncPending } from "@/lib/sync";
 import { outcomeFrom, type CodeProblem, type PendingVisit, type ScanOutcome, type ScanResponse, type Session, type TodayBooking, type TodayVisit, type Vehicle, type VenueBundle } from "@/lib/types";
 import { Camera } from "./camera";
+import { StatementsTab } from "./statements";
 
 declare global {
   interface Window {
@@ -124,7 +125,9 @@ function SignIn({ onSignedIn }: { onSignedIn: (s: Session, b: VenueBundle) => vo
 
 function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bundle: VenueBundle; setBundle: (b: VenueBundle) => void; onSignOut: () => void }) {
   // Visiting services (drivers, home beauty) start from their bookings; doors start on the camera.
-  const [tab, setTab] = useState<"scan" | "today">(bundle.venue.kind === "visiting" ? "today" : "scan");
+  const [tab, setTab] = useState<"scan" | "today" | "money">(bundle.venue.kind === "visiting" ? "today" : "scan");
+  const manager = (bundle.staff.role ?? session.staff.role) === "venue_manager";
+  const tabs = manager ? (["scan", "today", "money"] as const) : (["scan", "today"] as const);
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
   const latest = useRef({ bundle, online });
@@ -205,8 +208,8 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
           Sending {pending} offline {pending === 1 ? "visit" : "visits"}…
         </div>
       ) : null}
-      <nav className="mx-4 mb-3 grid grid-cols-2 rounded-xl bg-subtle p-1" aria-label="Scanner">
-        {(["scan", "today"] as const).map((t) => (
+      <nav className={cx("mx-4 mb-3 grid rounded-xl bg-subtle p-1", manager ? "grid-cols-3" : "grid-cols-2")} aria-label="Scanner">
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -214,7 +217,7 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
             onClick={() => setTab(t)}
             className={cx("rounded-lg py-2 text-sm font-semibold", tab === t ? "bg-surface text-fg shadow-xs" : "text-muted")}
           >
-            {t === "scan" ? "Scan" : "Today"}
+            {t === "scan" ? "Scan" : t === "today" ? "Today" : "Statements"}
           </button>
         ))}
       </nav>
@@ -231,8 +234,10 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
             onStoredOffline={countPending}
             vehicleId={vehicleId ?? null}
           />
-        ) : (
+        ) : tab === "today" ? (
           <TodayTab session={session} online={online} />
+        ) : (
+          <StatementsTab token={session.token} online={online} />
         )}
       </main>
     </div>
