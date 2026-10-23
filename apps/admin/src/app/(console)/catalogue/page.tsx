@@ -19,7 +19,7 @@ export default function CataloguePage() {
     <>
       <PageHeader
         title="Catalogue"
-        subtitle={`What intu offers, as categories, subcategories and service types (${top.length}, ${cat.all.length - top.length - services} and ${services}). Plans grant benefits at any level; each venue offer delivers one service type. Open an entry to see who offers it.`}
+        subtitle={`What intu offers, as categories, subcategories and service types (${top.length}, ${cat.all.length - top.length - services} and ${services}). Plans grant benefits at any level; each listing's offer delivers one service type. Open an entry to see who offers it.`}
         actions={
           <>
             <Button tone="secondary" onClick={() => setOpen(open.size ? new Set() : new Set(cat.all.filter((c) => c.level !== "service").map((c) => c.id)))}>

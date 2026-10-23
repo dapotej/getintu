@@ -120,7 +120,7 @@ export default function MemberPage() {
           {visits.length === 0 ? (
             <EmptyState title="No visits yet" />
           ) : (
-            <Table head={["When", "Venue", "Benefit", "Result", "How", ""]}>
+            <Table head={["When", "Listing", "Benefit", "Result", "How", ""]}>
               {visits.map((v) => (
                 <tr key={v.id}>
                   <Td className="whitespace-nowrap tabular-nums">{formatLagosDateTime(v.occurredAt)}</Td>
@@ -495,7 +495,7 @@ function BookingForm({ memberId, memberships, onBooked }: { memberId: string; me
               ))}
             </Select>
           </Field>
-          <Field label="Service or venue">
+          <Field label="Listing">
             <Select name="venueId" required value={venueId} onChange={(e) => setVenueId(e.target.value)}>
               <option value="">Choose…</option>
               {sorted.map((v) => (

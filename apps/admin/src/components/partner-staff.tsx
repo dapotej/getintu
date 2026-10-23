@@ -17,18 +17,18 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
   if (!data) return null;
   return (
     <Card
-      title="intu scanner"
-      description="Partner staff open the intu scanner on their phone (or the venue's) and sign in with this code and their own 6-digit PIN. Drivers and home-service staff scan the member when they meet."
+      title="Staff who scan members"
+      description="Door staff, drivers and home-service staff. Each opens the intu scanner on their phone (or the venue's), signs in with this code and their own 6-digit PIN, and scans the member when they meet. Add every driver here, not as a separate listing."
       flush
       actions={
         writable ? (
           <>
             <SidePanel
-              title="Add partner staff"
+              title="Add staff"
               description="Someone who scans members here. They sign in with the sign-in code and their own PIN."
               trigger={(open) => (
                 <Button size="sm" tone="secondary" onClick={open}>
-                  <Icon name="plus" className="size-4" /> Add partner staff
+                  <Icon name="plus" className="size-4" /> Add staff
                 </Button>
               )}
             >
@@ -49,7 +49,7 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
                         <Input name="pin" required inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="off" className="w-36" />
                       </Field>
                       <Button type="submit" disabled={busy}>
-                        Add partner staff
+                        Add staff
                       </Button>
                     </>
                   )}
@@ -76,7 +76,7 @@ export function PartnerStaffCard({ venueId, writable }: { venueId: string; writa
         <p className="mt-1 font-mono text-2xl font-bold tracking-[0.2em]">{data.loginCode ?? "Not set yet"}</p>
       </div>
       {data.staff.length === 0 ? (
-        <EmptyState title="No partner staff yet">Add each person who scans members here.</EmptyState>
+        <EmptyState title="No staff yet">Add each person who scans members here.</EmptyState>
       ) : (
         <Table head={["Name", "Status", ""]}>
           {data.staff.map((s) => (

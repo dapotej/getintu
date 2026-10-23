@@ -7,7 +7,7 @@ import { ActionForm, checked, readLocation, text, textOrNull } from "@/component
 import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { VenueTypeFields, venueNoun, type VenueKind } from "@/components/venue-fields";
+import { VenueTypeFields, type VenueKind } from "@/components/venue-fields";
 import { useCatalogue } from "@/lib/catalogue";
 import type { Partner, Venue } from "@/lib/types";
 
@@ -42,17 +42,17 @@ export default function PartnerPage() {
       <div className="grid items-start gap-6 xl:grid-cols-[1.5fr_1fr]">
         <div className="flex flex-col gap-6">
           <Card
-            title="Venues and services"
-            description="Places members visit, and services that come to them or are by phone. Each has its own hours, tier and offers."
+            title="Listings"
+            description="What members find in the app: a place they visit, a service that comes to them (like chauffeurs), or one by phone. Each has its own hours, tier, offers and staff."
             flush
             actions={
               writable ? (
                 <SidePanel
-                  title="Add a venue or service"
-                  description="A place members visit, a service that comes to them, or a service by phone or video."
+                  title="Add a listing"
+                  description="One for each place or service members use. A chauffeur company is one listing; its drivers are added as staff on the listing's page."
                   trigger={(open) => (
                     <Button size="sm" tone="secondary" onClick={open}>
-                      <Icon name="plus" className="size-4" /> Add venue or service
+                      <Icon name="plus" className="size-4" /> Add listing
                     </Button>
                   )}
                 >
@@ -62,9 +62,9 @@ export default function PartnerPage() {
             }
           >
             {venues.length === 0 ? (
-              <EmptyState title="No venues yet">{writable ? "Add the first place members can visit." : null}</EmptyState>
+              <EmptyState title="No listings yet">{writable ? "Add the first place or service members can use." : null}</EmptyState>
             ) : (
-              <Table head={["Venue", "Category", "Tier", "Status"]}>
+              <Table head={["Listing", "Category", "Tier", "Status"]}>
                 {venues.map((v) => (
                   <tr key={v.id}>
                     <Td>
@@ -172,7 +172,7 @@ export default function PartnerPage() {
   );
 }
 
-/** Adds a venue or service; the fields follow its type. */
+/** Adds a listing; the fields follow its type. */
 function AddVenueForm({ partnerId, onAdded }: { partnerId: string; onAdded: (venueId: string) => void }) {
   const [kind, setKind] = useState<VenueKind>("place");
   return (
@@ -200,7 +200,7 @@ function AddVenueForm({ partnerId, onAdded }: { partnerId: string; onAdded: (ven
               <option value="abuja">Abuja</option>
             </Select>
           </Field>
-          <Field label="Tier" hint="Top-tier venues are only open to plans whose benefits include them.">
+          <Field label="Tier" hint="Top-tier listings are only open to plans whose benefits include them.">
             <Select name="tier">
               <option value="standard">Standard</option>
               <option value="top">Top tier</option>
@@ -208,7 +208,7 @@ function AddVenueForm({ partnerId, onAdded }: { partnerId: string; onAdded: (ven
           </Field>
           <HoursEditor name="hours" />
           <Button type="submit" disabled={busy}>
-            Add {venueNoun(kind)}
+            Add listing
           </Button>
         </>
       )}

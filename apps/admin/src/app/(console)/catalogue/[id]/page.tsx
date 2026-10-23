@@ -72,9 +72,9 @@ export default function CatalogueEntryPage() {
           flush
         >
           {offers.length === 0 ? (
-            <EmptyState title="No venue offers this yet">Add an offer on a venue's page to make it usable.</EmptyState>
+            <EmptyState title="No listing offers this yet">Add an offer on a listing's page to make it usable.</EmptyState>
           ) : (
-            <Table head={["Partner and venue", c.level === "service" ? null : "Service", "Cost", "Retail", "Markup", "How it's offered", ""].filter((h) => h !== null)}>
+            <Table head={["Partner and listing", c.level === "service" ? null : "Service", "Cost", "Retail", "Markup", "How it's offered", ""].filter((h) => h !== null)}>
               {offers.map((o) => (
                 <tr key={o.id}>
                   <Td>

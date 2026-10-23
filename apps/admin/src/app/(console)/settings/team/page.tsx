@@ -26,7 +26,7 @@ export default function TeamPage() {
       <Card
         flush
         title="Team"
-        description="intu staff who can sign in to this console. Partner staff are added on each venue's page."
+        description="intu staff who can sign in to this console. Partner staff are added on each listing's page."
         actions={
           <SidePanel
             title="Invite someone"

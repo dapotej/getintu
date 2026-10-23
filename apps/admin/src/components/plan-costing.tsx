@@ -92,7 +92,7 @@ export function PlanCostingCard({ plan, costing }: { plan: Plan; costing: PlanCo
 
 function UnitCost({ c, people }: { c: BenefitCost; people: string }) {
   if (c.issue === "unlimited") return <span className="text-sm text-danger">Unlimited at a cost per use: set a flat fee per member</span>;
-  if (c.issue === "no_cost") return <span className="text-sm text-danger">{c.costBasis === "flat_per_member" ? "Set the flat fee" : "No venue offers it yet: set a planning cost"}</span>;
+  if (c.issue === "no_cost") return <span className="text-sm text-danger">{c.costBasis === "flat_per_member" ? "Set the flat fee" : "No listing offers it yet: set a planning cost"}</span>;
   const range = c.offerRange && c.offerRange.minMinor !== c.offerRange.maxMinor ? ` (${naira(c.offerRange.minMinor)}–${naira(c.offerRange.maxMinor)})` : "";
   return (
     <span className="whitespace-nowrap tabular-nums">

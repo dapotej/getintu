@@ -12,12 +12,9 @@ export const VENUE_KIND_LABELS: Record<VenueKind, string> = {
   remote: "A service by phone or video",
 };
 
-/** "venue" for a place, "service" for one that comes to members or is by phone. */
-export const venueNoun = (kind: VenueKind) => (kind === "place" ? "venue" : "service");
-
 /**
- * The fields that depend on what a venue is: a place has a map location, a phone service has the
- * line members call, and the catalogue entry it's listed under is a kind of place or of service.
+ * The fields that depend on what a listing is: a place has a map location, a phone service has
+ * the line members call, and the catalogue entry it's listed under is a kind of place or of service.
  */
 export function VenueTypeFields({ kind, onKind, venue }: { kind: VenueKind; onKind: (k: VenueKind) => void; venue?: Venue }) {
   return (
@@ -31,7 +28,7 @@ export function VenueTypeFields({ kind, onKind, venue }: { kind: VenueKind; onKi
           ))}
         </Select>
       </Field>
-      <Field label={kind === "place" ? "Kind of place" : "Kind of service"} hint={kind === "place" ? "From the catalogue, e.g. Beach Clubs. It's where the venue shows in the app." : "From the catalogue, e.g. Doctor on call. It's where the service shows in the app."}>
+      <Field label={kind === "place" ? "Kind of place" : "Kind of service"} hint={kind === "place" ? "From the catalogue, e.g. Beach Clubs. It's where the listing shows in the app." : "From the catalogue, e.g. Doctor on call. It's where the listing shows in the app."}>
         <CategorySelect name="categoryId" placesOnly required defaultValue={venue?.categoryId} />
       </Field>
       {kind === "remote" ? (

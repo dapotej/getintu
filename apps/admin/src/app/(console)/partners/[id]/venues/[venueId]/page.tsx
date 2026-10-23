@@ -1,7 +1,7 @@
 "use client";
 import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, formatMoney, Icon, Input, minorToMajorInput, PageHeader, parseMajorToMinor, Select, SidePanel, Table, Td, Textarea } from "@intu/ui";
 import { CategorySelect } from "@/components/category-select";
-import { VENUE_KIND_LABELS, VenueTypeFields, venueNoun, type VenueKind } from "@/components/venue-fields";
+import { VENUE_KIND_LABELS, VenueTypeFields, type VenueKind } from "@/components/venue-fields";
 import { PartnerStaffCard } from "@/components/partner-staff";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
@@ -50,11 +50,11 @@ export default function VenuePage() {
       />
       <div className="flex flex-col gap-6">
         <Card
-          title="Venue"
+          title="Listing"
           actions={
             writable ? (
               <SidePanel
-                title={`Edit ${venueNoun(venue.kind)}`}
+                title="Edit listing"
                 trigger={(open) => (
                   <Button size="sm" tone="secondary" onClick={open}>
                     <Icon name="edit" className="size-4" /> Edit
@@ -94,13 +94,13 @@ export default function VenuePage() {
 
         <Card
           title="Offers"
-          description="What the venue gives for each benefit, and what intu pays per approved visit."
+          description="What the listing gives for each benefit, and what intu pays per approved visit."
           flush
           actions={
             writable ? (
               <SidePanel
                 title="Add an offer"
-                description="The single service type this venue delivers, and what intu pays for it."
+                description="The single service type this listing delivers, and what intu pays for it."
                 trigger={(open) => (
                   <Button size="sm" tone="secondary" onClick={open}>
                     <Icon name="plus" className="size-4" /> Add offer
@@ -210,7 +210,7 @@ function OfferForm({ venueId, offer: o, exclude, onSaved }: { venueId?: string; 
       {(busy) => (
         <>
           {o ? null : (
-            <Field label="Service" hint="The single service type this venue delivers">
+            <Field label="Service" hint="The single service type this listing delivers">
               <CategorySelect name="categoryId" servicesOnly exclude={exclude ?? []} />
             </Field>
           )}

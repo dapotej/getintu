@@ -26,7 +26,7 @@ export default function PartnersPage() {
           writable ? (
             <SidePanel
               title="New partner"
-              description="Add its venues on the partner's page next."
+              description="Add its listings on the partner's page next."
               trigger={(open) => (
                 <Button onClick={open}>
                   <Icon name="plus" className="size-4" /> Add partner
@@ -84,7 +84,7 @@ export default function PartnersPage() {
         {partners.data && all.length === 0 ? (
           <EmptyState title="No partners yet">Add the first business intu works with.</EmptyState>
         ) : (
-          <Table head={["Partner", "Contact", "Venues", "Status"]}>
+          <Table head={["Partner", "Contact", "Listings", "Status"]}>
             {all.map((p) => {
               const vs = venuesOf(p.id);
               return (

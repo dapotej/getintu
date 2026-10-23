@@ -362,7 +362,7 @@ function BenefitRow({ benefit: b, noPartner, writable, onChange }: { benefit: Be
                           <option value="flat_per_member">Flat fee per member</option>
                         </Select>
                       </Field>
-                      <Field label="Planning cost (₦)" hint="Per use, or per member when flat. Blank uses the average of the venues' offers.">
+                      <Field label="Planning cost (₦)" hint="Per use, or per member when flat. Blank uses the average of the listings' offers.">
                         <Input name="plannedCost" inputMode="decimal" className="tabular-nums" placeholder="Average of offers" defaultValue={b.plannedCostMinor === null ? "" : minorToMajorInput(b.plannedCostMinor)} />
                       </Field>
                       <Field label="Expected use (%)">

@@ -37,7 +37,7 @@ export default function BookingsPage() {
         {!loading && data?.bookings.length === 0 ? (
           <EmptyState title={status === "requested" ? "No requests waiting" : "Nothing confirmed coming up"} />
         ) : (
-          <Table head={["Date", "Member", "Venue", "Party", answering ? "" : null].filter((h) => h !== null)}>
+          <Table head={["Date", "Member", "Listing", "Party", answering ? "" : null].filter((h) => h !== null)}>
             {data?.bookings.map((b) => (
               <tr key={b.id}>
                 <Td className="whitespace-nowrap tabular-nums">{formatDate(b.bookingDate)}</Td>
