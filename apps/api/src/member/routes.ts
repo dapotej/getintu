@@ -14,7 +14,7 @@ import { issuePass, renewPass, type PassKeys } from "../passes.ts";
 import { idParam, isoDate, uuid } from "../admin/validation.ts";
 import { isJpeg, type PhotoStore } from "./photos.ts";
 
-const { allowances, benefits, bookings, categories, members, memberships, offers, partners, plans, redemptions, venues } = schema;
+const { allowances, benefits, bookings, categories, members, memberships, offers, partners, plans, redemptions, staffUsers, vehicles, venues } = schema;
 
 type Member = typeof members.$inferSelect;
 export type MemberEnv = { Variables: { authUserId: string; phone: string; member: Member | null } };
@@ -450,26 +450,33 @@ export function memberAppRoutes(deps: MemberDeps) {
     return c.json({ venue });
   });
 
-  const myBookings = (memberId: string) =>
-    db
-      .select({
-        id: bookings.id,
-        membershipId: bookings.membershipId,
-        bookingDate: bookings.bookingDate,
-        partySize: bookings.partySize,
-        status: bookings.status,
-        notes: bookings.notes,
-        trip: bookings.trip,
-        createdAt: bookings.createdAt,
-        venue: { id: venues.id, name: venues.name, area: venues.area, kind: venues.kind },
-        offerName: categories.name,
-      })
-      .from(bookings)
-      .leftJoin(venues, eq(venues.id, bookings.venueId))
-      .leftJoin(offers, eq(offers.id, bookings.offerId))
-      .leftJoin(categories, eq(categories.id, offers.categoryId))
-      .where(eq(bookings.memberId, memberId))
-      .orderBy(desc(bookings.bookingDate), desc(bookings.createdAt));
+  // The car and driver show once the concierge has confirmed the booking.
+  const myBookings = async (memberId: string) =>
+    (
+      await db
+        .select({
+          id: bookings.id,
+          membershipId: bookings.membershipId,
+          bookingDate: bookings.bookingDate,
+          partySize: bookings.partySize,
+          status: bookings.status,
+          notes: bookings.notes,
+          trip: bookings.trip,
+          createdAt: bookings.createdAt,
+          venue: { id: venues.id, name: venues.name, area: venues.area, kind: venues.kind },
+          offerName: categories.name,
+          vehicle: { plate: vehicles.plate, makeModel: vehicles.makeModel, year: vehicles.year, colour: vehicles.colour },
+          driver: { name: staffUsers.fullName },
+        })
+        .from(bookings)
+        .leftJoin(venues, eq(venues.id, bookings.venueId))
+        .leftJoin(offers, eq(offers.id, bookings.offerId))
+        .leftJoin(categories, eq(categories.id, offers.categoryId))
+        .leftJoin(vehicles, eq(vehicles.id, bookings.vehicleId))
+        .leftJoin(staffUsers, eq(staffUsers.id, bookings.driverId))
+        .where(eq(bookings.memberId, memberId))
+        .orderBy(desc(bookings.bookingDate), desc(bookings.createdAt))
+    ).map((b) => (b.status === "confirmed" ? b : { ...b, vehicle: null, driver: null }));
 
   app.get("/bookings", signedIn, async (c) => {
     const member = needMember(c);

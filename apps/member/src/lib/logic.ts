@@ -1,6 +1,6 @@
 // The app's small decisions, kept free of React Native so they're unit-tested. None of them is an
 // entitlement decision: the API and the scan decide what a member may use.
-import type { Allowance, BenefitPage, BookingStatus, Hours, Membership, StoredPass, Trip, UsageMode, Venue } from "./types";
+import type { Allowance, BenefitPage, Booking, BookingStatus, Hours, Membership, StoredPass, Trip, UsageMode, Venue } from "./types";
 
 /** Lagos has no daylight saving: it's always UTC+1. */
 export const lagosDate = (now: Date) => new Date(now.getTime() + 3_600_000).toISOString().slice(0, 10);
@@ -153,6 +153,9 @@ export function ruleLines(r: BenefitPage["rules"]): string[] {
     r.topTierVenues ? "Includes top-tier venues" : null,
   ].filter((l): l is string => l !== null);
 }
+
+/** "Black Toyota Land Cruiser · LND 123 AB". */
+export const vehicleText = (v: Booking["vehicle"]) => (v ? `${[v.colour, v.makeModel].filter(Boolean).join(" ")} · ${v.plate}` : null);
 
 /** "Arriving on BA75 at 15:20". */
 export const tripText = (t: Trip | null) => (t ? `${t.direction === "arrival" ? "Arriving" : "Departing"} on ${t.flightNumber} at ${t.time}` : null);

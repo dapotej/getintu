@@ -1,20 +1,23 @@
 "use client";
 // The concierge's booking queue: requests from the member app, confirmed once the venue has agreed
 // or declined with a reason; and the confirmed bookings coming up.
-import { Badge, Button, Card, cx, EmptyState, formatDate, PageHeader, Table, Td } from "@intu/ui";
+import { Badge, Button, Card, cx, EmptyState, formatDate, PageHeader, SidePanel, Table, Td } from "@intu/ui";
 import Link from "next/link";
 import { useState } from "react";
+import { ActionForm } from "@/components/forms";
 import { ReasonPanel } from "@/components/reason-panel";
-import { api, errorMessage, useApi } from "@/lib/api";
+import { AssignFields, readAssignment } from "@/components/vehicles";
+import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import { tripText } from "@/lib/labels";
+import { tripText, vehicleText } from "@/lib/labels";
 import type { QueuedBooking } from "@/lib/types";
 
 export default function BookingsPage() {
   const { can } = useStaff();
   const [status, setStatus] = useState<"requested" | "confirmed">("requested");
   const { data, error, loading, reload } = useApi<{ bookings: QueuedBooking[] }>(`/admin/bookings?status=${status}`);
-  const answering = can("bookings.manage") && status === "requested";
+  const managing = can("bookings.manage");
+  const answering = managing && status === "requested";
 
   return (
     <>
@@ -37,7 +40,7 @@ export default function BookingsPage() {
         {!loading && data?.bookings.length === 0 ? (
           <EmptyState title={status === "requested" ? "No requests waiting" : "Nothing confirmed coming up"} />
         ) : (
-          <Table head={["Date", "Member", "Listing", "Party", answering ? "" : null].filter((h) => h !== null)}>
+          <Table head={["Date", "Member", "Listing", "Party", managing ? "" : null].filter((h) => h !== null)}>
             {data?.bookings.map((b) => (
               <tr key={b.id}>
                 <Td className="whitespace-nowrap tabular-nums">{formatDate(b.bookingDate)}</Td>
@@ -56,25 +59,41 @@ export default function BookingsPage() {
                     "–"
                   )}
                   <span className="block text-xs text-muted">{[b.offerName, tripText(b.trip), b.notes].filter(Boolean).join(" · ") || null}</span>
+                  {b.vehicle || b.driver ? <span className="block text-xs text-muted">{[vehicleText(b.vehicle), b.driver ? `Driver: ${b.driver.fullName}` : null].filter(Boolean).join(" · ")}</span> : null}
                 </Td>
                 <Td className="tabular-nums">{b.partySize}</Td>
                 {answering ? (
                   <Td className="whitespace-nowrap text-right">
                     <div className="flex justify-end gap-1">
-                      <Button
-                        size="sm"
-                        tone="secondary"
-                        onClick={async () => {
-                          try {
-                            await api(`/admin/bookings/${b.id}/confirm`, { method: "POST", body: {} });
-                            reload();
-                          } catch (err) {
-                            alert(errorMessage(err));
-                          }
-                        }}
+                      <SidePanel
+                        title="Confirm this request"
+                        description={`${b.member.fullName}, ${b.venue?.name ?? ""} on ${formatDate(b.bookingDate)}`}
+                        trigger={(open) => (
+                          <Button size="sm" tone="secondary" onClick={open}>
+                            Confirm
+                          </Button>
+                        )}
                       >
-                        Confirm
-                      </Button>
+                        {(close) => (
+                          <ActionForm
+                            action={async (form) => {
+                              await api(`/admin/bookings/${b.id}/confirm`, { method: "POST", body: readAssignment(form) });
+                              close();
+                              reload();
+                            }}
+                          >
+                            {(busy) => (
+                              <>
+                                <p className="text-sm text-muted">Confirm once the listing has agreed. The member sees it in the app.</p>
+                                {b.venue ? <AssignFields venueId={b.venue.id} current={b} /> : null}
+                                <Button type="submit" disabled={busy}>
+                                  Confirm booking
+                                </Button>
+                              </>
+                            )}
+                          </ActionForm>
+                        )}
+                      </SidePanel>
                       <ReasonPanel
                         button="Decline"
                         title="Decline this request"
@@ -89,6 +108,41 @@ export default function BookingsPage() {
                       />
                     </div>
                   </Td>
+                ) : managing && b.venue?.kind === "visiting" ? (
+                  <Td className="whitespace-nowrap text-right">
+                    <SidePanel
+                      title="Car and driver"
+                      description={`${b.member.fullName}, ${b.venue.name} on ${formatDate(b.bookingDate)}`}
+                      trigger={(open) => (
+                        <Button size="sm" tone="ghost" onClick={open}>
+                          Car and driver
+                        </Button>
+                      )}
+                    >
+                      {(close) => (
+                        <ActionForm
+                          action={async (form) => {
+                            const assignment = readAssignment(form);
+                            if (!("vehicleId" in assignment)) throw new Error("This listing has no vehicles. Add them on the listing's page.");
+                            await api(`/admin/bookings/${b.id}/assign`, { method: "POST", body: assignment });
+                            close();
+                            reload();
+                          }}
+                        >
+                          {(busy) => (
+                            <>
+                              <AssignFields venueId={b.venue?.id ?? ""} current={b} />
+                              <Button type="submit" disabled={busy}>
+                                Save
+                              </Button>
+                            </>
+                          )}
+                        </ActionForm>
+                      )}
+                    </SidePanel>
+                  </Td>
+                ) : managing ? (
+                  <Td>{null}</Td>
                 ) : null}
               </tr>
             ))}

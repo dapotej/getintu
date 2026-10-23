@@ -12,6 +12,8 @@ export interface RedeemInput {
   offerId: string;
   method: "online" | "offline" | "manual";
   staffUserId?: string | null;
+  /** The car the driver picked, for chauffeur and transfer listings. */
+  vehicleId?: string | null;
   partySize?: number;
   scanCode?: string | null;
   now?: Date;
@@ -186,6 +188,7 @@ export async function redeem(db: Db, input: RedeemInput): Promise<RedeemResult> 
         benefitId: benefit?.id ?? null,
         allowanceId: draws ? (allowance?.id ?? null) : null,
         staffUserId: input.staffUserId ?? null,
+        vehicleId: input.vehicleId ?? null,
         result: approved ? "approved" : "declined",
         reason: decision.result === "declined" && !flagged ? decision.reason : null,
         method: input.method,

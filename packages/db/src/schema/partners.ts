@@ -58,6 +58,24 @@ export const venues = pgTable("venues", {
   deletedAt: deletedAt(),
 });
 
+// A car a chauffeur or transfer listing uses. The concierge assigns one to a booking, and drivers
+// pick theirs in the scanner so each visit records it.
+export const vehicles = pgTable("vehicles", {
+  id: id(),
+  venueId: uuid()
+    .notNull()
+    .references(() => venues.id),
+  // As on the plate, upper case, e.g. LND 123 AB.
+  plate: text().notNull(),
+  // e.g. Toyota Land Cruiser.
+  makeModel: text().notNull(),
+  year: integer(),
+  colour: text(),
+  active: boolean().notNull().default(true),
+  isTest: boolean().notNull().default(false),
+  ...timestamps,
+});
+
 // What a venue gives for a benefit, and what intu pays for each use.
 export const offers = pgTable("offers", {
   id: id(),

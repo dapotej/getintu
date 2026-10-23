@@ -7,3 +7,7 @@ export const PAID_BY: Record<string, string> = { direct: "Paid by member", clien
 
 /** An airport booking's flight, e.g. "Arriving on BA75 at 15:20". */
 export const tripText = (t: { direction: "arrival" | "departure"; flightNumber: string; time: string } | null | undefined) => (t ? `${t.direction === "arrival" ? "Arriving" : "Departing"} on ${t.flightNumber} at ${t.time}` : null);
+
+/** "Black Toyota Land Cruiser (2022) · LND 123 AB". */
+export const vehicleText = (v: { plate: string; makeModel: string; year: number | null; colour: string | null } | null | undefined) =>
+  v ? `${[v.colour, v.makeModel].filter(Boolean).join(" ")}${v.year ? ` (${v.year})` : ""} · ${v.plate}` : null;

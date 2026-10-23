@@ -17,9 +17,19 @@ export interface VenueBundle {
   /** Visiting services: confirmed, unused bookings around today, for offline checks. */
   bookings: { id: string; membershipId: string | null; offerId: string | null; bookingDate: string }[];
   offers: (OfferInput & { name: string; description: string | null })[];
+  /** Chauffeur and transfer listings: the cars in service. Missing in bundles saved before cars. */
+  vehicles?: Vehicle[];
   benefits: (BenefitInput & { planId: string; name: string })[];
   keys: { keyId: number; publicKey: string }[];
   revocations: Revocations;
+}
+
+export interface Vehicle {
+  id: string;
+  plate: string;
+  makeModel: string;
+  colour: string | null;
+  year: number | null;
 }
 
 export interface Revocations {
@@ -59,6 +69,8 @@ export interface PendingVisit {
   offerId: string;
   offerName: string;
   partySize: number;
+  /** The car the driver picked for the day. */
+  vehicleId?: string | null;
   occurredAt: string;
   membershipId: string;
   memberName: string;

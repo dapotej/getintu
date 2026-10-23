@@ -219,3 +219,36 @@ test("a visiting service only scans against today's booking, offline too", async
   await page.getByRole("button", { name: "Today" }).click();
   await expect(page.getByText("Done")).toBeVisible();
 });
+
+test("a driver picks today's car once, and each scan records it", async ({ page }) => {
+  const world = await createWorld();
+  const [first, second] = await db
+    .insert(schema.vehicles)
+    .values([
+      { venueId: world.venue.id, plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", colour: "Black", year: 2022, isTest: true },
+      { venueId: world.venue.id, plate: "EKY 456 CD", makeModel: "Lexus LX 600", colour: "White", isTest: true },
+    ])
+    .returning();
+  // A retired car isn't offered.
+  await db.insert(schema.vehicles).values({ venueId: world.venue.id, plate: "OLD 000 AA", makeModel: "Toyota Camry", active: false, isTest: true });
+  await signIn(page, world);
+  await expect(page.getByRole("heading", { name: "Which car are you driving today?" })).toBeVisible();
+  await expect(page.getByText("OLD 000 AA")).toHaveCount(0);
+  await page.getByRole("button", { name: /EKY 456 CD/ }).click();
+  await expect(page.getByText("EKY 456 CD")).toBeVisible();
+
+  // Remembered for the day, through a reload.
+  await page.reload();
+  await expect(page.getByText(world.venue.name)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Which car are you driving today?" })).toHaveCount(0);
+  await scan(page, world.code());
+  await expect(page.getByText("Approved", { exact: true })).toBeVisible();
+  const [visit] = await visitsOf(world.membership.id);
+  expect(visit?.vehicleId).toBe(second?.id);
+
+  await page.getByRole("button", { name: "Next scan" }).click();
+  await page.getByRole("button", { name: /Change car/ }).click();
+  await page.getByRole("button", { name: /LND 123 AB/ }).click();
+  await expect(page.getByRole("button", { name: /LND 123 AB.*Change car/ })).toBeVisible();
+  expect(first?.id).toBeTruthy();
+});

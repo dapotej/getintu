@@ -210,6 +210,12 @@ const membershipFor = (n: number, memberId: string, planId: string, groupId: str
 });
 
 const m = testMembers.map((x) => x.id);
+// Coastal Rides' cars (fictional plates).
+export const testVehicles = [
+  { id: "00000000-0000-4000-8000-000000001601", venueId: venueId(3), plate: "TST 101 AA", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black", isTest: true },
+  { id: "00000000-0000-4000-8000-000000001602", venueId: venueId(3), plate: "TST 102 AA", makeModel: "Lexus LX 600", year: 2023, colour: "White", isTest: true },
+];
+
 export const testMemberships = [
   membershipFor(1, m[0] ?? "", plus),
   membershipFor(2, m[1] ?? "", essential),

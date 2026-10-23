@@ -1,11 +1,12 @@
 "use client";
 import { Button, cx, DECLINE_LABELS, Field, Input, Notice, Select, Textarea, Wordmark } from "@intu/ui";
+import { toLagos } from "@intu/rules";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, NoSignal } from "@/lib/api";
 import { scanAndStoreOffline } from "@/lib/offline";
 import { allVisits, clearShift, getKv, setKv } from "@/lib/store";
 import { REFRESH_MS, refreshBundle, refreshRevocations, syncPending } from "@/lib/sync";
-import { outcomeFrom, type CodeProblem, type PendingVisit, type ScanOutcome, type ScanResponse, type Session, type TodayBooking, type TodayVisit, type VenueBundle } from "@/lib/types";
+import { outcomeFrom, type CodeProblem, type PendingVisit, type ScanOutcome, type ScanResponse, type Session, type TodayBooking, type TodayVisit, type Vehicle, type VenueBundle } from "@/lib/types";
 import { Camera } from "./camera";
 
 declare global {
@@ -128,6 +129,18 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
   const [pending, setPending] = useState(0);
   const latest = useRef({ bundle, online });
   latest.current = { bundle, online };
+  // Chauffeur and transfer listings: the driver picks their car once a day, and each scan records it.
+  const cars = bundle.vehicles ?? [];
+  const [vehicleId, setVehicleId] = useState<string | null | undefined>(cars.length ? undefined : null);
+  const car = cars.find((v) => v.id === vehicleId) ?? null;
+  useEffect(() => {
+    if (!cars.length) return setVehicleId(null);
+    getKv("car").then((saved) => setVehicleId(saved && saved.staffId === session.staff.id && saved.day === toLagos(new Date()).date && cars.some((v) => v.id === saved.vehicleId) ? saved.vehicleId : undefined));
+  }, [cars.length, session.staff.id]);
+  const pickCar = (id: string) => {
+    setVehicleId(id);
+    setKv("car", { staffId: session.staff.id, day: toLagos(new Date()).date, vehicleId: id });
+  };
 
   const countPending = useCallback(async () => setPending((await allVisits()).filter((v) => v.status === "pending").length), []);
 
@@ -173,6 +186,11 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
         <div className="min-w-0">
           <p className="truncate text-lg font-bold">{bundle.venue.name}</p>
           <p className="truncate text-sm text-muted">{session.staff.fullName}</p>
+          {car ? (
+            <button type="button" onClick={() => setVehicleId(undefined)} className="mt-0.5 max-w-full truncate text-left text-sm text-muted">
+              <span className="font-mono font-semibold text-fg">{car.plate}</span> · <span className="underline">Change car</span>
+            </button>
+          ) : null}
         </div>
         <button type="button" onClick={onSignOut} className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-muted hover:text-fg">
           End shift
@@ -201,7 +219,9 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
         ))}
       </nav>
       <main className="flex-1 px-4 pb-8">
-        {tab === "scan" ? (
+        {vehicleId === undefined && cars.length ? (
+          <CarPicker cars={cars} onPick={pickCar} />
+        ) : tab === "scan" ? (
           <ScanTab
             session={session}
             bundle={bundle}
@@ -209,11 +229,30 @@ function Shift({ session, bundle, setBundle, onSignOut }: { session: Session; bu
             setOnline={setOnline}
             onSessionEnded={onSignOut}
             onStoredOffline={countPending}
+            vehicleId={vehicleId ?? null}
           />
         ) : (
           <TodayTab session={session} online={online} />
         )}
       </main>
+    </div>
+  );
+}
+
+/** "Which car are you driving today?": asked once a day at a chauffeur or transfer listing. */
+function CarPicker({ cars, onPick }: { cars: Vehicle[]; onPick: (id: string) => void }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <h1 className="text-xl font-bold">Which car are you driving today?</h1>
+      <p className="text-sm text-muted">Each scan records it, and you can change it from the top of the screen.</p>
+      <div role="group" aria-label="Car" className="flex flex-col gap-2">
+        {cars.map((v) => (
+          <button key={v.id} type="button" onClick={() => onPick(v.id)} className="rounded-xl bg-surface px-4 py-3 text-left ring-1 ring-line hover:ring-primary">
+            <span className="block font-mono text-lg font-bold">{v.plate}</span>
+            <span className="block text-sm text-muted">{[v.colour, v.makeModel, v.year].filter(Boolean).join(" ")}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -225,6 +264,7 @@ function ScanTab({
   setOnline,
   onSessionEnded,
   onStoredOffline,
+  vehicleId,
 }: {
   session: Session;
   bundle: VenueBundle;
@@ -232,6 +272,7 @@ function ScanTab({
   setOnline: (v: boolean) => void;
   onSessionEnded: () => void;
   onStoredOffline: () => void;
+  vehicleId: string | null;
 }) {
   const offers = bundle.offers.filter((o) => o.active);
   const [offerId, setOfferId] = useState<string>(offers[0]?.id ?? "");
@@ -253,8 +294,8 @@ function ScanTab({
     document.addEventListener("visibilitychange", onHide);
     return () => document.removeEventListener("visibilitychange", onHide);
   }, []);
-  const state = useRef({ offerId, partySize, online, busy });
-  state.current = { offerId, partySize, online, busy };
+  const state = useRef({ offerId, partySize, online, busy, vehicleId });
+  state.current = { offerId, partySize, online, busy, vehicleId };
 
   useEffect(() => {
     getKv("offerId").then((saved) => saved && offers.some((o) => o.id === saved) && setOfferId(saved));
@@ -262,20 +303,21 @@ function ScanTab({
 
   const submit = useCallback(
     async (scan: { code: string } | { backupCode: string }) => {
-      const { offerId, partySize } = state.current;
+      const { offerId, partySize, vehicleId } = state.current;
+      const car = vehicleId ? { vehicleId } : {};
       if (state.current.busy || !offerId) return;
       setBusy(true);
       setNotice(null);
       const offline = async () => {
         setOnline(false);
         if ("backupCode" in scan) return setResult({ kind: "invalid", problem: "needs_signal" });
-        setResult(await scanAndStoreOffline(bundle, { code: scan.code, offerId, partySize }));
+        setResult(await scanAndStoreOffline(bundle, { code: scan.code, offerId, partySize, ...car }));
         onStoredOffline();
       };
       try {
         if (!navigator.onLine) await offline();
         else {
-          const res = await api<ScanResponse>("/scan", { token: session.token, body: { ...scan, offerId, partySize }, timeoutMs: ONLINE_SCAN_TIMEOUT_MS });
+          const res = await api<ScanResponse>("/scan", { token: session.token, body: { ...scan, offerId, partySize, ...car }, timeoutMs: ONLINE_SCAN_TIMEOUT_MS });
           setOnline(true);
           setResult(outcomeFrom(res));
         }

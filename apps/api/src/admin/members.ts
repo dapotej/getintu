@@ -8,7 +8,7 @@ import { staffAudit } from "./audited.ts";
 import type { PhotoStore } from "../member/photos.ts";
 import { idParam, isoDate, uuid } from "./validation.ts";
 
-const { members, memberships, plans, allowances, benefits, categories, redemptions, venues } = schema;
+const { members, memberships, plans, allowances, benefits, categories, redemptions, vehicles, venues } = schema;
 
 const e164 = z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format, e.g. +447700900001");
 const MemberFields = z.object({
@@ -98,9 +98,11 @@ export function memberRoutes(db: Db, photos: PhotoStore) {
         method: redemptions.method,
         partySize: redemptions.partySize,
         reversedAt: redemptions.deletedAt,
+        vehiclePlate: vehicles.plate,
       })
       .from(redemptions)
       .innerJoin(venues, eq(venues.id, redemptions.venueId))
+      .leftJoin(vehicles, eq(vehicles.id, redemptions.vehicleId))
       .innerJoin(categories, eq(categories.id, redemptions.categoryId))
       .where(eq(redemptions.memberId, id))
       .orderBy(desc(redemptions.occurredAt))

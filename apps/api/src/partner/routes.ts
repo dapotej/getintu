@@ -12,7 +12,7 @@ import { identify, publishedKeys, revocations, type PassKeys } from "../passes.t
 import type { PhotoStore } from "../member/photos.ts";
 import { AttemptLimiter, requireDoorStaff, signSession, SHIFT_HOURS, venueByLoginCode, type PartnerEnv } from "./session.ts";
 
-const { benefits, bookings, categories, members, offers, plans, redemptions, staffUsers, staffUserVenues, venues } = schema;
+const { benefits, bookings, categories, members, offers, plans, redemptions, staffUsers, staffUserVenues, vehicles, venues } = schema;
 
 export interface PartnerDeps {
   db: Db;
@@ -34,13 +34,15 @@ const Scan = z
     backupCode: z.string().regex(/^\d{6}$/).optional(),
     offerId: uuid,
     partySize: z.number().int().min(1).max(20).default(1),
+    // The car the driver picked for the day, at a chauffeur or transfer listing.
+    vehicleId: uuid.optional(),
   })
   .refine((s) => (s.code === undefined) !== (s.backupCode === undefined), "Send a scanned code or a backup code");
 const Sync = z.object({
   // The scanner's clock when it sent this batch, to correct for a device clock that's off.
   sentAt: z.iso.datetime(),
   visits: z
-    .array(z.object({ id: uuid, code: z.string().min(10).max(800), offerId: uuid, partySize: z.number().int().min(1).max(20), occurredAt: z.iso.datetime() }))
+    .array(z.object({ id: uuid, code: z.string().min(10).max(800), offerId: uuid, partySize: z.number().int().min(1).max(20), occurredAt: z.iso.datetime(), vehicleId: uuid.optional() }))
     .max(200),
 });
 const REPORT_KINDS = { wrong_person: "Wrong person", behaviour: "Behaviour", dispute: "Dispute", other: "Other" } as const;
@@ -58,6 +60,12 @@ export function scannerRoutes(deps: PartnerDeps) {
   const { db } = deps;
   const app = new Hono<PartnerEnv>();
   const pinAttempts = new AttemptLimiter(10, 15 * 60_000);
+  /** The listing's car with this id, or null: a visit is never refused over the car. */
+  const vehicleAt = async (venueId: string, vehicleId: string | undefined) => {
+    if (!vehicleId) return null;
+    const [v] = await db.select({ id: vehicles.id }).from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.venueId, venueId)));
+    return v?.id ?? null;
+  };
   const backupAttempts = new AttemptLimiter(5, 10 * 60_000);
 
   app.post("/partner/session", async (c) => {
@@ -121,9 +129,16 @@ export function scannerRoutes(deps: PartnerDeps) {
             .from(bookings)
             .where(and(eq(bookings.venueId, venueId), eq(bookings.status, "confirmed"), isNull(bookings.redemptionId), gte(bookings.bookingDate, shiftDate(today, -1)), lte(bookings.bookingDate, shiftDate(today, 1))))
         : [];
+    // A chauffeur or transfer listing's cars: the driver picks theirs for the day.
+    const fleet = await db
+      .select({ id: vehicles.id, plate: vehicles.plate, makeModel: vehicles.makeModel, colour: vehicles.colour, year: vehicles.year })
+      .from(vehicles)
+      .where(and(eq(vehicles.venueId, venueId), eq(vehicles.active, true)))
+      .orderBy(asc(vehicles.makeModel), asc(vehicles.plate));
     return c.json({
       serverTime: now.toISOString(),
       bookings: upcoming,
+      vehicles: fleet,
       staff: { id: staffId, fullName },
       venue,
       offers: venueOffers.map(({ offer, code, name }) => ({
@@ -182,6 +197,7 @@ export function scannerRoutes(deps: PartnerDeps) {
       offerId: offer.id,
       method: input.code ? "online" : "manual",
       staffUserId: staffId,
+      vehicleId: await vehicleAt(venueId, input.vehicleId),
       partySize: input.partySize,
       scanCode: who.scanCode,
       now,
@@ -232,6 +248,7 @@ export function scannerRoutes(deps: PartnerDeps) {
           offerId: v.offerId,
           method: "offline",
           staffUserId: staffId,
+          vehicleId: await vehicleAt(venueId, v.vehicleId),
           partySize: v.partySize,
           scanCode: v.code,
           now: occurredAt,

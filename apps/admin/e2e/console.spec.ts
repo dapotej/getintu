@@ -370,6 +370,7 @@ test("the concierge confirms one booking request from the app and declines anoth
   await expect(first).toContainText("TEST Ada London");
   await expect(first).toContainText("TEST Ikoyi House");
   await first.getByRole("button", { name: "Confirm" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm booking" }).click();
   await expect(first).toHaveCount(0);
 
   await second.getByRole("button", { name: "Decline" }).click();
@@ -379,4 +380,40 @@ test("the concierge confirms one booking request from the app and declines anoth
 
   await page.getByRole("button", { name: "Confirmed, coming up" }).click();
   await expect(page.getByRole("row", { name: new RegExp(`TEST e2e ${tag} 2026-12-19`) })).toBeVisible();
+});
+
+test("a chauffeur listing's cars, and the car and driver the concierge assigns to a booking", async ({ page }) => {
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/intu", { max: 1 });
+  const tag = randomUUID().slice(0, 4).toUpperCase();
+  const panel = panelOf(page);
+  const member = one(await db.select().from(schema.members).where(eq(schema.members.fullName, "TEST Ada London")));
+  const membership = one(await db.select().from(schema.memberships).where(eq(schema.memberships.memberId, member.id)));
+  const venue = one(await db.select().from(schema.venues).where(eq(schema.venues.name, "TEST Coastal Rides chauffeurs")));
+
+  await page.goto(`/partners/${venue.partnerId}/venues/${venue.id}`);
+  const vehiclesCard = cardOf(page, "Vehicles");
+  await vehiclesCard.getByRole("button", { name: "Add vehicle" }).click();
+  await panel.getByLabel("Plate number").fill(`tst ${tag} ab`);
+  await panel.getByLabel("Make and model").fill("Toyota Land Cruiser");
+  await panel.getByLabel("Year").fill("2022");
+  await panel.getByLabel("Colour").fill("Black");
+  await panel.getByRole("button", { name: "Add vehicle" }).click();
+  await expect(vehiclesCard.getByRole("row", { name: new RegExp(`TST ${tag} AB`) })).toContainText("In service");
+  await cardOf(page, "Staff who scan members").getByRole("button", { name: "Add staff" }).click();
+  await panel.getByLabel("Full name").fill(`TEST Driver ${tag}`);
+  await panel.getByLabel("PIN").fill(String(100000 + Math.floor(Math.random() * 899999)));
+  await panel.getByRole("button", { name: "Add staff" }).click();
+  await expect(cardOf(page, "Staff who scan members")).toContainText(`TEST Driver ${tag}`);
+
+  await db.insert(schema.bookings).values({ memberId: member.id, membershipId: membership.id, venueId: venue.id, bookingDate: "2026-12-21", partySize: 2, status: "requested", notes: `TEST e2e car ${tag}` });
+  await sql.end();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Bookings" }).click();
+  await page.getByRole("row", { name: new RegExp(`TEST e2e car ${tag}`) }).getByRole("button", { name: "Confirm" }).click();
+  await panel.getByLabel("Car").selectOption({ label: `Black Toyota Land Cruiser · TST ${tag} AB` });
+  await panel.getByLabel("Driver").selectOption({ label: `TEST Driver ${tag}` });
+  await panel.getByRole("button", { name: "Confirm booking" }).click();
+  await page.getByRole("button", { name: "Confirmed, coming up" }).click();
+  const row = page.getByRole("row", { name: new RegExp(`TEST e2e car ${tag}`) });
+  await expect(row).toContainText(`Black Toyota Land Cruiser (2022) · TST ${tag} AB`);
+  await expect(row).toContainText(`Driver: TEST Driver ${tag}`);
 });

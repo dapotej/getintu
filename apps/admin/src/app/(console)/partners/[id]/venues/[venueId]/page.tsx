@@ -3,6 +3,7 @@ import { Badge, Button, Card, Checkbox, DetailList, EmptyState, Field, formatMon
 import { CategorySelect } from "@/components/category-select";
 import { VENUE_KIND_LABELS, VenueTypeFields, type VenueKind } from "@/components/venue-fields";
 import { PartnerStaffCard } from "@/components/partner-staff";
+import { VehiclesCard } from "@/components/vehicles";
 import { markup, OFFER_MODELS, useCatalogue } from "@/lib/catalogue";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -11,7 +12,7 @@ import { ActionForm, checked, intOrNull, locationText, readLocation, text, textO
 import { HoursEditor, HoursSummary, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
-import type { Offer, Venue } from "@/lib/types";
+import type { Offer, Vehicle, Venue } from "@/lib/types";
 
 const naira = (form: FormData, name: string, label: string) => {
   const minor = parseMajorToMinor(text(form, name));
@@ -25,7 +26,7 @@ export default function VenuePage() {
   const { can } = useStaff();
   const writable = can("partners.write");
   const { byId } = useCatalogue();
-  const { data, error, reload } = useApi<{ venue: Venue; partner: { id: string; tradingName: string }; offers: Offer[] }>(`/admin/venues/${id}`);
+  const { data, error, reload } = useApi<{ venue: Venue; partner: { id: string; tradingName: string }; offers: Offer[]; vehicles: Vehicle[] }>(`/admin/venues/${id}`);
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { venue, partner, offers } = data;
@@ -125,6 +126,8 @@ export default function VenuePage() {
 
         {/* A service by phone has nothing to scan. */}
         {venue.kind !== "remote" ? <PartnerStaffCard venueId={id} writable={writable} /> : null}
+        {/* Chauffeur and transfer services; a place with cars (an airport desk) can list them too. */}
+        {venue.kind === "visiting" || data.vehicles.length > 0 ? <VehiclesCard venueId={id} vehicles={data.vehicles} writable={writable} onChange={reload} /> : null}
       </div>
     </>
   );

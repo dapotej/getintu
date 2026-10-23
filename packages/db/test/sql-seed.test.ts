@@ -26,7 +26,8 @@ const FINGERPRINT = `
     (select string_agg(currency||':'||kobo_per_unit, '|' order by currency) from fx_rates) as fx,
     (select md5(string_agg(b.id::text||b.member_id||coalesce(b.offer_id::text,'-')||b.booking_date||b.status||coalesce(b.notes,''), '|' order by b.id)) from bookings b) as bookings,
     (select md5(string_agg(s.id::text||s.role||s.full_name||coalesce(s.pin_hash,'-')||coalesce(v.venue_id::text,'-'), '|' order by s.id)) from staff_users s left join staff_user_venues v on v.staff_user_id = s.id) as staff,
-    (select md5(string_agg(r, '|' order by r)) from (select p.id::text||p.legal_name as r from partners p) x) as partners`;
+    (select md5(string_agg(r, '|' order by r)) from (select p.id::text||p.legal_name as r from partners p) x) as partners,
+    (select md5(string_agg(r, '|' order by r)) from (select v.id::text||v.venue_id||v.plate||v.make_model||coalesce(v.year::text,'-')||coalesce(v.colour,'-')||v.active||v.is_test as r from vehicles v) x) as vehicles`;
 
 describe.runIf(url)("SQL seed", () => {
   const admin = createDb(url ?? "", { max: 1 });

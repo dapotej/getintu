@@ -205,6 +205,25 @@ export interface Visit {
   partySize: number;
   /** Set when ops reversed the visit (it didn't happen); the allowance was given back. */
   reversedAt: string | null;
+  /** The car the driver picked, at a chauffeur or transfer listing. */
+  vehiclePlate?: string | null;
+}
+
+/** A car a chauffeur or transfer listing uses. */
+export interface Vehicle {
+  id: string;
+  venueId: string;
+  plate: string;
+  makeModel: string;
+  year: number | null;
+  colour: string | null;
+  active: boolean;
+}
+
+/** The car and driver assigned to a booking. */
+export interface Assigned {
+  vehicle: { id: string; plate: string; makeModel: string; year: number | null; colour: string | null } | null;
+  driver: { id: string; fullName: string } | null;
 }
 
 export interface Booking {
@@ -219,6 +238,8 @@ export interface Booking {
   /** Airport services: the flight to meet. */
   trip?: { direction: "arrival" | "departure"; flightNumber: string; time: string } | null;
   offerName: string | null;
+  vehicle?: Assigned["vehicle"];
+  driver?: Assigned["driver"];
 }
 
 export interface MemberDetail {
@@ -264,4 +285,6 @@ export interface QueuedBooking {
   /** Airport services: the flight to meet. */
   trip?: { direction: "arrival" | "departure"; flightNumber: string; time: string } | null;
   offerName: string | null;
+  vehicle?: Assigned["vehicle"];
+  driver?: Assigned["driver"];
 }

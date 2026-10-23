@@ -95,6 +95,9 @@ export interface Booking {
   createdAt: string;
   venue: { id: string; name: string; area: string; kind: "place" | "visiting" | "remote" } | null;
   offerName: string | null;
+  /** The car and driver, once the concierge has confirmed. Missing in data saved by older versions. */
+  vehicle?: { plate: string; makeModel: string; year: number | null; colour: string | null } | null;
+  driver?: { name: string } | null;
 }
 
 /** A signed pass for this phone, kept so the QR works with no signal. */

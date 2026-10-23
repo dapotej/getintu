@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { one, schema, type Db } from "@intu/db";
 import { requirePermission, type AdminEnv } from "../auth/staff.ts";
@@ -7,7 +7,7 @@ import { body, fail, query } from "../http.ts";
 import { staffAudit } from "./audited.ts";
 import { currency, idParam, isoDate, minorUnits, offerModel, uuid, venueTier, WeeklyHours } from "./validation.ts";
 
-const { partners, venues, offers, categories } = schema;
+const { partners, venues, offers, categories, vehicles } = schema;
 
 const PartnerFields = z.object({
   legalName: z.string().min(2).max(200),
@@ -37,6 +37,18 @@ const VenueFields = z.object({
   // Map position. Nigeria sits roughly within latitudes 4–14 and longitudes 2–15.
   latitude: z.number().min(4).max(14).nullable(),
   longitude: z.number().min(2).max(15).nullable(),
+  active: z.boolean(),
+});
+
+const VehicleFields = z.object({
+  // Stored as on the plate: upper case, single spaces, e.g. LND 123 AB.
+  plate: z
+    .string()
+    .transform((p) => p.trim().toUpperCase().replace(/\s+/g, " "))
+    .pipe(z.string().regex(/^[A-Z0-9][A-Z0-9 -]{1,13}$/, "A plate number, e.g. LND 123 AB")),
+  makeModel: z.string().trim().min(2).max(80),
+  year: z.number().int().min(1980).max(2100).nullable(),
+  colour: z.string().trim().min(2).max(30).nullable(),
   active: z.boolean(),
 });
 
@@ -122,7 +134,8 @@ export function partnerRoutes(db: Db) {
       .innerJoin(categories, eq(categories.id, offers.categoryId))
       .where(eq(offers.venueId, id))
       .orderBy(asc(categories.code));
-    return c.json({ venue, partner, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })) });
+    const fleet = await db.select().from(vehicles).where(eq(vehicles.venueId, id)).orderBy(asc(vehicles.makeModel), asc(vehicles.plate));
+    return c.json({ venue, partner, offers: venueOffers.map((o) => ({ ...o.offer, category: o.category })), vehicles: fleet });
   });
 
   // A venue is a kind of place (Beach Clubs), not a single service (Entry only).
@@ -162,6 +175,42 @@ export function partnerRoutes(db: Db) {
       return after;
     });
     return c.json({ venue: row });
+  });
+
+  // Vehicles: the cars a chauffeur or transfer listing uses. Retired, never deleted, since visits
+  // and bookings refer to them.
+  const plateTaken = async (venueId: string, plate: string, except?: string) =>
+    (await db.select({ id: vehicles.id }).from(vehicles).where(and(eq(vehicles.venueId, venueId), eq(vehicles.plate, plate), eq(vehicles.active, true), ...(except ? [ne(vehicles.id, except)] : [])))).length > 0;
+
+  app.post("/venues/:id/vehicles", requirePermission("partners.write"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const input = await body(c, VehicleFields.partial().required({ plate: true, makeModel: true }));
+    const [venue] = await db.select({ id: venues.id, kind: venues.kind, isTest: venues.isTest }).from(venues).where(eq(venues.id, id));
+    if (!venue) fail(404, "not_found", "Listing not found");
+    if (venue.kind === "remote") fail(422, "no_vehicles", "A service by phone or video has no vehicles");
+    if (await plateTaken(id, input.plate)) fail(409, "plate_taken", "This listing already has a vehicle with that plate");
+    const staff = c.get("staff");
+    const row = await db.transaction(async (tx) => {
+      const created = one(await tx.insert(vehicles).values({ ...input, venueId: id, isTest: venue.isTest }).returning());
+      await staffAudit(tx, staff, "vehicle.created", "vehicle", created.id, null, created);
+      return created;
+    });
+    return c.json({ vehicle: row }, 201);
+  });
+
+  app.patch("/vehicles/:id", requirePermission("partners.write"), async (c) => {
+    const { id } = idParam.parse(c.req.param());
+    const input = await body(c, VehicleFields.partial());
+    const staff = c.get("staff");
+    const row = await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(vehicles).where(eq(vehicles.id, id)).for("update");
+      if (!before) fail(404, "not_found", "Vehicle not found");
+      if ((input.active ?? before.active) && (await plateTaken(before.venueId, input.plate ?? before.plate, id))) fail(409, "plate_taken", "This listing already has a vehicle with that plate");
+      const after = one(await tx.update(vehicles).set(input).where(eq(vehicles.id, id)).returning());
+      await staffAudit(tx, staff, input.active === false ? "vehicle.retired" : "vehicle.updated", "vehicle", id, before, after);
+      return after;
+    });
+    return c.json({ vehicle: row });
   });
 
   // Offers: what a venue gives for a benefit and what intu pays per use.

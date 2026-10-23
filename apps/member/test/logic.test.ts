@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowanceLabel, discoverSections, needsFlight, venueActions, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
+import { allowanceLabel, discoverSections, needsFlight, vehicleText, venueActions, ruleLines, tripText, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
 import type { Hours, Membership, StoredPass } from "../src/lib/types";
 
 const pass = (id: string, startsOn: string, endsOn: string, status: Membership["status"] = "active"): Membership => ({ id, plan: { id: "p", name: "TEST Plan" }, passNumber: null, status, startsOn, endsOn, arrivesOn: null, departsOn: null, crew: false, allowances: [] });
@@ -142,5 +142,13 @@ describe("venueActions", () => {
     expect(venueActions({ kind: "remote", servicePhone: "+9990000000002", offers: [offer("call")] })).toEqual({ showPass: false, call: "+9990000000002", book: null, concierge: false });
     expect(venueActions({ kind: "place", servicePhone: "+9990000000002", offers: [offer("call")] })).toMatchObject({ call: "+9990000000002", book: null });
     expect(venueActions({ kind: "remote", servicePhone: "+9990000000002", offers: [offer("call", false)] }).call).toBeNull();
+  });
+});
+
+describe("vehicleText", () => {
+  it("names the car so the member can spot it", () => {
+    expect(vehicleText({ plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black" })).toBe("Black Toyota Land Cruiser · LND 123 AB");
+    expect(vehicleText({ plate: "LND 123 AB", makeModel: "Lexus LX 600", year: null, colour: null })).toBe("Lexus LX 600 · LND 123 AB");
+    expect(vehicleText(null)).toBeNull();
   });
 });

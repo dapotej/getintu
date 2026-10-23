@@ -38,6 +38,11 @@ DELETE FROM redemptions WHERE id IN (SELECT id FROM test_redemptions);
 DELETE FROM esim_orders WHERE membership_id IN (SELECT id FROM test_memberships);
 DELETE FROM devices WHERE member_id IN (SELECT id FROM test_members) OR member_id IN (SELECT member_id FROM memberships WHERE id IN (SELECT id FROM test_memberships));
 DELETE FROM pass_codes WHERE membership_id IN (SELECT id FROM test_memberships);
+-- Cars of TEST listings; anything else that pointed at one (or at a TEST driver) loses the link.
+UPDATE bookings SET vehicle_id = NULL WHERE vehicle_id IN (SELECT id FROM vehicles WHERE venue_id IN (SELECT id FROM test_venues));
+UPDATE redemptions SET vehicle_id = NULL WHERE vehicle_id IN (SELECT id FROM vehicles WHERE venue_id IN (SELECT id FROM test_venues));
+DELETE FROM vehicles WHERE venue_id IN (SELECT id FROM test_venues);
+UPDATE bookings SET driver_id = NULL WHERE driver_id IN (SELECT staff_user_id FROM staff_user_venues WHERE venue_id IN (SELECT id FROM test_venues));
 DELETE FROM staff_user_venues WHERE venue_id IN (SELECT id FROM test_venues);
 -- Venue staff belong to their partner: TEST ones go with it, any others are unlinked.
 DELETE FROM staff_users WHERE is_test AND partner_id IN (SELECT id FROM test_partners) AND id NOT IN (SELECT staff_user_id FROM staff_user_venues);

@@ -17,7 +17,7 @@ export async function syncPending(session: Session): Promise<number> {
       token: session.token,
       body: {
         sentAt: new Date().toISOString(),
-        visits: batch.map((v) => ({ id: v.id, code: v.code, offerId: v.offerId, partySize: v.partySize, occurredAt: v.occurredAt })),
+        visits: batch.map((v) => ({ id: v.id, code: v.code, offerId: v.offerId, partySize: v.partySize, occurredAt: v.occurredAt, ...(v.vehicleId ? { vehicleId: v.vehicleId } : {}) })),
       },
       timeoutMs: 20_000,
     });

@@ -6,7 +6,7 @@ import { benefitFor, evaluateOffline, serviceDate } from "@intu/rules";
 import { allVisits, putVisit } from "./store";
 import type { PendingVisit, ScanOutcome, VenueBundle } from "./types";
 
-export function scanOffline(bundle: VenueBundle, input: { code: string; offerId: string; partySize: number }, visitsOnDevice: PendingVisit[], now: Date): { outcome: ScanOutcome; visit: PendingVisit | null } {
+export function scanOffline(bundle: VenueBundle, input: { code: string; offerId: string; partySize: number; vehicleId?: string | null }, visitsOnDevice: PendingVisit[], now: Date): { outcome: ScanOutcome; visit: PendingVisit | null } {
   const offer = bundle.offers.find((o) => o.id === input.offerId);
   if (!offer) return { outcome: { kind: "invalid", problem: "malformed" }, visit: null };
   const keys = new Map(bundle.keys.map((k) => [k.keyId, fromBase64url(k.publicKey)]));
@@ -43,6 +43,7 @@ export function scanOffline(bundle: VenueBundle, input: { code: string; offerId:
       offerId: offer.id,
       offerName: offer.name,
       partySize: input.partySize,
+      vehicleId: input.vehicleId ?? null,
       occurredAt: now.toISOString(),
       membershipId: pass.membershipId,
       memberName: pass.name,
@@ -53,7 +54,7 @@ export function scanOffline(bundle: VenueBundle, input: { code: string; offerId:
 }
 
 /** Runs the offline checks and keeps an approval on the device. */
-export async function scanAndStoreOffline(bundle: VenueBundle, input: { code: string; offerId: string; partySize: number }, now = new Date()) {
+export async function scanAndStoreOffline(bundle: VenueBundle, input: { code: string; offerId: string; partySize: number; vehicleId?: string | null }, now = new Date()) {
   const { outcome, visit } = scanOffline(bundle, input, await allVisits(), now);
   if (visit) await putVisit(visit);
   return outcome;

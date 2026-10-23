@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Card, Loading, T, styles as ui } from "@/components/ui";
 import { useCached } from "@/lib/data";
-import { BOOKING_STATUS, formatDate, tripText } from "@/lib/logic";
+import { BOOKING_STATUS, formatDate, tripText, vehicleText } from "@/lib/logic";
 import { colors, space } from "@/lib/theme";
 import type { Booking } from "@/lib/types";
 
@@ -36,6 +36,16 @@ export default function Bookings() {
               {b.trip ? (
                 <T variant="small" color={colors.cream}>
                   {tripText(b.trip)}
+                </T>
+              ) : null}
+              {b.vehicle ? (
+                <T variant="small" color={colors.cream}>
+                  {`Your car: ${vehicleText(b.vehicle) ?? ""}`}
+                </T>
+              ) : null}
+              {b.driver ? (
+                <T variant="small" color={colors.cream}>
+                  {`Driver: ${b.driver.name}`}
                 </T>
               ) : null}
               {b.notes ? (

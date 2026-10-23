@@ -83,6 +83,41 @@ describe.runIf(url)("intu scanner", () => {
     expect(again.json).toMatchObject({ result: "declined", reason: "DUPLICATE_SCAN", claimedAt: now.toISOString() });
   });
 
+  it("keeps a listing's cars, and records the one the driver picked on each visit", async () => {
+    const d = await door();
+    const car = await admin.post(`/admin/venues/${d.venue.id}/vehicles`, { plate: " lnd 123   ab ", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black" });
+    expect(car.status).toBe(201);
+    expect(car.json.vehicle).toMatchObject({ plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black", active: true });
+    expect((await admin.post(`/admin/venues/${d.venue.id}/vehicles`, { plate: "LND 123 AB", makeModel: "Lexus LX 600" })).json.error.code).toBe("plate_taken");
+    expect((await admin.post(`/admin/venues/${d.venue.id}/vehicles`, { plate: "!!", makeModel: "Lexus LX 600" })).status).toBe(400);
+    const spare = (await admin.post(`/admin/venues/${d.venue.id}/vehicles`, { plate: "EKY 456 CD", makeModel: "Lexus LX 600" })).json.vehicle;
+    expect((await admin.patch(`/admin/vehicles/${spare.id}`, { active: false })).json.vehicle.active).toBe(false);
+    const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, spare.id), eq(schema.auditLog.action, "vehicle.retired")));
+    expect(audit).toBeTruthy();
+    expect((await admin.get(`/admin/venues/${d.venue.id}`)).json.vehicles).toHaveLength(2);
+
+    // The scanner only offers the cars in service.
+    const venue = (await request("GET", "/partner/venue", { token: d.token })).json;
+    expect(venue.vehicles).toEqual([{ id: car.json.vehicle.id, plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", colour: "Black", year: 2022 }]);
+    const pass = await d.pass();
+    const ok = await d.scan({ code: pass.code(), vehicleId: car.json.vehicle.id });
+    expect(ok.json.result).toBe("approved");
+    const [row] = await db.select().from(schema.redemptions).where(eq(schema.redemptions.id, ok.json.redemptionId));
+    expect(row?.vehicleId).toBe(car.json.vehicle.id);
+    const visits = (await admin.get(`/admin/members/${d.first.member.id}`)).json.visits;
+    expect(visits[0]).toMatchObject({ vehiclePlate: "LND 123 AB" });
+
+    // Another listing's car is never recorded, and never stops the visit.
+    const other = await door();
+    const theirs = (await admin.post(`/admin/venues/${other.venue.id}/vehicles`, { plate: "ABC 999 XY", makeModel: "Toyota Prado" })).json.vehicle;
+    const second = await (await d.pass(d.first.membership.id)).code();
+    const offline = { id: randomUUID(), code: second, offerId: d.offer.id, partySize: 1, occurredAt: now.toISOString(), vehicleId: theirs.id };
+    at("2026-12-12T13:30:00Z");
+    expect((await request("POST", "/scan/sync", { token: d.token, body: { sentAt: now.toISOString(), visits: [offline] } })).json.results[0].status).toBe("recorded");
+    const [synced] = await db.select().from(schema.redemptions).where(eq(schema.redemptions.id, offline.id));
+    expect(synced?.vehicleId).toBeNull();
+  });
+
   it("shows staff the member's photo with an online result", async () => {
     const d = await door();
     const path = `${d.first.member.id}/door.jpg`;

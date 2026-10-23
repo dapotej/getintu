@@ -141,6 +141,13 @@
       "when": 1792761750863,
       "tag": "0019_booked_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792766509852,
+      "tag": "0020_vehicles",
+      "breakpoints": true
     }
   ]
 }

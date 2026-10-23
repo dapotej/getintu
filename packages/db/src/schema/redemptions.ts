@@ -6,7 +6,7 @@ import { members } from "./members.ts";
 import { categories } from "./categories.ts";
 import { allowances, memberships } from "./memberships.ts";
 import { benefits } from "./plans.ts";
-import { offers, venues } from "./partners.ts";
+import { offers, vehicles, venues } from "./partners.ts";
 import { staffUsers } from "./staff.ts";
 import { settlements } from "./money.ts";
 
@@ -37,6 +37,8 @@ export const redemptions = pgTable(
     benefitId: uuid().references(() => benefits.id),
     allowanceId: uuid().references(() => allowances.id),
     staffUserId: uuid().references(() => staffUsers.id),
+    // The car the driver picked in the scanner, for chauffeur and transfer listings.
+    vehicleId: uuid().references(() => vehicles.id),
     result: redemptionResultEnum().notNull(),
     reason: declineReasonEnum(),
     method: redemptionMethodEnum().notNull(),
@@ -81,6 +83,9 @@ export const bookings = pgTable(
     allowanceId: uuid().references(() => allowances.id),
     // Airport services: the flight, so the protocol partner can meet it.
     trip: jsonb().$type<{ direction: "arrival" | "departure"; flightNumber: string; time: string }>(),
+    // Chauffeur and transfer listings: the car and driver the concierge assigned, shown to the member.
+    vehicleId: uuid().references(() => vehicles.id),
+    driverId: uuid().references(() => staffUsers.id),
     redemptionId: uuid().references(() => redemptions.id),
     notes: text(),
     ...timestamps,

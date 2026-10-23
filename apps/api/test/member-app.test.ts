@@ -231,6 +231,36 @@ describe.runIf(url)("member app API", () => {
     expect((await client.post("/bookings", request)).json.error.code).toBe("membership_inactive");
   });
 
+  it("lets the concierge assign a car and driver, which the member sees once confirmed", async () => {
+    const world = await createWorld(db, { offerCode: "C03-S01-T03" });
+    const client = await signedIn(world);
+    const founder = as(await createStaff(db, "founder"));
+    const concierge = as(await createStaff(db, "concierge"));
+    const car = (await founder.post(`/admin/venues/${world.venue.id}/vehicles`, { plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black" })).json.vehicle;
+    const driver = (await founder.post(`/admin/venues/${world.venue.id}/door-staff`, { fullName: "TEST Driver Tunde", pin: String(randomInt(100000, 999999)) })).json.staff;
+    const elsewhere = await createWorld(db);
+    const otherCar = (await founder.post(`/admin/venues/${elsewhere.venue.id}/vehicles`, { plate: "EKY 456 CD", makeModel: "Lexus LX 600" })).json.vehicle;
+    const otherDriver = (await founder.post(`/admin/venues/${elsewhere.venue.id}/door-staff`, { fullName: "TEST Driver Bola", pin: String(randomInt(100000, 999999)) })).json.staff;
+
+    const booking = (await client.post("/bookings", { membershipId: world.first.membership.id, venueId: world.venue.id, bookingDate: "2026-12-20", partySize: 2 })).json.booking;
+    expect(booking).toMatchObject({ vehicle: null, driver: null });
+    expect((await concierge.post(`/admin/bookings/${booking.id}/confirm`, { vehicleId: otherCar.id })).json.error.code).toBe("unknown_vehicle");
+    expect((await concierge.post(`/admin/bookings/${booking.id}/confirm`, { driverId: otherDriver.id })).json.error.code).toBe("unknown_driver");
+    // Assigned while still a request: the member doesn't see it yet.
+    expect((await concierge.post(`/admin/bookings/${booking.id}/assign`, { vehicleId: car.id })).status).toBe(200);
+    expect((await client.get("/bookings")).json.bookings[0]).toMatchObject({ status: "requested", vehicle: null, driver: null });
+    expect((await concierge.post(`/admin/bookings/${booking.id}/confirm`, { vehicleId: car.id, driverId: driver.id })).status).toBe(200);
+    expect((await client.get("/bookings")).json.bookings[0]).toMatchObject({ status: "confirmed", vehicle: { plate: "LND 123 AB", makeModel: "Toyota Land Cruiser", year: 2022, colour: "Black" }, driver: { name: "TEST Driver Tunde" } });
+    const queue = (await concierge.get("/admin/bookings?status=confirmed")).json.bookings;
+    expect(queue.find((b: { id: string }) => b.id === booking.id)).toMatchObject({ vehicle: { id: car.id, plate: "LND 123 AB" }, driver: { id: driver.id, fullName: "TEST Driver Tunde" } });
+    // A different car on the day, audited.
+    const spare = (await founder.post(`/admin/venues/${world.venue.id}/vehicles`, { plate: "LND 777 ZZ", makeModel: "Lexus LX 600" })).json.vehicle;
+    expect((await concierge.post(`/admin/bookings/${booking.id}/assign`, { vehicleId: spare.id })).status).toBe(200);
+    expect((await client.get("/bookings")).json.bookings[0].vehicle.plate).toBe("LND 777 ZZ");
+    const [audit] = await db.select().from(schema.auditLog).where(and(eq(schema.auditLog.entityId, booking.id), eq(schema.auditLog.action, "booking.assigned")));
+    expect(audit).toBeTruthy();
+  });
+
   it("puts requests in the concierge's queue to confirm or decline, once", async () => {
     const world = await createWorld(db, { offerCode: "C03-S01-T03" });
     const client = await signedIn(world);

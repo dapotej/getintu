@@ -1,7 +1,7 @@
 -- TEST seed data as plain SQL, for databases this repo can't reach with a connection string
 -- (e.g. Supabase staging through the dashboard or connector). Mirrors src/seed-data.ts and
 -- grantAllowances() for per-pass benefits. Every name starts with TEST; phones are fiction-reserved.
--- Needs migrations 0000-0019: the catalogue (categories) comes from migration 0009.
+-- Needs migrations 0000-0020: the catalogue (categories) comes from migration 0009.
 -- To replace older TEST data first, run sql/reset-test-data.sql.
 -- Safe to run twice: existing rows are left alone.
 BEGIN;
@@ -82,6 +82,12 @@ INSERT INTO staff_user_venues (staff_user_id, venue_id) VALUES
   ('00000000-0000-4000-8000-000000001312', '00000000-0000-4000-8000-000000001212'),
   ('00000000-0000-4000-8000-000000001313', '00000000-0000-4000-8000-000000001213'),
   ('00000000-0000-4000-8000-000000001314', '00000000-0000-4000-8000-000000001214')
+ON CONFLICT DO NOTHING;
+
+-- Coastal Rides' cars (fictional plates).
+INSERT INTO vehicles (id, venue_id, plate, make_model, year, colour, is_test) VALUES
+  ('00000000-0000-4000-8000-000000001601', '00000000-0000-4000-8000-000000001203', 'TST 101 AA', 'Toyota Land Cruiser', 2022, 'Black', true),
+  ('00000000-0000-4000-8000-000000001602', '00000000-0000-4000-8000-000000001203', 'TST 102 AA', 'Lexus LX 600', 2023, 'White', true)
 ON CONFLICT DO NOTHING;
 
 -- Costs per use in kobo: placeholders from the concept's wholesale estimates; retail is cost plus half.

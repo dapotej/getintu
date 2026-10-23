@@ -34,6 +34,8 @@ interface Kv {
   session: Session;
   bundle: VenueBundle;
   offerId: string;
+  /** The car this driver picked, for one Lagos day. */
+  car: { staffId: string; day: string; vehicleId: string };
 }
 
 export const getKv = <K extends keyof Kv>(key: K) => run<Kv[K] | undefined>("kv", "readonly", (s) => s.get(key));
