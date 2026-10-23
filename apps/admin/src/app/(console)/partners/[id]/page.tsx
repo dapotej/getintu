@@ -8,6 +8,8 @@ import { HoursEditor, readHours } from "@/components/hours";
 import { api, useApi } from "@/lib/api";
 import { useStaff } from "@/lib/auth";
 import { VenueTypeFields, type VenueKind } from "@/components/venue-fields";
+import { NewCarsFields, readCars } from "@/components/vehicles";
+import { usesVehicles } from "@intu/rules";
 import { useCatalogue } from "@/lib/catalogue";
 import type { Partner, Venue } from "@/lib/types";
 
@@ -56,7 +58,7 @@ export default function PartnerPage() {
                     </Button>
                   )}
                 >
-                  {() => <AddVenueForm partnerId={id} onAdded={(venueId) => router.push(`/partners/${id}/venues/${venueId}`)} />}
+                  {() => <AddVenueForm partnerId={id} partnerName={p.tradingName} onAdded={(venueId) => router.push(`/partners/${id}/venues/${venueId}`)} />}
                 </SidePanel>
               ) : null
             }
@@ -173,24 +175,49 @@ export default function PartnerPage() {
 }
 
 /** Adds a listing; the fields follow its type. */
-function AddVenueForm({ partnerId, onAdded }: { partnerId: string; onAdded: (venueId: string) => void }) {
+function AddVenueForm({ partnerId, partnerName, onAdded }: { partnerId: string; partnerName: string; onAdded: (venueId: string) => void }) {
+  const { byId } = useCatalogue();
   const [kind, setKind] = useState<VenueKind>("place");
+  const [categoryId, setCategoryId] = useState("");
+  // The name follows the partner and the kind of service until someone types their own.
+  const [name, setName] = useState("");
+  const [nameTyped, setNameTyped] = useState(false);
+  const category = byId.get(categoryId);
+  const withCars = kind !== "remote" && category !== undefined && usesVehicles(category.code);
+  const pickCategory = (id: string) => {
+    setCategoryId(id);
+    const c = byId.get(id);
+    if (!nameTyped) setName(c ? `${partnerName} · ${c.name}` : "");
+  };
   return (
     <ActionForm
       action={async (form) => {
+        const cars = withCars ? readCars(form) : [];
         const { venue } = await api<{ venue: Venue }>("/admin/venues", {
           method: "POST",
           body: { partnerId, name: text(form, "name"), area: text(form, "area"), city: text(form, "city"), categoryId: text(form, "categoryId"), kind: text(form, "kind"), tier: text(form, "tier"), openingHours: readHours(form, "hours"), ...readLocation(form, "location"), servicePhone: textOrNull(form, "servicePhone") },
         });
+        // The listing exists now: open it even if a car didn't save, so nothing is added twice.
+        for (const car of cars) await api(`/admin/venues/${venue.id}/vehicles`, { method: "POST", body: car }).catch(() => null);
         onAdded(venue.id);
       }}
     >
       {(busy) => (
         <>
-          <Field label="Name" hint={kind === "place" ? "e.g. Atlantic Shore Oniru" : kind === "visiting" ? "e.g. Coastal Rides chauffeurs" : "e.g. CareLine 24/7 doctor line"}>
-            <Input name="name" required />
+          <VenueTypeFields kind={kind} onKind={setKind} onCategory={pickCategory} />
+          <Field label="Name" hint={nameTyped ? "What members see in the app." : "Filled in from the partner and the kind of service; change it if you like."}>
+            <Input
+              name="name"
+              required
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameTyped(true);
+              }}
+              placeholder={kind === "place" ? "e.g. Atlantic Shore Oniru" : kind === "visiting" ? "e.g. Coastal Rides · Chauffeur & Car Hire" : "e.g. CareLine 24/7 doctor line"}
+            />
           </Field>
-          <VenueTypeFields kind={kind} onKind={setKind} />
+          {withCars ? <NewCarsFields /> : null}
           <Field label="Area" hint={kind === "place" ? "Where it is" : "Where it serves, e.g. Lagos"}>
             <Input name="area" placeholder={kind === "place" ? "Oniru" : "Lagos"} required />
           </Field>

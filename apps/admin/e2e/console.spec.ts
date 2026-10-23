@@ -417,3 +417,30 @@ test("a chauffeur listing's cars, and the car and driver the concierge assigns t
   await expect(row).toContainText(`Black Toyota Land Cruiser (2022) · TST ${tag} AB`);
   await expect(row).toContainText(`Driver: TEST Driver ${tag}`);
 });
+
+test("adding a chauffeur listing names it and takes its cars", async ({ page }) => {
+  const { db, sql } = createDb(process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/intu", { max: 1 });
+  const tag = randomUUID().slice(0, 4).toUpperCase();
+  const panel = panelOf(page);
+  const partner = one(await db.select().from(schema.partners).where(eq(schema.partners.id, one(await db.select().from(schema.venues).where(eq(schema.venues.name, "TEST Coastal Rides chauffeurs"))).partnerId)));
+  await sql.end();
+
+  await page.goto(`/partners/${partner.id}`);
+  await page.getByRole("button", { name: "Add listing" }).click();
+  await panel.getByLabel("Type").selectOption({ label: "A service that comes to them" });
+  await expect(panel.getByLabel("Plate number")).toHaveCount(0);
+  await pickCategory(panel.getByLabel("Kind of service"), "Chauffeur & Car Hire");
+  await expect(panel.getByLabel("Name")).toHaveValue(`${partner.tradingName} · Chauffeur & Car Hire`);
+  await panel.getByLabel("Plate number").fill(`tst ${tag} 1`);
+  await panel.getByLabel("Make and model").fill("Toyota Land Cruiser");
+  await panel.getByRole("button", { name: "Add another car" }).click();
+  await panel.getByLabel("Car 2: plate number").fill(`TST ${tag} 2`);
+  await panel.getByLabel("Car 2: make and model").fill("Lexus LX 600");
+  await panel.getByLabel("Area").fill("Lagos");
+  await panel.getByRole("button", { name: "Add listing" }).click();
+
+  await expect(page.getByRole("heading", { name: `${partner.tradingName} · Chauffeur & Car Hire` })).toBeVisible();
+  const cars = cardOf(page, "Vehicles");
+  await expect(cars.getByRole("row", { name: new RegExp(`TST ${tag} 1`) })).toContainText("Toyota Land Cruiser");
+  await expect(cars.getByRole("row", { name: new RegExp(`TST ${tag} 2`) })).toContainText("Lexus LX 600");
+});

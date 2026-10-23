@@ -2,6 +2,7 @@
 // A chauffeur or transfer listing's cars, and the car-and-driver picker the concierge uses on a booking.
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Icon, Input, Select, SidePanel, Table, Td } from "@intu/ui";
 import { ActionForm, checked, intOrNull, text, textOrNull } from "@/components/forms";
+import { useState } from "react";
 import { api, useApi } from "@/lib/api";
 import type { Assigned, Vehicle } from "@/lib/types";
 
@@ -137,3 +138,49 @@ export function AssignFields({ venueId, current }: { venueId: string; current?: 
 
 /** The car and driver from AssignFields' form, or nothing when the form had no car picker. */
 export const readAssignment = (form: FormData) => (form.has("vehicleId") ? { vehicleId: textOrNull(form, "vehicleId"), driverId: textOrNull(form, "driverId") } : {});
+
+const PLATE = /^[A-Z0-9][A-Z0-9 -]{1,13}$/;
+
+/** Car rows on the Add listing form, for a chauffeur or transfer service: added with the listing. */
+export function NewCarsFields() {
+  const [rows, setRows] = useState(1);
+  return (
+    <fieldset className="flex flex-col gap-3 rounded-xl border border-line p-4">
+      <legend className="px-1 text-sm font-semibold">Cars</legend>
+      <p className="text-sm text-muted">Add each car the service uses. You can add more, or retire them, on the listing&apos;s page later. Drivers are added there too.</p>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="grid grid-cols-2 gap-3 border-t border-line pt-3 first-of-type:border-0 first-of-type:pt-0">
+          <Field label={rows > 1 ? `Car ${i + 1}: plate number` : "Plate number"} hint="e.g. LND 123 AB">
+            <Input name={`car_plate_${i}`} className="uppercase" />
+          </Field>
+          <Field label={rows > 1 ? `Car ${i + 1}: make and model` : "Make and model"} hint="e.g. Toyota Land Cruiser">
+            <Input name={`car_makeModel_${i}`} />
+          </Field>
+          <Field label={rows > 1 ? `Car ${i + 1}: year` : "Year"}>
+            <Input name={`car_year_${i}`} type="number" min={1980} max={2100} />
+          </Field>
+          <Field label={rows > 1 ? `Car ${i + 1}: colour` : "Colour"}>
+            <Input name={`car_colour_${i}`} placeholder="Black" />
+          </Field>
+        </div>
+      ))}
+      <Button type="button" size="sm" tone="ghost" onClick={() => setRows((n) => n + 1)}>
+        <Icon name="plus" className="size-4" /> Add another car
+      </Button>
+    </fieldset>
+  );
+}
+
+/** The cars from NewCarsFields; rows left blank are skipped. Throws on a half-filled or bad row. */
+export function readCars(form: FormData) {
+  const cars: { plate: string; makeModel: string; year: number | null; colour: string | null }[] = [];
+  for (let i = 0; form.has(`car_plate_${i}`); i++) {
+    const plate = text(form, `car_plate_${i}`).toUpperCase().replace(/\s+/g, " ");
+    const makeModel = text(form, `car_makeModel_${i}`);
+    if (!plate && !makeModel) continue;
+    if (!PLATE.test(plate)) throw new Error(`Car ${i + 1}: enter the plate number, e.g. LND 123 AB`);
+    if (makeModel.length < 2) throw new Error(`Car ${i + 1}: enter the make and model, e.g. Toyota Land Cruiser`);
+    cars.push({ plate, makeModel, year: intOrNull(form, `car_year_${i}`), colour: textOrNull(form, `car_colour_${i}`) });
+  }
+  return cars;
+}

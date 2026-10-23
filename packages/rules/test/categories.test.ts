@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benefitFor, covers, includes, isBooked, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
+import { benefitFor, covers, includes, isBooked, usesVehicles, isNight, usageModeOf, type UsageMode } from "../src/index.ts";
 
 describe("covers", () => {
   it("matches a code, and every code beneath it", () => {
@@ -88,5 +88,14 @@ describe("isBooked", () => {
     expect(isBooked("booking")).toBe(true);
     expect(isBooked("airport")).toBe(true);
     for (const mode of ["door", "call", "concierge", "in_app"] as const) expect(isBooked(mode)).toBe(false);
+  });
+});
+
+describe("usesVehicles", () => {
+  it("is airport transfers and chauffeurs, at any level", () => {
+    expect(usesVehicles("C01-S02")).toBe(true);
+    expect(usesVehicles("C01-S03-T04")).toBe(true);
+    expect(usesVehicles("C01-S01")).toBe(false);
+    expect(usesVehicles("C05-S07")).toBe(false);
   });
 });

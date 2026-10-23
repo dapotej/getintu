@@ -48,5 +48,8 @@ export function usageModeOf(code: string, modes: ReadonlyMap<string, UsageMode |
  */
 export const isBooked = (mode: UsageMode) => mode === "booking" || mode === "airport";
 
+/** Services delivered with a car (airport transfers, chauffeurs): their listings keep vehicles. */
+export const usesVehicles = (code: string) => covers("C01-S02", code) || covers("C01-S03", code);
+
 /** Nightlife & Social is the night side of intu; everything else is day. */
 export const isNight = (code: string) => covers("C06", code);
