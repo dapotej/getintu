@@ -76,7 +76,7 @@ describe("discoverSections", () => {
     area: extra.area ?? "Ikoyi",
     night: extra.night ?? false,
     included: extra.included ?? false,
-    category: { name: extra.kind ?? "Beach Clubs" },
+    category: { code: `${sectionCode}-S01`, name: extra.kind ?? "Beach Clubs" },
     section: { code: sectionCode, name: sectionName },
   });
   const venues = [
@@ -100,5 +100,9 @@ describe("discoverSections", () => {
     expect(discoverSections(venues, { ...all, search: "lekki club" }).flatMap((r) => r.venues.map((v) => v.name))).toEqual(["TEST Afterdark"]);
     expect(discoverSections(venues, { ...all, search: "restaurants" }).map((r) => r.section.code)).toEqual(["C02"]);
     expect(discoverSections(venues, { ...all, search: "nothing like this" })).toEqual([]);
+  });
+  it("groups venues saved before the API sent sections by their own category", () => {
+    const { section: _section, ...old } = venue("TEST Old", "C04", "Wellness & Fitness", { kind: "Spa & Massage" });
+    expect(discoverSections([old], all).map((r) => r.section)).toEqual([{ code: "C04", name: "Spa & Massage" }]);
   });
 });

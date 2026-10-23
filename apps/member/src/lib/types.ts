@@ -60,8 +60,8 @@ export interface Venue {
   city: "lagos" | "abuja";
   kind: "place" | "visiting";
   category: { code: string; name: string };
-  /** The top of the catalogue it sits under, e.g. Beach & Water. */
-  section: { code: string; name: string };
+  /** The top of the catalogue it sits under, e.g. Beach & Water. Missing from venues saved by older versions. */
+  section?: { code: string; name: string };
   night: boolean;
   description: string | null;
   latitude: number | null;

@@ -110,19 +110,22 @@ export interface DiscoverFilters {
  * Discover's rows: venues grouped under the top of the catalogue (Beach & Water, Nightlife…), in
  * catalogue order, after the filters. A search matches the venue, its area or its kind of place.
  */
-export function discoverSections<V extends { name: string; area: string; night: boolean; included: boolean; category: { name: string }; section: { code: string; name: string } }>(venues: readonly V[], f: DiscoverFilters) {
+export function discoverSections<V extends { name: string; area: string; night: boolean; included: boolean; category: { code: string; name: string }; section?: { code: string; name: string } }>(venues: readonly V[], f: DiscoverFilters) {
   const words = f.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Venues saved on the phone before the API sent sections are grouped by their own category.
+  const sectionOf = (v: V) => v.section ?? { code: v.category.code.split("-")[0] ?? v.category.code, name: v.category.name };
   const shown = venues.filter((v) => {
     if (f.side !== "all" && (f.side === "night") !== v.night) return false;
     if (f.includedOnly && !v.included) return false;
-    const text = `${v.name} ${v.area} ${v.category.name} ${v.section.name}`.toLowerCase();
+    const text = `${v.name} ${v.area} ${v.category.name} ${sectionOf(v).name}`.toLowerCase();
     return words.every((w) => text.includes(w));
   });
-  const sections = new Map<string, { section: V["section"]; venues: V[] }>();
+  const sections = new Map<string, { section: { code: string; name: string }; venues: V[] }>();
   for (const v of shown) {
-    const row = sections.get(v.section.code) ?? { section: v.section, venues: [] as V[] };
+    const section = sectionOf(v);
+    const row = sections.get(section.code) ?? { section, venues: [] as V[] };
     row.venues.push(v);
-    sections.set(v.section.code, row);
+    sections.set(section.code, row);
   }
   // Within a row, what the plan includes first, then by name.
   return [...sections.values()]

@@ -123,7 +123,7 @@ function VenueCard({ v }: { v: Venue }) {
     <Link href={`/venues/${v.id}`} asChild>
       <Pressable accessibilityRole="link" accessibilityLabel={v.name} style={{ width: CARD_WIDTH, borderRadius: 18, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }}>
         <View style={{ height: 76, backgroundColor: v.night ? "rgba(46,230,214,0.12)" : "rgba(255,176,32,0.12)", alignItems: "flex-start", justifyContent: "space-between", padding: space(3) }}>
-          <Ionicons name={iconFor(v.section.code)} size={26} color={accent} />
+          <Ionicons name={iconFor(v.section?.code ?? v.category.code.slice(0, 3))} size={26} color={accent} />
           <T variant="small" color={accent} style={{ fontFamily: fonts.semibold }}>
             {v.category.name}
           </T>
