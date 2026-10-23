@@ -21,6 +21,10 @@ export default function MemberPage() {
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
   const { member, memberships, visits } = data;
+  const today = lagosToday();
+  const isCurrent = (ms: Membership) => (ms.status === "active" || ms.status === "suspended" || ms.status === "pending") && ms.endsOn >= today;
+  const current = memberships.filter(isCurrent);
+  const past = memberships.filter((ms) => !isCurrent(ms));
 
   return (
     <>
@@ -109,9 +113,11 @@ export default function MemberPage() {
             <EmptyState title="No passes yet">Add a membership to give this member access.</EmptyState>
           </Card>
         ) : null}
-        {memberships.map((ms) => (
+        {/* Current passes in full (suspended ones too: they need someone to act); past ones folded away. */}
+        {current.map((ms) => (
           <MembershipCard key={ms.id} ms={ms} canWrite={can("members.write")} onChange={setData} testPassHref={member.isTest && ms.status === "active" ? `/members/${member.id}/passes/${ms.id}` : null} />
         ))}
+        {past.length ? <PastPasses passes={past} /> : null}
 
         <DevicesCard memberId={id} canWrite={can("members.write")} />
 
@@ -581,5 +587,36 @@ function PaymentsCard({ memberId, canRefund }: { memberId: string; canRefund: bo
         </Table>
       )}
     </Card>
+  );
+}
+
+/** Ended and cancelled passes, one line each, folded away until opened. */
+function PastPasses({ passes }: { passes: Membership[] }) {
+  return (
+    <details className="group rounded-xl border border-line bg-surface">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-semibold">
+        Past and cancelled passes ({passes.length})
+        <Icon name="chevron" className="size-4 text-muted transition group-open:rotate-90" />
+      </summary>
+      <Table head={["Plan", "Dates", "Paid by", "Status"]}>
+        {passes.map((ms) => (
+          <tr key={ms.id}>
+            <Td className="font-medium">
+              {ms.plan.name}
+              {ms.passNumber ? <span className="block text-xs text-muted">{ms.passNumber}</span> : null}
+            </Td>
+            <Td className="whitespace-nowrap text-muted">
+              {formatDate(ms.startsOn)} – {formatDate(ms.endsOn)}
+            </Td>
+            <Td className="text-muted">{ms.client ? ms.client.name : (PAID_BY[ms.paymentSource] ?? ms.paymentSource)}</Td>
+            <Td>
+              <Badge dot tone={statusTone(ms.status)}>
+                {ms.status === "active" || ms.status === "suspended" ? "Ended" : (STATUS_LABELS[ms.status] ?? ms.status)}
+              </Badge>
+            </Td>
+          </tr>
+        ))}
+      </Table>
+    </details>
   );
 }
