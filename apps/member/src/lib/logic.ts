@@ -99,3 +99,33 @@ export function toE164(typed: string): string | null {
   const e164 = digits.startsWith("00") ? `+${digits.slice(2)}` : digits;
   return /^\+[1-9]\d{7,14}$/.test(e164) ? e164 : null;
 }
+
+export interface DiscoverFilters {
+  side: "all" | "day" | "night";
+  includedOnly: boolean;
+  search: string;
+}
+
+/**
+ * Discover's rows: venues grouped under the top of the catalogue (Beach & Water, Nightlife…), in
+ * catalogue order, after the filters. A search matches the venue, its area or its kind of place.
+ */
+export function discoverSections<V extends { name: string; area: string; night: boolean; included: boolean; category: { name: string }; section: { code: string; name: string } }>(venues: readonly V[], f: DiscoverFilters) {
+  const words = f.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = venues.filter((v) => {
+    if (f.side !== "all" && (f.side === "night") !== v.night) return false;
+    if (f.includedOnly && !v.included) return false;
+    const text = `${v.name} ${v.area} ${v.category.name} ${v.section.name}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+  const sections = new Map<string, { section: V["section"]; venues: V[] }>();
+  for (const v of shown) {
+    const row = sections.get(v.section.code) ?? { section: v.section, venues: [] as V[] };
+    row.venues.push(v);
+    sections.set(v.section.code, row);
+  }
+  // Within a row, what the plan includes first, then by name.
+  return [...sections.values()]
+    .sort((a, b) => a.section.code.localeCompare(b.section.code))
+    .map((row) => ({ ...row, venues: row.venues.sort((a, b) => Number(b.included) - Number(a.included) || a.name.localeCompare(b.name)) }));
+}

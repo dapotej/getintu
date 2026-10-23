@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowanceLabel, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
+import { allowanceLabel, discoverSections, backupCodeFor, bookableDates, currentPass, formatDate, formatLagosTime, hoursToday, lagosDate, needsRenewal, passUsable, toE164, whatsappLink } from "../src/lib/logic";
 import type { Hours, Membership, StoredPass } from "../src/lib/types";
 
 const pass = (id: string, startsOn: string, endsOn: string, status: Membership["status"] = "active"): Membership => ({ id, plan: { id: "p", name: "TEST Plan" }, passNumber: null, status, startsOn, endsOn, arrivesOn: null, departsOn: null, crew: false, allowances: [] });
@@ -67,5 +67,38 @@ describe("labels and links", () => {
     expect(toE164("+44 7700 900123")).toBe("+447700900123");
     expect(toE164("0044 7700 900123")).toBe("+447700900123");
     expect(toE164("07700900123")).toBeNull();
+  });
+});
+
+describe("discoverSections", () => {
+  const venue = (name: string, sectionCode: string, sectionName: string, extra: { night?: boolean; included?: boolean; area?: string; kind?: string } = {}) => ({
+    name,
+    area: extra.area ?? "Ikoyi",
+    night: extra.night ?? false,
+    included: extra.included ?? false,
+    category: { name: extra.kind ?? "Beach Clubs" },
+    section: { code: sectionCode, name: sectionName },
+  });
+  const venues = [
+    venue("TEST Zebra Beach", "C03", "Beach & Water", { included: true }),
+    venue("TEST Afterdark", "C06", "Nightlife & Social", { night: true, kind: "Nightclubs", area: "Lekki" }),
+    venue("TEST Atlantic Shore", "C03", "Beach & Water"),
+    venue("TEST Grill", "C02", "Food & Drink", { kind: "Restaurants" }),
+  ];
+  const all = { side: "all" as const, includedOnly: false, search: "" };
+
+  it("groups by the top of the catalogue, in catalogue order, plan's venues first", () => {
+    expect(discoverSections(venues, all).map((r) => [r.section.name, r.venues.map((v) => v.name)])).toEqual([
+      ["Food & Drink", ["TEST Grill"]],
+      ["Beach & Water", ["TEST Zebra Beach", "TEST Atlantic Shore"]],
+      ["Nightlife & Social", ["TEST Afterdark"]],
+    ]);
+  });
+  it("filters by day or night, what the plan includes, and search words", () => {
+    expect(discoverSections(venues, { ...all, side: "night" }).map((r) => r.section.code)).toEqual(["C06"]);
+    expect(discoverSections(venues, { ...all, includedOnly: true }).flatMap((r) => r.venues.map((v) => v.name))).toEqual(["TEST Zebra Beach"]);
+    expect(discoverSections(venues, { ...all, search: "lekki club" }).flatMap((r) => r.venues.map((v) => v.name))).toEqual(["TEST Afterdark"]);
+    expect(discoverSections(venues, { ...all, search: "restaurants" }).map((r) => r.section.code)).toEqual(["C02"]);
+    expect(discoverSections(venues, { ...all, search: "nothing like this" })).toEqual([]);
   });
 });

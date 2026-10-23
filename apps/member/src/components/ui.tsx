@@ -147,3 +147,29 @@ export function Check({ label, checked, onChange }: { label: string; checked: bo
     </Pressable>
   );
 }
+
+/** A row of choices where one is on, e.g. Day / Night. */
+export function Segment<V extends string>({ value, options, onChange, label }: { value: V; options: [V, string][]; onChange: (v: V) => void; label: string }) {
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: 12, padding: 4 }}>
+      {options.map(([v, text]) => (
+        <Pressable key={v} accessibilityRole="radio" accessibilityLabel={text} accessibilityState={{ checked: v === value }} onPress={() => onChange(v)} style={{ flex: 1, paddingVertical: space(2), borderRadius: 9, backgroundColor: v === value ? colors.raised : "transparent", alignItems: "center" }}>
+          <T variant="small" color={v === value ? colors.cream : colors.muted} style={{ fontFamily: fonts.semibold }}>
+            {text}
+          </T>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** A small pill that's on or off, e.g. "In my plan". */
+export function Chip({ label, on, onPress, tone = colors.day }: { label: string; on: boolean; onPress: () => void; tone?: string }) {
+  return (
+    <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked: on }} onPress={onPress} style={{ paddingHorizontal: space(3.5), paddingVertical: space(2), borderRadius: 999, borderWidth: 1, borderColor: on ? tone : colors.line, backgroundColor: on ? tone : colors.surface }}>
+      <T variant="small" color={on ? colors.ink : colors.cream} style={{ fontFamily: fonts.semibold }}>
+        {label}
+      </T>
+    </Pressable>
+  );
+}

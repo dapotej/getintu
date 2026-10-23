@@ -295,6 +295,8 @@ export function memberAppRoutes(deps: MemberDeps) {
       .where(and(inArray(offers.venueId, rows.map((r) => r.venue.id)), eq(offers.active, true), isNull(offers.deletedAt)))
       .orderBy(asc(categories.code));
     const planBenefits = await activeBenefits(memberId);
+    // The top of the catalogue (Beach & Water, Nightlife & Social…), which Discover groups by.
+    const sections = new Map((await db.select({ code: categories.code, name: categories.name }).from(categories).where(eq(categories.level, "category"))).map((c) => [c.code, c]));
     const now = deps.clock();
     return rows.map(({ venue: v, category }) => {
       const venueOffers = offerRows
@@ -307,6 +309,7 @@ export function memberAppRoutes(deps: MemberDeps) {
         city: v.city,
         kind: v.kind,
         category,
+        section: sections.get(category.code.split("-")[0] ?? "") ?? category,
         night: isNight(category.code),
         description: v.description,
         latitude: v.latitude,

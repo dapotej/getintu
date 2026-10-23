@@ -130,7 +130,7 @@ describe.runIf(url)("member app API", () => {
     const find = (id: string) => venues.find((v: { id: string }) => v.id === id);
     expect(find(world.venue.id)).toMatchObject({ included: true, openNow: true, night: false, offers: [expect.objectContaining({ id: world.offer.id, included: true })] });
     expect(find(topTier.id)).toMatchObject({ included: false, latitude: 6.45, longitude: 3.43 });
-    expect(find(spa.id)).toMatchObject({ included: false, category: { code: "C04-S05", name: "Spa & Massage" } });
+    expect(find(spa.id)).toMatchObject({ included: false, category: { code: "C04-S05", name: "Spa & Massage" }, section: { code: "C04", name: "Wellness & Fitness" } });
     expect((await client.get(`/venues/${spa.id}`)).json.venue.id).toBe(spa.id);
     expect((await client.get(`/venues/${randomUUID()}`)).status).toBe(404);
   });

@@ -46,3 +46,4 @@ Rules Dapo has settled where the spec was silent or ambiguous. The code follows 
 | 22 Oct 2026 | Trying the app | Expo Go, with each change to main published to the staging channel of intu's Expo project. | `.github/workflows/member-app-update.yml` |
 | 22 Oct 2026 | Booking requests | Members request; the concierge confirms once the venue agrees, or declines with a reason. The concierge role gets `bookings.manage` (spec: Bookings, main role Concierge). | `/bookings` in the console |
 | 22 Oct 2026 | Sign-ups outside production | People who sign up in the app on staging are TEST members. | `newMembersAreTest` |
+| 23 Oct 2026 | Member app layout | Discover is a row per top-level catalogue category (Arrival & Travel, Food & Drink…), each with venue cards that scroll sideways; search, All/Day/Night and In my plan filter it, Map shows the same venues. Visits sit in their own tab inside Benefits ("What's left" / "Visits"). | `apps/member` Discover and Benefits |
